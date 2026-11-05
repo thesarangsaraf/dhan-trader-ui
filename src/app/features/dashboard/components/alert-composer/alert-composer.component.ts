@@ -12,8 +12,7 @@ import { AlertService } from '../../../../core/api/alert.service';
 import { AuthService } from '../../../../core/api/auth.service';
 import { InstrumentService } from '../../../../core/api/instrument.service';
 import { OrderService } from '../../../../core/api/order.service';
-import { StrategyService } from '../../../../core/api/strategy.service';
-import { AlertOperator, PopularIndex } from '../../../../core/models/alert.models';
+import { AlertOperator } from '../../../../core/models/alert.models';
 import { Instrument } from '../../../../core/models/instrument.models';
 import { SectionErrorComponent } from '../../../../shared/components/section-error/section-error.component';
 import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
@@ -67,7 +66,7 @@ export interface FixedInstrumentOption {
 
       <!-- Offline Warning Banner if backend is not available -->
       <app-section-error
-        *ngIf="!authService.isBackendOnline() && alertService.indicesError()"
+        *ngIf="!authService.isBackendOnline()"
         title="Backend Offline"
         message="Cannot fetch real-time market prices or place alerts. Ensure server is online on 127.0.0.1:8000."
         (retry)="retryConnection()"
@@ -161,14 +160,7 @@ export interface FixedInstrumentOption {
 
           <!-- Inline Order Form when toggle is enabled -->
           <div *ngIf="executeOrderOnTrigger" class="inline-order-form">
-            <!-- Strategy bind option -->
-            <div class="strategy-toggle-banner">
-              <mat-checkbox [(ngModel)]="bindAutoSlStrategy" name="bindAutoSlStrategy" color="accent">
-                <span>Deploy Auto-SL Bracket (-7 pts SL / +30 pts Target)</span>
-              </mat-checkbox>
-            </div>
-
-            <div class="order-inputs-grid" *ngIf="!bindAutoSlStrategy">
+            <div class="order-inputs-grid">
               <div class="grid-col">
                 <label class="input-lbl">Action</label>
                 <mat-button-toggle-group [(ngModel)]="orderAction" name="orderAction" class="action-toggle">
@@ -216,15 +208,6 @@ export interface FixedInstrumentOption {
                   <button type="button" (click)="setQty(selectedLotStep() * 3)">3x Lot</button>
                 </div>
               </div>
-            </div>
-
-            <!-- Auto-SL strategy preview if enabled -->
-            <div class="strategy-preview-box" *ngIf="bindAutoSlStrategy">
-              <span class="strat-title">🎯 NIFTY Long Bracket Mode Active</span>
-              <p class="strat-desc">
-                When {{ instrumentInput }} hits ₹{{ targetPrice }}, the engine immediately deploys a 3-leg order:
-                Buy Entry + Stop Loss (-7 pts) + Target (+30 pts) for {{ orderQuantity }} Qty.
-              </p>
             </div>
           </div>
         </div>
@@ -426,14 +409,6 @@ export interface FixedInstrumentOption {
         padding-top: 12px;
         border-top: 1px solid var(--border-subtle);
       }
-      .strategy-toggle-banner {
-        margin-bottom: 10px;
-        padding: 6px 10px;
-        background: rgba(99, 102, 241, 0.12);
-        border-radius: 6px;
-        color: #A5B4FC;
-        font-size: 0.8125rem;
-      }
       .order-inputs-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -484,26 +459,6 @@ export interface FixedInstrumentOption {
         border-color: var(--dhan-cyan);
         color: var(--dhan-cyan);
       }
-      .strategy-preview-box {
-        padding: 10px;
-        background: rgba(99, 102, 241, 0.1);
-        border: 1px solid rgba(99, 102, 241, 0.3);
-        border-radius: 8px;
-        margin-top: 8px;
-      }
-      .strat-title {
-        font-size: 0.8125rem;
-        font-weight: 600;
-        color: #C7D2FE;
-        display: block;
-        margin-bottom: 4px;
-      }
-      .strat-desc {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-        line-height: 1.4;
-        margin: 0;
-      }
       .composer-submit-row {
         margin-top: 8px;
       }
@@ -523,7 +478,6 @@ export class AlertComposerComponent implements OnInit {
   readonly alertService = inject(AlertService);
   readonly authService = inject(AuthService);
   private readonly orderService = inject(OrderService);
-  private readonly strategyService = inject(StrategyService);
   private readonly instrumentService = inject(InstrumentService);
 
   readonly isSubmitting = signal<boolean>(false);
@@ -589,7 +543,6 @@ export class AlertComposerComponent implements OnInit {
 
   // Conditional Order Form Fields
   executeOrderOnTrigger = false;
-  bindAutoSlStrategy = false;
   orderAction: 'BUY' | 'SELL' = 'BUY';
   orderSymbol = 'NIFTY 24550 CE';
   productType: 'INTRADAY' | 'CNC' | 'MARGIN' = 'INTRADAY';
@@ -603,7 +556,6 @@ export class AlertComposerComponent implements OnInit {
 
   retryConnection(): void {
     this.authService.refreshStatus();
-    this.alertService.refreshIndices();
     this.refreshFixedInstrumentPrices();
     this.onFixedInstrumentChange(this.selectedInstrumentSymbol);
   }
@@ -627,15 +579,6 @@ export class AlertComposerComponent implements OnInit {
   }
 
   getInstrumentLtp(item: FixedInstrumentOption): number | null {
-    const indicesList = this.alertService.indices();
-    const liveIdx = indicesList.find(
-      (idx) =>
-        idx.name.toUpperCase() === item.symbol.toUpperCase() ||
-        idx.securityId === item.securityId
-    );
-    if (liveIdx && liveIdx.currentPrice !== null && liveIdx.currentPrice !== undefined) {
-      return liveIdx.currentPrice;
-    }
     const cached = this.fixedPricesCache().get(item.symbol);
     return cached !== undefined ? cached : null;
   }
@@ -702,26 +645,6 @@ export class AlertComposerComponent implements OnInit {
     }
   }
 
-  loadIndex(idx: PopularIndex): void {
-    const matchedFixed = this.fixedInstruments.find(
-      (f) => f.symbol.toUpperCase() === idx.name.toUpperCase()
-    );
-    if (matchedFixed) {
-      this.onFixedInstrumentChange(matchedFixed.symbol);
-      return;
-    }
-
-    this.selectedInstrumentSymbol = idx.name;
-    this.instrumentInput = idx.name;
-    this.securityId = idx.securityId;
-    this.exchangeSegment = idx.exchangeSegment;
-    this.currentLtp = idx.currentPrice;
-    if (idx.currentPrice) {
-      this.targetPrice = Math.round((idx.currentPrice + 25) * 100) / 100;
-    }
-    this.orderSymbol = `${idx.name} ATM CE`;
-  }
-
   addPoints(points: number): void {
     if (this.targetPrice !== null) {
       this.targetPrice = Math.round((this.targetPrice + points) * 100) / 100;
@@ -747,7 +670,6 @@ export class AlertComposerComponent implements OnInit {
           productType: this.productType,
           orderType: this.orderType,
           quantity: this.orderQuantity,
-          isAutoSlStrategy: this.bindAutoSlStrategy,
         }
       : undefined;
 

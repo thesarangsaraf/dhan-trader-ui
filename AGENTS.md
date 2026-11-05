@@ -8,7 +8,7 @@ This document provides operational context, architectural contracts, design rule
 
 - **Name**: Dhan Trader Pro UI
 - **Role**: High-performance, reactive, trader-friendly Single-Page Application (SPA) interfacing directly with the **Dhan Trader Backend API v2.0.0** (`http://127.0.0.1:8000`).
-- **Core Value Proposition**: Zero Static IP Index Price Monitoring coupled with sub-millisecond Instant & Automated Conditional Execution (Auto-SL brackets, ATM Call/Put options, and equity orders).
+- **Core Value Proposition**: Zero Static IP Index Price Monitoring coupled with sub-millisecond Instant & Automated Conditional Execution (ATM Call/Put options and equity orders).
 
 ---
 
@@ -55,6 +55,11 @@ The conditional alert composer must present instruments in the exact fixed seque
 
 ## 4. Backend Endpoints & API Contract (`http://127.0.0.1:8000`)
 
+> [!TIP]
+> **Full API Schema & In/Out Payloads**:
+> If an agent needs full details about the backend APIs, parameters, and input/output payload schemas, inspect the OpenAPI specification available at:
+> `http://localhost:8000/api/docs/openapi.json` (or `http://127.0.0.1:8000/api/docs/openapi.json`).
+
 | Endpoint | Method | Tag | Description |
 | :--- | :---: | :--- | :--- |
 | `/health` | `GET` | System | Healthcheck & service status |
@@ -73,8 +78,6 @@ The conditional alert composer must present instruments in the exact fixed seque
 | `/api/orders/{id}` | `DELETE` | Orders | Cancel an open pending order |
 | `/api/positions` | `GET` | Portfolio | Live positions, account funds, and P&L metrics |
 | `/api/holdings` | `GET` | Portfolio | Demat equity portfolio holdings |
-| `/api/strategy/auto-sl` | `POST` | Strategy | Deploy 3-leg Auto-SL (-7 pts) & Target (+30 pts) bracket |
-| `/api/strategy/auto-sl/logs` | `GET` | Strategy | Retrieve audit logs of past bracket executions |
 | `/api/instruments?q={term}` | `GET` | Instruments | Search scrip master with debounce |
 | `/api/telegram/status` | `GET` | Telegram | Telegram bot connection state |
 | `/api/telegram/test` | `POST` | Telegram | Dispatch test verification message |
@@ -92,7 +95,6 @@ src/app/
 │   │   ├── auth.service.ts          // JWT status, countdown, and renewal
 │   │   ├── instrument.service.ts    // Real scrip search
 │   │   ├── order.service.ts         // Orders, positions, and holdings
-│   │   ├── strategy.service.ts      // Auto-SL bracket runner and logs
 │   │   └── telegram.service.ts      // Telegram bot connection & test
 │   ├── interceptors/
 │   │   ├── api-prefix.interceptor.ts// Auto-prefixes http://127.0.0.1:8000
@@ -111,8 +113,6 @@ src/app/
 │   │   ├── components/
 │   │   │   ├── alert-composer/      // Fixed dropdown (NIFTY/BANK/SENSEX/RELIANCE) + order trigger
 │   │   │   ├── alert-list/          // Active/Triggered alerts + progress distance
-│   │   │   ├── auto-sl-runner/      // -7/+30 pts bracket card & step audit logs
-│   │   │   ├── indices-ticker/      // Real-time indices bar with live LTPs
 │   │   │   ├── order-book/          // Live orders table with cancel action
 │   │   │   └── positions-summary/   // Real positions, net P&L, 1-click square-off
 │   │   └── dashboard.component.ts   // 3-Zone dashboard layout, header & dock

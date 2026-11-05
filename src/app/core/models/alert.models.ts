@@ -16,7 +16,6 @@ export interface AlertAttachedOrder {
   orderType: 'MARKET' | 'LIMIT';
   quantity: number;
   price?: number;
-  isAutoSlStrategy?: boolean;
 }
 
 export interface DhanAlert {
@@ -75,13 +74,4 @@ export interface AlertTriggerEvent {
   triggeredAt: string;
   isTest?: boolean;
   attachedOrderExecuted?: boolean;
-}
-
-export interface PopularIndex {
-  name: string;
-  securityId: string;
-  exchangeSegment: string;
-  currentPrice: number | null;
-  change?: number;
-  changePercent?: number;
 }

@@ -80,30 +80,3 @@ export interface DhanHolding {
   currentValue: number;
   pnl: number;
 }
-
-export interface AutoSLPayload {
-  symbol?: string;
-  strike?: number;
-  entryPrice: number;
-  quantity: number;
-  securityId?: string;
-}
-
-export interface AutoSLExecutionSummary {
-  strategy: string;
-  symbol: string;
-  quantity: number;
-  entryPrice: number;
-  slPrice: number;
-  targetPrice: number;
-  slPoints: number;
-  targetPoints: number;
-  riskRewardRatio: string;
-  orders: {
-    entryOrder: DhanOrder;
-    stopLossOrder: DhanOrder;
-    targetOrder: DhanOrder;
-  };
-  logs: string[];
-  executedAt: string;
-}

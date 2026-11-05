@@ -8,11 +8,9 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AlertService } from '../../core/api/alert.service';
 import { AuthService } from '../../core/api/auth.service';
 import { OrderService } from '../../core/api/order.service';
-import { StrategyService } from '../../core/api/strategy.service';
 import { TelegramApiService } from '../../core/api/telegram.service';
 import { AudioChimeService } from '../../core/services/audio-chime.service';
 import { ThemeService } from '../../core/services/theme.service';
-import { PopularIndex } from '../../core/models/alert.models';
 import { Instrument } from '../../core/models/instrument.models';
 import { AuthModalComponent } from '../settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../settings/telegram-modal/telegram-modal.component';
@@ -21,10 +19,8 @@ import { PriceBadgeComponent } from '../../shared/components/price-badge/price-b
 import { SectionErrorComponent } from '../../shared/components/section-error/section-error.component';
 import { CurrencyInrPipe } from '../../shared/pipes/currency-inr.pipe';
 import { IstDatePipe } from '../../shared/pipes/ist-date.pipe';
-import { IndicesTickerComponent } from './components/indices-ticker/indices-ticker.component';
 import { AlertComposerComponent } from './components/alert-composer/alert-composer.component';
 import { AlertListComponent } from './components/alert-list/alert-list.component';
-import { AutoSlRunnerComponent } from './components/auto-sl-runner/auto-sl-runner.component';
 import { OrderBookComponent } from './components/order-book/order-book.component';
 import { PositionsSummaryComponent } from './components/positions-summary/positions-summary.component';
 
@@ -42,10 +38,8 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
     SectionErrorComponent,
     CurrencyInrPipe,
     IstDatePipe,
-    IndicesTickerComponent,
     AlertComposerComponent,
     AlertListComponent,
-    AutoSlRunnerComponent,
     OrderBookComponent,
     PositionsSummaryComponent,
   ],
@@ -184,11 +178,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
       <main class="dashboard-body">
         <!-- ZONE 1: LEFT PANEL (35%) -->
         <aside class="panel left-panel">
-          <!-- Indices Ticker -->
-          <app-indices-ticker
-            (indexSelected)="onIndexSelected($event)"
-          ></app-indices-ticker>
-
           <!-- Alert Composer & Conditional Order Creator -->
           <app-alert-composer #composer></app-alert-composer>
         </aside>
@@ -197,9 +186,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
         <section class="panel center-panel">
           <!-- Live Alerts & Triggers Monitor -->
           <app-alert-list class="flex-grow"></app-alert-list>
-
-          <!-- Auto-SL Bracket Runner -->
-          <app-auto-sl-runner></app-auto-sl-runner>
         </section>
 
         <!-- ZONE 3: RIGHT PANEL (25%) -->
@@ -698,7 +684,6 @@ export class DashboardComponent {
   readonly authService = inject(AuthService);
   readonly alertService = inject(AlertService);
   readonly orderService = inject(OrderService);
-  readonly strategyService = inject(StrategyService);
   readonly telegramService = inject(TelegramApiService);
   readonly audioChime = inject(AudioChimeService);
   readonly themeService = inject(ThemeService);
@@ -711,12 +696,6 @@ export class DashboardComponent {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       this.openScripSearcher();
-    }
-  }
-
-  onIndexSelected(idx: PopularIndex): void {
-    if (this.composer) {
-      this.composer.loadIndex(idx);
     }
   }
 

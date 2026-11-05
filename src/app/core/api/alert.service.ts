@@ -7,7 +7,6 @@ import {
   CreateAlertDto,
   DhanAlert,
   GroupedAlert,
-  PopularIndex,
   UpdateAlertDto,
 } from '../models/alert.models';
 import { AudioChimeService } from '../services/audio-chime.service';
@@ -22,15 +21,12 @@ export class AlertService {
 
   readonly alerts = signal<DhanAlert[]>([]);
   readonly groupedAlerts = signal<GroupedAlert[]>([]);
-  readonly indices = signal<PopularIndex[]>([]);
   readonly recentEvents = signal<AlertTriggerEvent[]>([]);
   readonly isPolling = signal<boolean>(true);
   readonly lastPollTime = signal<Date | null>(null);
 
   readonly alertsError = signal<string | null>(null);
-  readonly indicesError = signal<string | null>(null);
   readonly isLoadingAlerts = signal<boolean>(false);
-  readonly isLoadingIndices = signal<boolean>(false);
 
   private lastReceivedEventId: string | null = null;
   private pollIntervalTimer: ReturnType<typeof setInterval> | null = null;
@@ -42,7 +38,6 @@ export class AlertService {
 
   constructor() {
     this.refreshAlerts();
-    this.refreshIndices();
     this.refreshGrouped();
     this.startPollingEngine();
   }
@@ -91,7 +86,6 @@ export class AlertService {
             );
 
             this.refreshAlerts();
-            this.refreshIndices();
           }
         }),
         catchError(() => of(null))
@@ -118,27 +112,6 @@ export class AlertService {
         catchError((err) => {
           this.isLoadingAlerts.set(false);
           this.alertsError.set('Failed to load alerts: Backend server not available (127.0.0.1:8000).');
-          return of([]);
-        })
-      )
-      .subscribe();
-  }
-
-  refreshIndices(): void {
-    this.isLoadingIndices.set(true);
-    this.http
-      .get<PopularIndex[]>('/api/alerts/indices')
-      .pipe(
-        tap((data) => {
-          this.isLoadingIndices.set(false);
-          this.indicesError.set(null);
-          if (Array.isArray(data)) {
-            this.indices.set(data);
-          }
-        }),
-        catchError((err) => {
-          this.isLoadingIndices.set(false);
-          this.indicesError.set('Failed to load indices: Backend server not available (127.0.0.1:8000).');
           return of([]);
         })
       )
