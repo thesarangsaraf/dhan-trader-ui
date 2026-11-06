@@ -230,6 +230,10 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
           <div class="dock-item mono-val" *ngIf="alertService.lastPollTime() as pt">
             <span>Last Updated: {{ pt | istDate : 'timeOnly' }}</span>
           </div>
+          <div class="dock-item mono-val" *ngIf="orderService.wsStatus() as ws">
+            <span class="pulse-dot-cyan" [class.offline]="!ws.connected"></span>
+            <span>Order Socket: {{ ws.connected ? 'Live Feed' : 'Standby' }}</span>
+          </div>
           <div class="dock-item">
             <span class="material-symbols-rounded dock-icon">verified</span>
             <span>Zero Static IP Architecture</span>

@@ -68,3 +68,14 @@ export interface PositionsResponse {
   funds: AccountFunds;
   summary: PositionsSummary;
 }
+
+export interface DhanOrderWebSocketStatus {
+  connected: boolean;
+  connecting: boolean;
+  url: string;
+  lastConnectedTime: string | null;
+  lastEventTime: string | null;
+  clientId: string;
+  disconnectCount: number;
+  cachedEventsCount: number;
+}

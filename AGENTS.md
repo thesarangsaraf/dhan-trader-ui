@@ -94,6 +94,7 @@ This document provides operational context, architectural contracts, design rule
 | `/api/alerts/test-chime` | `POST` | Alerts | Trigger simulated chime notification |
 | `/api/orders` | `GET`, `POST` | Orders | Order book inspection and placement |
 | `/api/orders/{id}` | `DELETE` | Orders | Cancel an open pending order |
+| `/api/orders/websocket/status` | `GET` | Orders | Dhan Order WebSocket connection & live feed status |
 | `/api/positions` | `GET` | Portfolio | Live positions, account funds, and P&L metrics |
 | `/api/instruments?q={term}` | `GET` | Instruments | Search scrip master with debounce |
 | `/api/instruments/expiries` | `GET` | Instruments | Available weekly/monthly option expiries |

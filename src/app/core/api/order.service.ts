@@ -5,6 +5,7 @@ import { catchError, Observable, of, tap } from 'rxjs';
 import {
   AccountFunds,
   DhanOrder,
+  DhanOrderWebSocketStatus,
   DhanPosition,
   PlaceOrderDto,
   PositionsResponse,
@@ -28,6 +29,7 @@ export class OrderService {
 
   readonly ordersError = signal<string | null>(null);
   readonly positionsError = signal<string | null>(null);
+  readonly wsStatus = signal<DhanOrderWebSocketStatus | null>(null);
 
   readonly openOrders = computed(() =>
     this.orders().filter((o) => o.status === 'PENDING' || o.status === 'TRANSIT')
@@ -43,6 +45,17 @@ export class OrderService {
   refreshAll(): void {
     this.refreshOrders();
     this.refreshPositions();
+    this.refreshWebSocketStatus();
+  }
+
+  refreshWebSocketStatus(): void {
+    this.http
+      .get<DhanOrderWebSocketStatus>('/api/orders/websocket/status')
+      .pipe(
+        tap((status) => this.wsStatus.set(status)),
+        catchError(() => of(null))
+      )
+      .subscribe();
   }
 
   refreshOrders(): void {
