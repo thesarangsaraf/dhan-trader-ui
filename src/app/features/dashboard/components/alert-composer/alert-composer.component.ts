@@ -52,15 +52,6 @@ import {
             <span class="subtitle">Zero Static IP Index & Scrip Execution Engine</span>
           </div>
         </div>
-
-        <div class="ltp-badge mono-val" *ngIf="currentLtp !== null">
-          <span class="label">LTP:</span>
-          <span class="price">{{ currentLtp | currencyInr : false }}</span>
-        </div>
-        <div class="ltp-badge offline mono-val" *ngIf="currentLtp === null">
-          <span class="label">LTP:</span>
-          <span class="price">-- (Offline)</span>
-        </div>
       </div>
 
       <!-- Offline Warning Banner if backend is not available -->
@@ -107,13 +98,12 @@ import {
           </mat-form-field>
         </div>
 
-        <!-- 3. Conditional Execution Toggle ("Trigger to Action") -->
+        <!-- 3. Conditional Execution Toggle ("Attach Order with Alert") -->
         <div class="action-box" [class.enabled]="executeOrderOnTrigger">
           <div class="action-toggle-row">
             <mat-checkbox [(ngModel)]="executeOrderOnTrigger" name="executeOrderOnTrigger" color="primary">
-              <span class="toggle-text">⚡ Execute Instant Order upon Trigger</span>
+              <span class="toggle-text">Attach Order with Alert</span>
             </mat-checkbox>
-            <span class="zero-latency-tag">Sub-millisecond Local Bridge</span>
           </div>
 
           <!-- Inline Order Form when toggle is enabled -->
@@ -317,31 +307,6 @@ import {
         font-size: 0.6875rem;
         color: var(--text-muted);
       }
-      .ltp-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        background: rgba(0, 210, 196, 0.1);
-        border: 1px solid rgba(0, 210, 196, 0.25);
-        border-radius: 6px;
-      }
-      .ltp-badge.offline {
-        background: rgba(244, 63, 94, 0.1);
-        border-color: rgba(244, 63, 94, 0.25);
-      }
-      .ltp-badge .label {
-        font-size: 0.6875rem;
-        color: var(--text-muted);
-      }
-      .ltp-badge .price {
-        font-size: 0.875rem;
-        font-weight: 700;
-        color: var(--dhan-cyan);
-      }
-      .ltp-badge.offline .price {
-        color: var(--color-loss);
-      }
       .full-width {
         width: 100%;
       }
@@ -373,13 +338,6 @@ import {
         font-weight: 600;
         font-size: 0.875rem;
         color: var(--text-primary);
-      }
-      .zero-latency-tag {
-        font-size: 0.6875rem;
-        color: var(--color-profit);
-        background: var(--color-profit-bg);
-        padding: 2px 6px;
-        border-radius: 4px;
       }
       .inline-order-form {
         margin-top: 12px;
@@ -751,52 +709,111 @@ export class AlertComposerComponent implements OnInit {
 
   loadInstruments(): void {
     this.instrumentService.getInstruments(50).subscribe((list) => {
+      let filtered: Instrument[] = [];
       if (list && list.length > 0) {
-        this.instruments.set(list);
-        const nifty = list.find((i) => i.symbol === 'NIFTY 50') || list[0];
-        this.onInstrumentChange(nifty.symbol);
-      } else {
-        const fallback: Instrument[] = [
+        // Filter strictly to NIFTY 50, BANK NIFTY, SENSEX, and MIDCAP NIFTY
+        const matched = list.filter((item) => {
+          const sym = (item.symbol || '').toUpperCase();
+          return (
+            sym === 'NIFTY 50' ||
+            sym.includes('BANK') ||
+            sym.includes('SENSEX') ||
+            sym.includes('MIDCAP') ||
+            sym.includes('MIDCP')
+          );
+        });
+
+        // Normalize display symbols so only user-traded indices are presented
+        const seen = new Set<string>();
+        for (const item of matched) {
+          const sym = item.symbol.toUpperCase();
+          const isBank = sym.includes('BANK');
+          const isSensex = sym.includes('SENSEX');
+          const isMidcap = sym.includes('MIDCAP') || sym.includes('MIDCP');
+          const normSymbol = isBank
+            ? 'BANK NIFTY'
+            : isSensex
+            ? 'SENSEX'
+            : isMidcap
+            ? 'MIDCAP NIFTY'
+            : 'NIFTY 50';
+
+          if (!seen.has(normSymbol)) {
+            seen.add(normSymbol);
+            filtered.push({
+              ...item,
+              symbol: normSymbol,
+            });
+          }
+        }
+
+        // Sort in order: NIFTY 50, BANK NIFTY, SENSEX, MIDCAP NIFTY
+        const order = ['NIFTY 50', 'BANK NIFTY', 'SENSEX', 'MIDCAP NIFTY'];
+        filtered.sort((a, b) => order.indexOf(a.symbol) - order.indexOf(b.symbol));
+      }
+
+      if (filtered.length === 0) {
+        filtered = [
           { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, ltp: 24500 },
           { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 30, ltp: 52000 },
           { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, ltp: 80000 },
-          { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', securityId: '2885', exchangeSegment: 'NSE_EQ', instrumentType: 'EQUITY', lotSize: 1, ltp: 2500 },
+          { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 120, ltp: 12500 },
         ];
-        this.instruments.set(fallback);
-        this.onInstrumentChange('NIFTY 50');
       }
+
+      this.instruments.set(filtered);
+      const nifty = filtered.find((i) => i.symbol === 'NIFTY 50') || filtered[0];
+      this.onInstrumentChange(nifty.symbol);
     });
   }
 
   getDefinedSlPoints(symbol: string): number {
     const upperSym = (symbol || '').toUpperCase();
     if (upperSym.includes('BANK')) return 20;
+    if (upperSym.includes('MIDCAP') || upperSym.includes('MIDCP')) return 15;
+    if (upperSym.includes('SENSEX')) return 30;
     if (upperSym.includes('NIFTY')) return 12;
     return 15;
   }
 
   onInstrumentChange(symbol: string): void {
     this.selectedInstrumentSymbol = symbol;
-    const found = this.instruments().find((i) => i.symbol === symbol);
+    const upper = (symbol || '').toUpperCase();
+    const found = this.instruments().find(
+      (i) =>
+        i.symbol.toUpperCase() === upper ||
+        (upper.includes('BANK') && i.symbol.toUpperCase().includes('BANK')) ||
+        (upper.includes('SENSEX') && i.symbol.toUpperCase().includes('SENSEX')) ||
+        ((upper.includes('MIDCAP') || upper.includes('MIDCP')) &&
+          (i.symbol.toUpperCase().includes('MIDCAP') || i.symbol.toUpperCase().includes('MIDCP'))) ||
+        (upper.includes('NIFTY') &&
+          !upper.includes('BANK') &&
+          !upper.includes('MID') &&
+          i.symbol === 'NIFTY 50')
+    );
     if (!found) return;
 
     this.selectedInstrument = found;
+    this.selectedInstrumentSymbol = found.symbol;
 
     // User uses fixed lot sizes: 5, 10, or 15 lots (default 5)
     if (![5, 10, 15].includes(this.orderLots)) {
       this.orderLots = 5;
     }
 
-    // Set defined Stop Loss points based on instrument:
-    // NIFTY 50 -> 12 points
-    // BANK NIFTY -> 20 points
-    // Others -> 15 points
+    // Set defined Stop Loss points based on instrument
     this.stopLossPoints.set(this.getDefinedSlPoints(symbol));
 
     // Set initial LTP & target price
     if (found.ltp) {
       this.currentLtp = found.ltp;
-      const offset = symbol.includes('BANK') ? 100 : symbol.includes('SENSEX') ? 150 : 30;
+      const offset = symbol.includes('BANK')
+        ? 100
+        : symbol.includes('SENSEX')
+        ? 150
+        : symbol.includes('MID')
+        ? 20
+        : 30;
       this.targetPrice = Math.round((found.ltp + offset) * 100) / 100;
     }
 
@@ -804,7 +821,13 @@ export class AlertComposerComponent implements OnInit {
     this.instrumentService.getLtp(symbol).subscribe((res) => {
       if (res.ltp !== null && res.ltp !== undefined) {
         this.currentLtp = res.ltp;
-        const offset = symbol.includes('BANK') ? 100 : symbol.includes('SENSEX') ? 150 : 30;
+        const offset = symbol.includes('BANK')
+          ? 100
+          : symbol.includes('SENSEX')
+          ? 150
+          : symbol.includes('MID')
+          ? 20
+          : 30;
         this.targetPrice = Math.round((res.ltp + offset) * 100) / 100;
         this.loadOptionContracts();
       }
@@ -816,11 +839,28 @@ export class AlertComposerComponent implements OnInit {
 
   onInstrumentSelected(item: Instrument): void {
     if (!item) return;
-    const exists = this.instruments().some((i) => i.symbol.toUpperCase() === item.symbol.toUpperCase());
-    if (!exists) {
-      this.instruments.set([item, ...this.instruments()]);
+    const sym = (item.symbol || '').toUpperCase();
+    if (
+      sym !== 'NIFTY 50' &&
+      !sym.includes('BANK') &&
+      !sym.includes('SENSEX') &&
+      !sym.includes('MIDCAP') &&
+      !sym.includes('MIDCP')
+    ) {
+      return;
     }
-    this.onInstrumentChange(item.symbol);
+    const normSymbol = sym.includes('BANK')
+      ? 'BANK NIFTY'
+      : sym.includes('SENSEX')
+      ? 'SENSEX'
+      : sym.includes('MIDCAP') || sym.includes('MIDCP')
+      ? 'MIDCAP NIFTY'
+      : 'NIFTY 50';
+    const exists = this.instruments().some((i) => i.symbol.toUpperCase() === normSymbol);
+    if (!exists) {
+      this.instruments.set([...this.instruments(), { ...item, symbol: normSymbol }]);
+    }
+    this.onInstrumentChange(normSymbol);
   }
 
   loadExpiries(symbol: string): void {

@@ -1,4 +1,4 @@
-import { Component, HostListener, ViewChild, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,10 +11,8 @@ import { OrderService } from '../../core/api/order.service';
 import { TelegramApiService } from '../../core/api/telegram.service';
 import { AudioChimeService } from '../../core/services/audio-chime.service';
 import { ThemeService } from '../../core/services/theme.service';
-import { Instrument } from '../../core/models/instrument.models';
 import { AuthModalComponent } from '../settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../settings/telegram-modal/telegram-modal.component';
-import { ScripSearcherModalComponent } from '../../shared/components/scrip-searcher-modal/scrip-searcher-modal.component';
 import { PriceBadgeComponent } from '../../shared/components/price-badge/price-badge.component';
 import { CurrencyInrPipe } from '../../shared/pipes/currency-inr.pipe';
 import { IstDatePipe } from '../../shared/pipes/ist-date.pipe';
@@ -141,15 +139,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
             <span class="material-symbols-rounded">notifications_active</span>
           </button>
 
-          <!-- Search Spotlight Ctrl+K Button -->
-          <button
-            class="action-btn"
-            (click)="openScripSearcher()"
-            matTooltip="Spotlight Scrip Search (Ctrl+K)"
-          >
-            <span class="material-symbols-rounded">search</span>
-          </button>
-
           <!-- Dark/Light Mode Switcher -->
           <button
             class="action-btn"
@@ -177,7 +166,7 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
         <!-- ZONE 1: LEFT PANEL (35%) -->
         <aside class="panel left-panel">
           <!-- Alert Composer & Conditional Order Creator -->
-          <app-alert-composer #composer></app-alert-composer>
+          <app-alert-composer></app-alert-composer>
         </aside>
 
         <!-- ZONE 2: CENTER PANEL (40%) -->
@@ -237,14 +226,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
           <div class="dock-item">
             <span class="material-symbols-rounded dock-icon">verified</span>
             <span>Zero Static IP Architecture</span>
-          </div>
-        </div>
-
-        <div class="dock-center">
-          <div class="spotlight-hint" (click)="openScripSearcher()">
-            <span class="material-symbols-rounded">search</span>
-            <span>Fast Scrip Searcher:</span>
-            <kbd>Ctrl</kbd> + <kbd>K</kbd>
           </div>
         </div>
 
@@ -571,35 +552,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
       .dock-item.sound-on {
         color: var(--dhan-cyan);
       }
-      .spotlight-hint {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        background: var(--bg-surface);
-        padding: 3px 12px;
-        border-radius: 6px;
-        border: 1px solid var(--border-subtle);
-        cursor: pointer;
-        color: var(--text-secondary);
-      }
-      .spotlight-hint:hover {
-        border-color: var(--dhan-cyan);
-        color: var(--dhan-cyan);
-      }
-      .spotlight-hint span {
-        font-size: 0.75rem;
-      }
-      .spotlight-hint .material-symbols-rounded {
-        font-size: 15px;
-      }
-      kbd {
-        background: var(--bg-card);
-        padding: 1px 4px;
-        border-radius: 3px;
-        border: 1px solid var(--border-subtle);
-        font-size: 0.6875rem;
-        font-family: var(--font-mono);
-      }
     `,
   ],
 })
@@ -612,16 +564,6 @@ export class DashboardComponent {
   readonly themeService = inject(ThemeService);
   private readonly dialog = inject(MatDialog);
 
-  @ViewChild('composer') composer!: AlertComposerComponent;
-
-  @HostListener('window:keydown', ['$event'])
-  handleGlobalShortcuts(event: KeyboardEvent): void {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-      event.preventDefault();
-      this.openScripSearcher();
-    }
-  }
-
   openAuthModal(): void {
     this.dialog.open(AuthModalComponent, {
       width: '560px',
@@ -631,19 +573,6 @@ export class DashboardComponent {
   openTelegramModal(): void {
     this.dialog.open(TelegramModalComponent, {
       width: '520px',
-    });
-  }
-
-  openScripSearcher(): void {
-    const ref = this.dialog.open(ScripSearcherModalComponent, {
-      width: '600px',
-      position: { top: '15vh' },
-    });
-
-    ref.afterClosed().subscribe((selected: Instrument | undefined) => {
-      if (selected && this.composer) {
-        this.composer.onInstrumentSelected(selected);
-      }
     });
   }
 }

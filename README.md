@@ -6,13 +6,13 @@ A high-performance, reactive, and trader-friendly single-page application (SPA) 
 
 ## ⚡ Core Features
 
-- **Zero Static IP Index Price Monitoring**: Real-time monitoring of popular NSE benchmark indices (NIFTY 50, BANK NIFTY, FIN NIFTY, MIDCP NIFTY, INDIA VIX, etc.).
+- **Zero Static IP Index Price Monitoring**: Real-time monitoring of user-traded benchmark indices (NIFTY 50, BANK NIFTY, SENSEX, MIDCAP NIFTY).
 - **Sub-millisecond Conditional Execution ("Trigger to Action")**: Direct conditional execution that automatically places orders or F&O legs the moment an index crosses a threshold.
-- **Fixed Instrument Sequence in Alert Composer**: Dedicated selector featuring:
-  1. `NIFTY 50` (`IDX_I`, 50 lot size)
+- **Dedicated Traded Indices in Alert Composer**: Focused selector featuring:
+  1. `NIFTY 50` (`IDX_I`, 65 lot size)
   2. `BANK NIFTY` (`IDX_I`, 30 lot size)
   3. `SENSEX` (`IDX_I`, 20 lot size)
-  4. `RELIANCE` (`NSE_EQ`, 1 lot size)
+  4. `MIDCAP NIFTY` (`IDX_I`, 120 lot size)
 - **Continuous 1.5s Polling Engine & Web Audio Chime**: Synthesizes pleasant two-tone audio chimes upon trigger events via the Web Audio API (`AudioContext`).
 - **Material You Dynamic Theming (Fintech Pro)**: High-contrast Dark mode (`#0B0F19`) and Light mode (`#F8FAFC`) with JetBrains Mono tabular price badges.
 - **Graceful Section-Level Error Handling**: If the backend server (`127.0.0.1:8000`) is offline, each section displays a dedicated error card with a retry button without crashing or blanking the rest of the application.

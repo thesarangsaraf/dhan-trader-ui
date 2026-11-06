@@ -248,4 +248,38 @@ describe('AlertComposerComponent', () => {
     expect(definedSlTag).not.toBeNull();
     expect(definedSlTag?.textContent).toContain('12 Points');
   });
+
+  it('should only keep NIFTY 50, BANK NIFTY, SENSEX, and MIDCAP NIFTY in instruments and filter out other instruments', () => {
+    mockInstService.getInstruments.mockReturnValueOnce(
+      of([
+        { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, ltp: 24500 },
+        { symbol: 'NIFTY BANK', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 30, ltp: 52000 },
+        { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, ltp: 80000 },
+        { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', securityId: '2885', exchangeSegment: 'NSE_EQ', instrumentType: 'EQUITY', lotSize: 1, ltp: 2500 },
+        { symbol: 'HDFCBANK', name: 'HDFC Bank Ltd', securityId: '1333', exchangeSegment: 'NSE_EQ', instrumentType: 'EQUITY', lotSize: 1, ltp: 1700 },
+        { symbol: 'MIDCP NIFTY', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 120, ltp: 12000 },
+        { symbol: 'NIFTY FIN SERVICE', name: 'Nifty Fin Service', securityId: '27', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 60, ltp: 23000 },
+        { symbol: 'INDIA VIX', name: 'India VIX', securityId: '21', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', ltp: 14 },
+      ])
+    );
+
+    component.loadInstruments();
+    const symbols = component.instruments().map((i) => i.symbol);
+    expect(symbols).toEqual(['NIFTY 50', 'BANK NIFTY', 'SENSEX', 'MIDCAP NIFTY']);
+  });
+
+  it('should not show LTP badge in header, should not show zero latency tag, and should display Attach Order with Alert', () => {
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    // LTP badge beside Conditional Alert Composer must not exist
+    const ltpBadge = compiled.querySelector('.composer-header .ltp-badge');
+    expect(ltpBadge).toBeNull();
+
+    // Sub-millisecond Local Bridge text must not exist
+    expect(compiled.textContent).not.toContain('Sub-millisecond Local Bridge');
+
+    // Attach Order with Alert text must be present
+    expect(compiled.querySelector('.toggle-text')?.textContent).toContain('Attach Order with Alert');
+  });
 });
