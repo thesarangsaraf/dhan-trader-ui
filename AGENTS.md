@@ -29,6 +29,10 @@ This document provides operational context, architectural contracts, design rule
 
 ## 3. Strict Architectural Rules for Agents
 
+### Rule 0: Cross-Repository Backend Coordination (`dhan-trader-api`)
+- **For every change in this project, if you think that there is a change needed in backend as well, then there is a backend project in the same folder directory called as `dhan-trader-api` (`../dhan-trader-api`). Go there and make needed changes as well.**
+- Always ensure both projects remain in sync, pass their test suites (`npm test`), and compile production builds (`npm run build`) without errors.
+
 ### Rule 1: Always Show Real Data — No Mock / Fake Fallbacks
 - **Never inject hardcoded mock data** (e.g., fake LTPs, static positions, simulated orders) into services or components.
 - All metrics (P&L, funds, orders, positions, alerts) must originate from real backend responses.
@@ -44,12 +48,15 @@ This document provides operational context, architectural contracts, design rule
 - Keep components `standalone: true`. Do not introduce NgModules.
 - Use `inject()` for dependency injection instead of constructor parameter injection.
 
-### Rule 4: Conditional Trigger Fixed Instruments Sequence
-The conditional alert composer must present instruments in the exact fixed sequence:
-1. **NIFTY 50** (`IDX_I`, securityId: `13`, lotSize: 50)
-2. **BANK NIFTY** (`IDX_I`, securityId: `25`, lotSize: 30)
-3. **SENSEX** (`IDX_I`, securityId: `51`, lotSize: 20)
-4. **RELIANCE** (`NSE_EQ`, securityId: `2885`, lotSize: 1)
+### Rule 4: Conditional Alert Composer Backend Driven Instruments & Automatic Operator
+- Dropdown instrument list must be fetched dynamically from the backend (`GET /api/instruments`).
+- The instrument dropdown displays **only the name of instruments** in that box, nothing else.
+- The trigger condition is not presented in the UI; trigger condition operator is decided automatically by the backend (`CROSSING_UP` if target $\ge$ LTP, `CROSSING_DOWN` if target $<$ LTP).
+- Remarks text box is removed from the composer.
+- In the "Execute Instant Order" section:
+  - Option expiry selection dropdown is provided, backed by the backend API (`GET /api/instruments/expiries`).
+  - Maximum 3 option strike prices around the selected price are displayed for selection, returned by the backend API (`GET /api/instruments/option-contracts`).
+  - Default quantity is 5 for NIFTY 50, with 5, 10, and 15 quick quantity buttons.
 
 ---
 
@@ -79,6 +86,8 @@ The conditional alert composer must present instruments in the exact fixed seque
 | `/api/positions` | `GET` | Portfolio | Live positions, account funds, and P&L metrics |
 | `/api/holdings` | `GET` | Portfolio | Demat equity portfolio holdings |
 | `/api/instruments?q={term}` | `GET` | Instruments | Search scrip master with debounce |
+| `/api/instruments/expiries` | `GET` | Instruments | Available weekly/monthly option expiries |
+| `/api/instruments/option-contracts` | `GET`, `POST` | Instruments | 3 strikes (ATM-1, ATM, ATM+1) around target price |
 | `/api/telegram/status` | `GET` | Telegram | Telegram bot connection state |
 | `/api/telegram/test` | `POST` | Telegram | Dispatch test verification message |
 | `/api/telegram/update` | `POST` | Telegram | Update Bot Token and Chat ID dynamically |

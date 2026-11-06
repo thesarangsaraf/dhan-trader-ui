@@ -8,10 +8,18 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
-      // Don't spam notifications for background poll if backend is temporarily disconnected
-      const isPolling = req.url.includes('/api/alerts/poll') || req.url.includes('/health');
+      // Do not spam toast popups for background polling or periodic GET data fetches.
+      // Individual sections already display human-readable error cards with Retry buttons.
+      const isBackgroundRead =
+        req.method === 'GET' ||
+        req.url.includes('/api/alerts/poll') ||
+        req.url.includes('/health') ||
+        req.url.includes('/api/positions') ||
+        req.url.includes('/api/orders') ||
+        req.url.includes('/api/holdings') ||
+        req.url.includes('/api/auth/status');
 
-      if (!isPolling) {
+      if (!isBackgroundRead) {
         let errorMsg = 'An unexpected error occurred';
         if (error.error?.error) {
           errorMsg = error.error.error;

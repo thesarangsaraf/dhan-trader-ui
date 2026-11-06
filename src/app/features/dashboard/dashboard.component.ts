@@ -81,9 +81,9 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
               class="mini-renew-btn"
               (click)="$event.stopPropagation(); authService.renewToken()"
               [disabled]="authService.isRenewing()"
-              matTooltip="1-Click Auto-Renew Token"
+              matTooltip="1-Click Auto-Renew Dhan Token"
             >
-              <span class="material-symbols-rounded">autorenew</span>
+              <span class="material-symbols-rounded" [class.spinning]="authService.isRenewing()">autorenew</span>
             </button>
           </div>
 
@@ -407,6 +407,14 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
       }
       .token-icon {
         font-size: 16px;
+      }
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .spinning {
+        animation: spin 1s linear infinite;
+        display: inline-block;
       }
       .mini-renew-btn {
         background: transparent;

@@ -75,7 +75,8 @@ export class OrderService {
         }),
         catchError((err) => {
           this.isLoadingOrders.set(false);
-          this.ordersError.set('Failed to load order book: Backend server not available (127.0.0.1:8000).');
+          const msg = err.error?.message || 'Backend server not available (127.0.0.1:8000)';
+          this.ordersError.set(`Failed to load order book: ${msg}`);
           return of([]);
         })
       )
@@ -98,7 +99,8 @@ export class OrderService {
         }),
         catchError((err) => {
           this.isLoadingPositions.set(false);
-          this.positionsError.set('Failed to load positions: Backend server not available (127.0.0.1:8000).');
+          const msg = err.error?.message || 'Backend server not available (127.0.0.1:8000)';
+          this.positionsError.set(`Failed to load positions: ${msg}`);
           return of(null);
         })
       )
@@ -119,7 +121,8 @@ export class OrderService {
         }),
         catchError((err) => {
           this.isLoadingHoldings.set(false);
-          this.holdingsError.set('Failed to load Demat holdings: Backend server not available (127.0.0.1:8000).');
+          const msg = err.error?.message || 'Backend server not available (127.0.0.1:8000)';
+          this.holdingsError.set(`Failed to load Demat holdings: ${msg}`);
           return of([]);
         })
       )

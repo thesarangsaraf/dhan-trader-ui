@@ -1,4 +1,9 @@
 export type AlertOperator =
+  | 'GREATER_THAN_EQUAL'
+  | 'LESS_THAN_EQUAL'
+  | 'GREATER_THAN'
+  | 'LESS_THAN'
+  | 'CROSSING_ANY_SIDE'
   | 'GREATER_THAN_OR_EQUAL'
   | 'LESS_THAN_OR_EQUAL'
   | 'CROSSING_UP'
@@ -20,6 +25,7 @@ export interface AlertAttachedOrder {
 
 export interface DhanAlert {
   id: string;
+  dhanAlertId?: string;
   instrument: string;
   securityId: string;
   exchangeSegment: string;
@@ -47,6 +53,18 @@ export interface CreateAlertDto {
   securityId?: string;
   exchangeSegment?: string;
   attachedOrder?: AlertAttachedOrder;
+  conditionalOrder?: {
+    symbol: string;
+    securityId?: string;
+    exchangeSegment?: string;
+    transactionType: 'BUY' | 'SELL';
+    orderType: 'MARKET' | 'LIMIT';
+    productType: 'INTRADAY' | 'CNC' | 'MARGIN';
+    quantity: number;
+    price?: number;
+    validity?: string;
+  };
+  expDate?: string;
 }
 
 export interface UpdateAlertDto {

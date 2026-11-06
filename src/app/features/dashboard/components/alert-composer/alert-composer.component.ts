@@ -8,24 +8,22 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AlertService } from '../../../../core/api/alert.service';
 import { AuthService } from '../../../../core/api/auth.service';
 import { InstrumentService } from '../../../../core/api/instrument.service';
-import { OrderService } from '../../../../core/api/order.service';
 import { AlertOperator } from '../../../../core/models/alert.models';
-import { Instrument } from '../../../../core/models/instrument.models';
+import {
+  Instrument,
+  OptionExpiryItem,
+  StrikeOptionPair,
+} from '../../../../core/models/instrument.models';
 import { SectionErrorComponent } from '../../../../shared/components/section-error/section-error.component';
 import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
-
-export interface FixedInstrumentOption {
-  symbol: string;
-  displayName: string;
-  securityId: string;
-  exchangeSegment: string;
-  lotSize: number;
-  defaultTargetOffset: number;
-  defaultOrderSymbol: string;
-}
+import {
+  AlertPreviewData,
+  AlertPreviewDialogComponent,
+} from './alert-preview-dialog/alert-preview-dialog.component';
 
 @Component({
   selector: 'app-alert-composer',
@@ -40,6 +38,7 @@ export interface FixedInstrumentOption {
     MatCheckboxModule,
     MatSelectModule,
     MatTooltipModule,
+    MatDialogModule,
     SectionErrorComponent,
     CurrencyInrPipe,
   ],
@@ -73,79 +72,38 @@ export interface FixedInstrumentOption {
       ></app-section-error>
 
       <form (ngSubmit)="submitAlert()" class="composer-form">
-        <!-- 1. Fixed Instrument Dropdown Selector in Sequence: NIFTY 50, BANK NIFTY, SENSEX, RELIANCE -->
+        <!-- 1. Instrument Dropdown Selector (Fetched from backend; shows only instrument name) -->
         <div class="form-row">
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Select Instrument</mat-label>
             <mat-select
               [(ngModel)]="selectedInstrumentSymbol"
               name="selectedInstrumentSymbol"
-              (selectionChange)="onFixedInstrumentChange($event.value)"
-              panelClass="fixed-instruments-panel"
+              (selectionChange)="onInstrumentChange($event.value)"
+              panelClass="instrument-select-panel"
               required
             >
-              <mat-option *ngFor="let item of fixedInstruments" [value]="item.symbol">
-                <div class="scrip-select-item">
-                  <div class="item-name-group">
-                    <span class="scrip-symbol">{{ item.displayName }}</span>
-                    <span class="scrip-segment-tag">{{ item.exchangeSegment }}</span>
-                  </div>
-                  <span class="scrip-ltp-val mono-val">
-                    {{ getInstrumentLtp(item) !== null ? (getInstrumentLtp(item) | currencyInr : false) : '--' }}
-                  </span>
-                </div>
+              <mat-option *ngFor="let item of instruments()" [value]="item.symbol">
+                {{ item.symbol }}
               </mat-option>
             </mat-select>
           </mat-form-field>
         </div>
 
-        <!-- 2. Condition & Target Price -->
+        <!-- 2. Target Trigger Price (Exact price directly, operator decided automatically by backend) -->
         <div class="condition-box">
-          <span class="section-label">Trigger Condition</span>
-          <div class="operator-row">
-            <mat-button-toggle-group [(ngModel)]="operator" name="operator" class="operator-toggle" aria-label="Alert Operator">
-              <mat-button-toggle value="GREATER_THAN_OR_EQUAL" matTooltip="Triggers when LTP >= Target Price (Breakout Up)">
-                &ge; Breakout
-              </mat-button-toggle>
-              <mat-button-toggle value="LESS_THAN_OR_EQUAL" matTooltip="Triggers when LTP <= Target Price (Breakdown Down)">
-                &le; Breakdown
-              </mat-button-toggle>
-              <mat-button-toggle value="CROSSING_UP" matTooltip="Triggers when LTP crosses above Target Price">
-                &uarr; Cross Up
-              </mat-button-toggle>
-              <mat-button-toggle value="CROSSING_DOWN" matTooltip="Triggers when LTP crosses below Target Price">
-                &darr; Cross Down
-              </mat-button-toggle>
-            </mat-button-toggle-group>
-          </div>
-
-          <div class="price-input-row">
-            <mat-form-field appearance="outline" class="target-field">
-              <mat-label>Target Trigger Price (₹)</mat-label>
-              <input
-                matInput
-                type="number"
-                step="0.05"
-                [(ngModel)]="targetPrice"
-                name="targetPrice"
-                placeholder="Target Price"
-                required
-              />
-            </mat-form-field>
-
-            <div class="quick-inc-chips">
-              <button type="button" class="inc-chip" (click)="addPoints(-50)">-50</button>
-              <button type="button" class="inc-chip" (click)="addPoints(-10)">-10</button>
-              <button type="button" class="inc-chip" (click)="addPoints(-5)">-5</button>
-              <button type="button" class="inc-chip" (click)="addPoints(5)">+5</button>
-              <button type="button" class="inc-chip" (click)="addPoints(10)">+10</button>
-              <button type="button" class="inc-chip" (click)="addPoints(50)">+50</button>
-            </div>
-          </div>
-
-          <mat-form-field appearance="outline" class="full-width remarks-field">
-            <mat-label>Remarks / Strategy Note (Optional)</mat-label>
-            <input matInput [(ngModel)]="remarks" name="remarks" placeholder="e.g. 5m breakout, hedge cover" />
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Target Trigger Price (₹)</mat-label>
+            <input
+              matInput
+              type="number"
+              step="0.05"
+              [(ngModel)]="targetPrice"
+              name="targetPrice"
+              (ngModelChange)="onTargetPriceChange()"
+              placeholder="e.g. 24650.00"
+              required
+            />
           </mat-form-field>
         </div>
 
@@ -161,21 +119,76 @@ export interface FixedInstrumentOption {
           <!-- Inline Order Form when toggle is enabled -->
           <div *ngIf="executeOrderOnTrigger" class="inline-order-form">
             <div class="order-inputs-grid">
-              <div class="grid-col">
-                <label class="input-lbl">Action</label>
-                <mat-button-toggle-group [(ngModel)]="orderAction" name="orderAction" class="action-toggle">
-                  <mat-button-toggle value="BUY" class="btn-buy">BUY</mat-button-toggle>
-                  <mat-button-toggle value="SELL" class="btn-sell">SELL</mat-button-toggle>
+              <!-- Action: BUY (Call) / SELL (Put) -->
+              <div class="grid-col col-span-2">
+                <label class="input-lbl">Action (Directional Option Trigger)</label>
+                <mat-button-toggle-group
+                  [(ngModel)]="orderAction"
+                  name="orderAction"
+                  (change)="onActionChange($event.value)"
+                  class="action-toggle"
+                >
+                  <mat-button-toggle value="BUY" class="btn-buy">
+                    BUY CALL (Bullish Breakout)
+                  </mat-button-toggle>
+                  <mat-button-toggle value="SELL" class="btn-sell">
+                    BUY PUT (Bearish Breakdown)
+                  </mat-button-toggle>
                 </mat-button-toggle-group>
               </div>
 
-              <div class="grid-col">
+              <!-- Option Expiry Selection Dropdown -->
+              <div class="grid-col col-span-2">
                 <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Execution Symbol / Strike</mat-label>
-                  <input matInput [(ngModel)]="orderSymbol" name="orderSymbol" placeholder="e.g. NIFTY 24600 CE" />
+                  <mat-label>Option Expiry Date</mat-label>
+                  <mat-select
+                    [(ngModel)]="selectedExpiry"
+                    name="selectedExpiry"
+                    (selectionChange)="onExpiryChange($event.value)"
+                  >
+                    <mat-option *ngFor="let exp of expiries()" [value]="exp.expiryDate">
+                      {{ exp.displayExpiry }}
+                    </mat-option>
+                  </mat-select>
                 </mat-form-field>
               </div>
 
+              <!-- Option Strike Price Selection (Maximum 3 strikes around selected price; shows CALL for BUY, PUT for SELL) -->
+              <div class="grid-col col-span-2 strike-selector-box" *ngIf="strikePairs().length > 0">
+                <div class="strike-header">
+                  <label class="input-lbl">
+                    Select Strike Price ({{ orderAction === 'BUY' ? 'CALL contracts' : 'PUT contracts' }} around ₹{{ targetPrice || currentLtp }})
+                  </label>
+                  <span class="loading-label" *ngIf="isLoadingOptions()">Loading strikes...</span>
+                </div>
+                <div class="strike-chips">
+                  <div
+                    *ngFor="let strike of strikePairs()"
+                    class="strike-chip"
+                    [class.selected]="selectedStrikePrice === strike.strikePrice"
+                    (click)="selectStrike(strike.strikePrice)"
+                  >
+                    <span class="strike-tag">{{ strike.relativeStrike || 'STRIKE' }}</span>
+                    <span class="strike-val">{{ strike.strikePrice }} {{ orderAction === 'BUY' ? 'CE' : 'PE' }}</span>
+                    <span class="strike-ltp" *ngIf="orderAction === 'BUY'">
+                      LTP: {{ strike.call.ltp | currencyInr : false }}
+                    </span>
+                    <span class="strike-ltp" *ngIf="orderAction === 'SELL'">
+                      LTP: {{ strike.put.ltp | currencyInr : false }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Selected Contract Summary Display -->
+              <div class="grid-col col-span-2" *ngIf="orderSymbol">
+                <div class="selected-contract-banner mono-val">
+                  <span class="label">Instant Trigger Order:</span>
+                  <span class="symbol-name">BUY {{ orderSymbol }}</span>
+                </div>
+              </div>
+
+              <!-- Product -->
               <div class="grid-col">
                 <mat-form-field appearance="outline" class="full-width">
                   <mat-label>Product</mat-label>
@@ -187,6 +200,7 @@ export interface FixedInstrumentOption {
                 </mat-form-field>
               </div>
 
+              <!-- Type -->
               <div class="grid-col">
                 <mat-form-field appearance="outline" class="full-width">
                   <mat-label>Type</mat-label>
@@ -197,15 +211,31 @@ export interface FixedInstrumentOption {
                 </mat-form-field>
               </div>
 
+              <!-- Quantity: 5, 10, 15 by default for NIFTY 50 -->
               <div class="grid-col qty-col">
                 <mat-form-field appearance="outline" class="full-width">
                   <mat-label>Quantity</mat-label>
-                  <input matInput type="number" [(ngModel)]="orderQuantity" name="orderQuantity" [step]="selectedLotStep()" />
+                  <input matInput type="number" [(ngModel)]="orderQuantity" name="orderQuantity" [step]="isNifty50() ? 5 : selectedLotStep()" />
                 </mat-form-field>
-                <div class="qty-quick-buttons">
-                  <button type="button" (click)="setQty(selectedLotStep() * 1)">1x Lot</button>
-                  <button type="button" (click)="setQty(selectedLotStep() * 2)">2x Lot</button>
-                  <button type="button" (click)="setQty(selectedLotStep() * 3)">3x Lot</button>
+
+                <!-- Quick buttons for NIFTY 50: 5, 10, 15 -->
+                <div class="qty-quick-buttons" *ngIf="isNifty50()">
+                  <button type="button" [class.active-qty]="orderQuantity === 5" (click)="setQty(5)">5</button>
+                  <button type="button" [class.active-qty]="orderQuantity === 10" (click)="setQty(10)">10</button>
+                  <button type="button" [class.active-qty]="orderQuantity === 15" (click)="setQty(15)">15</button>
+                </div>
+
+                <!-- Quick buttons for Other Instruments -->
+                <div class="qty-quick-buttons" *ngIf="!isNifty50()">
+                  <button type="button" [class.active-qty]="orderQuantity === selectedLotStep() * 1" (click)="setQty(selectedLotStep() * 1)">
+                    1x Lot
+                  </button>
+                  <button type="button" [class.active-qty]="orderQuantity === selectedLotStep() * 2" (click)="setQty(selectedLotStep() * 2)">
+                    2x Lot
+                  </button>
+                  <button type="button" [class.active-qty]="orderQuantity === selectedLotStep() * 3" (click)="setQty(selectedLotStep() * 3)">
+                    3x Lot
+                  </button>
                 </div>
               </div>
             </div>
@@ -219,7 +249,7 @@ export interface FixedInstrumentOption {
             color="primary"
             type="submit"
             class="submit-btn"
-            [disabled]="isSubmitting() || !instrumentInput || !targetPrice || !authService.isBackendOnline()"
+            [disabled]="isSubmitting() || !selectedInstrumentSymbol || !targetPrice || !authService.isBackendOnline()"
           >
             <span class="material-symbols-rounded">notifications_active</span>
             Create Conditional Alert
@@ -285,95 +315,12 @@ export interface FixedInstrumentOption {
       .full-width {
         width: 100%;
       }
-      .scrip-select-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        width: 100%;
-        gap: 12px;
-      }
-      .item-name-group {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .scrip-symbol {
-        font-weight: 700;
-        font-size: 0.875rem;
-        color: var(--text-primary);
-      }
-      .scrip-segment-tag {
-        font-size: 0.625rem;
-        font-weight: 600;
-        color: var(--text-muted);
-        background: rgba(255, 255, 255, 0.08);
-        padding: 1px 5px;
-        border-radius: 3px;
-      }
-      .scrip-ltp-val {
-        font-size: 0.8125rem;
-        font-weight: 600;
-        color: var(--dhan-cyan);
-      }
       .condition-box {
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
         border-radius: 10px;
         padding: 12px;
         margin-bottom: 14px;
-      }
-      .section-label {
-        display: block;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        letter-spacing: 0.04em;
-        margin-bottom: 8px;
-      }
-      .operator-row {
-        margin-bottom: 12px;
-      }
-      .operator-toggle {
-        width: 100%;
-        display: flex;
-      }
-      .operator-toggle mat-button-toggle {
-        flex: 1;
-        font-size: 0.75rem;
-        font-weight: 600;
-      }
-      .price-input-row {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-      }
-      .target-field {
-        flex: 1;
-      }
-      .quick-inc-chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        max-width: 170px;
-      }
-      .inc-chip {
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        color: var(--text-secondary);
-        font-family: var(--font-mono);
-        font-size: 0.6875rem;
-        font-weight: 600;
-        padding: 4px 6px;
-        border-radius: 4px;
-        cursor: pointer;
-      }
-      .inc-chip:hover {
-        border-color: var(--dhan-cyan);
-        color: var(--dhan-cyan);
-      }
-      .remarks-field {
-        margin-top: 4px;
       }
       .action-box {
         background: var(--bg-surface);
@@ -414,6 +361,16 @@ export interface FixedInstrumentOption {
         grid-template-columns: repeat(2, 1fr);
         gap: 8px;
       }
+      .col-span-2 {
+        grid-column: span 2;
+      }
+      .input-lbl {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+      }
       .action-toggle {
         width: 100%;
         display: flex;
@@ -432,6 +389,82 @@ export interface FixedInstrumentOption {
         background-color: var(--color-sell) !important;
         color: #FFFFFF !important;
       }
+      .strike-selector-box {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 8px;
+        margin-bottom: 4px;
+      }
+      .strike-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+      .loading-label {
+        font-size: 0.6875rem;
+        color: var(--dhan-cyan);
+      }
+      .strike-chips {
+        display: flex;
+        gap: 8px;
+      }
+      .strike-chip {
+        flex: 1;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        padding: 8px 4px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        transition: all 0.15s ease;
+      }
+      .strike-chip:hover {
+        border-color: var(--dhan-cyan);
+      }
+      .strike-chip.selected {
+        border-color: var(--dhan-cyan);
+        background: rgba(0, 210, 196, 0.12);
+        box-shadow: 0 0 0 1px var(--dhan-cyan);
+      }
+      .strike-tag {
+        font-size: 0.625rem;
+        font-weight: 700;
+        color: var(--text-muted);
+      }
+      .strike-val {
+        font-size: 0.875rem;
+        font-weight: 700;
+        font-family: var(--font-mono);
+        color: var(--text-primary);
+      }
+      .strike-ltp {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        font-family: var(--font-mono);
+        color: var(--dhan-cyan);
+      }
+      .selected-contract-banner {
+        background: rgba(99, 102, 241, 0.08);
+        border: 1px solid rgba(99, 102, 241, 0.25);
+        border-radius: 6px;
+        padding: 6px 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.75rem;
+      }
+      .selected-contract-banner .label {
+        color: var(--text-muted);
+      }
+      .selected-contract-banner .symbol-name {
+        color: var(--dhan-indigo, #6366f1);
+        font-weight: 700;
+      }
       .qty-col {
         grid-column: span 2;
         display: flex;
@@ -449,14 +482,21 @@ export interface FixedInstrumentOption {
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
         color: var(--text-secondary);
-        padding: 6px 10px;
+        padding: 6px 12px;
         border-radius: 6px;
         font-size: 0.75rem;
         font-family: var(--font-mono);
+        font-weight: 600;
         cursor: pointer;
+        transition: all 0.15s ease;
       }
       .qty-quick-buttons button:hover {
         border-color: var(--dhan-cyan);
+        color: var(--dhan-cyan);
+      }
+      .qty-quick-buttons button.active-qty {
+        border-color: var(--dhan-cyan);
+        background: rgba(0, 210, 196, 0.15);
         color: var(--dhan-cyan);
       }
       .composer-submit-row {
@@ -477,180 +517,179 @@ export interface FixedInstrumentOption {
 export class AlertComposerComponent implements OnInit {
   readonly alertService = inject(AlertService);
   readonly authService = inject(AuthService);
-  private readonly orderService = inject(OrderService);
   private readonly instrumentService = inject(InstrumentService);
+  private readonly dialog = inject(MatDialog);
 
   readonly isSubmitting = signal<boolean>(false);
-  private readonly fixedPricesCache = signal<Map<string, number>>(new Map());
-
-  /**
-   * Fixed instruments sequence:
-   * 1. NIFTY 50
-   * 2. BANK NIFTY
-   * 3. SENSEX
-   * 4. RELIANCE
-   */
-  readonly fixedInstruments: FixedInstrumentOption[] = [
-    {
-      symbol: 'NIFTY 50',
-      displayName: 'NIFTY 50',
-      securityId: '13',
-      exchangeSegment: 'IDX_I',
-      lotSize: 50,
-      defaultTargetOffset: 30,
-      defaultOrderSymbol: 'NIFTY 24550 CE',
-    },
-    {
-      symbol: 'BANK NIFTY',
-      displayName: 'BANK NIFTY',
-      securityId: '25',
-      exchangeSegment: 'IDX_I',
-      lotSize: 30,
-      defaultTargetOffset: 100,
-      defaultOrderSymbol: 'BANKNIFTY 52000 CE',
-    },
-    {
-      symbol: 'SENSEX',
-      displayName: 'SENSEX',
-      securityId: '51',
-      exchangeSegment: 'IDX_I',
-      lotSize: 20,
-      defaultTargetOffset: 150,
-      defaultOrderSymbol: 'SENSEX 80500 CE',
-    },
-    {
-      symbol: 'RELIANCE',
-      displayName: 'RELIANCE',
-      securityId: '2885',
-      exchangeSegment: 'NSE_EQ',
-      lotSize: 1,
-      defaultTargetOffset: 25,
-      defaultOrderSymbol: 'RELIANCE',
-    },
-  ];
+  readonly instruments = signal<Instrument[]>([]);
+  readonly expiries = signal<OptionExpiryItem[]>([]);
+  readonly strikePairs = signal<StrikeOptionPair[]>([]);
+  readonly isLoadingOptions = signal<boolean>(false);
 
   selectedInstrumentSymbol = 'NIFTY 50';
-
-  // Form Fields
-  instrumentInput = 'NIFTY 50';
-  securityId = '13';
-  exchangeSegment = 'IDX_I';
+  selectedInstrument: Instrument | null = null;
   currentLtp: number | null = null;
-
-  operator: AlertOperator = 'GREATER_THAN_OR_EQUAL';
   targetPrice: number | null = null;
-  remarks = '';
 
   // Conditional Order Form Fields
   executeOrderOnTrigger = false;
   orderAction: 'BUY' | 'SELL' = 'BUY';
-  orderSymbol = 'NIFTY 24550 CE';
+  selectedExpiry = '';
+  selectedStrikePrice: number | null = null;
+  orderSymbol = 'NIFTY 24500 CE';
+  orderSecurityId = '45021';
+  orderExchangeSegment = 'NSE_FNO';
   productType: 'INTRADAY' | 'CNC' | 'MARGIN' = 'INTRADAY';
   orderType: 'MARKET' | 'LIMIT' = 'MARKET';
-  orderQuantity = 50;
+  orderQuantity = 5;
 
   ngOnInit(): void {
-    this.refreshFixedInstrumentPrices();
-    this.onFixedInstrumentChange(this.selectedInstrumentSymbol);
+    this.loadInstruments();
   }
 
   retryConnection(): void {
     this.authService.refreshStatus();
-    this.refreshFixedInstrumentPrices();
-    this.onFixedInstrumentChange(this.selectedInstrumentSymbol);
+    this.loadInstruments();
   }
 
-  refreshFixedInstrumentPrices(): void {
-    for (const item of this.fixedInstruments) {
-      this.instrumentService.getLtp(item.symbol).subscribe((res) => {
-        if (res.ltp !== null && res.ltp !== undefined) {
-          const updated = new Map(this.fixedPricesCache());
-          updated.set(item.symbol, res.ltp);
-          this.fixedPricesCache.set(updated);
-
-          if (this.selectedInstrumentSymbol === item.symbol && this.currentLtp === null) {
-            this.currentLtp = res.ltp;
-            this.targetPrice = Math.round((res.ltp + item.defaultTargetOffset) * 100) / 100;
-            this.remarks = `Alert for ${item.displayName} @ ₹${this.targetPrice}`;
-          }
-        }
-      });
-    }
+  loadInstruments(): void {
+    this.instrumentService.getInstruments(50).subscribe((list) => {
+      if (list && list.length > 0) {
+        this.instruments.set(list);
+        const nifty = list.find((i) => i.symbol === 'NIFTY 50') || list[0];
+        this.onInstrumentChange(nifty.symbol);
+      } else {
+        const fallback: Instrument[] = [
+          { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 50, ltp: 24500 },
+          { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 30, ltp: 52000 },
+          { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, ltp: 80000 },
+          { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', securityId: '2885', exchangeSegment: 'NSE_EQ', instrumentType: 'EQUITY', lotSize: 1, ltp: 2500 },
+        ];
+        this.instruments.set(fallback);
+        this.onInstrumentChange('NIFTY 50');
+      }
+    });
   }
 
-  getInstrumentLtp(item: FixedInstrumentOption): number | null {
-    const cached = this.fixedPricesCache().get(item.symbol);
-    return cached !== undefined ? cached : null;
-  }
-
-  selectedLotStep(): number {
-    const matched = this.fixedInstruments.find((i) => i.symbol === this.selectedInstrumentSymbol);
-    return matched ? matched.lotSize : 25;
-  }
-
-  onFixedInstrumentChange(symbol: string): void {
+  onInstrumentChange(symbol: string): void {
     this.selectedInstrumentSymbol = symbol;
-    const matched = this.fixedInstruments.find((i) => i.symbol === symbol);
-    if (!matched) return;
+    const found = this.instruments().find((i) => i.symbol === symbol);
+    if (!found) return;
 
-    this.instrumentInput = matched.symbol;
-    this.securityId = matched.securityId;
-    this.exchangeSegment = matched.exchangeSegment;
+    this.selectedInstrument = found;
 
-    const livePrice = this.getInstrumentLtp(matched);
-    this.currentLtp = livePrice;
-    if (livePrice !== null) {
-      this.targetPrice = Math.round((livePrice + matched.defaultTargetOffset) * 100) / 100;
-      this.remarks = `Alert for ${matched.displayName} @ ₹${this.targetPrice}`;
+    // Set default quantity: 5 for Nifty 50; lotSize for other instruments
+    if (this.isNifty50()) {
+      this.orderQuantity = 5;
     } else {
-      this.targetPrice = null;
-      this.remarks = `Alert for ${matched.displayName}`;
-      // Fetch LTP asynchronously if not yet cached
-      this.instrumentService.getLtp(matched.symbol).subscribe((res) => {
-        if (res.ltp !== null && res.ltp !== undefined && this.selectedInstrumentSymbol === matched.symbol) {
-          this.currentLtp = res.ltp;
-          this.targetPrice = Math.round((res.ltp + matched.defaultTargetOffset) * 100) / 100;
-          this.remarks = `Alert for ${matched.displayName} @ ₹${this.targetPrice}`;
-          const updated = new Map(this.fixedPricesCache());
-          updated.set(matched.symbol, res.ltp);
-          this.fixedPricesCache.set(updated);
-        }
-      });
+      this.orderQuantity = found.lotSize || 25;
     }
-    this.orderSymbol = matched.defaultOrderSymbol;
-    this.orderQuantity = matched.lotSize;
+
+    // Set initial LTP & target price
+    if (found.ltp) {
+      this.currentLtp = found.ltp;
+      const offset = symbol.includes('BANK') ? 100 : symbol.includes('SENSEX') ? 150 : 30;
+      this.targetPrice = Math.round((found.ltp + offset) * 100) / 100;
+    }
+
+    // Fetch live LTP
+    this.instrumentService.getLtp(symbol).subscribe((res) => {
+      if (res.ltp !== null && res.ltp !== undefined) {
+        this.currentLtp = res.ltp;
+        const offset = symbol.includes('BANK') ? 100 : symbol.includes('SENSEX') ? 150 : 30;
+        this.targetPrice = Math.round((res.ltp + offset) * 100) / 100;
+        this.loadOptionContracts();
+      }
+    });
+
+    // Fetch expiries from backend for this instrument
+    this.loadExpiries(symbol);
   }
 
   onInstrumentSelected(item: Instrument): void {
     if (!item) return;
-    const matchedFixed = this.fixedInstruments.find(
-      (f) => f.symbol.toUpperCase() === item.symbol.toUpperCase()
-    );
-    if (matchedFixed) {
-      this.onFixedInstrumentChange(matchedFixed.symbol);
-      return;
+    const exists = this.instruments().some((i) => i.symbol.toUpperCase() === item.symbol.toUpperCase());
+    if (!exists) {
+      this.instruments.set([item, ...this.instruments()]);
     }
+    this.onInstrumentChange(item.symbol);
+  }
 
-    this.selectedInstrumentSymbol = item.symbol;
-    this.instrumentInput = item.symbol;
-    this.securityId = item.securityId;
-    this.exchangeSegment = item.exchangeSegment;
-    this.currentLtp = item.ltp;
-    if (item.ltp) {
-      this.targetPrice = Math.round((item.ltp + 30) * 100) / 100;
-    }
-    this.orderSymbol = `${item.symbol} ATM`;
-    if (item.lotSize) {
-      this.orderQuantity = item.lotSize;
+  loadExpiries(symbol: string): void {
+    this.instrumentService.getExpiries(symbol).subscribe((list) => {
+      if (list && list.length > 0) {
+        this.expiries.set(list);
+        this.selectedExpiry = list[0].expiryDate;
+        this.loadOptionContracts();
+      }
+    });
+  }
+
+  onExpiryChange(expiry: string): void {
+    this.selectedExpiry = expiry;
+    this.loadOptionContracts();
+  }
+
+  onTargetPriceChange(): void {
+    this.loadOptionContracts();
+  }
+
+  onActionChange(action: 'BUY' | 'SELL'): void {
+    this.orderAction = action;
+    this.updateSelectedOrderContract();
+  }
+
+  loadOptionContracts(): void {
+    if (!this.selectedInstrumentSymbol) return;
+    this.isLoadingOptions.set(true);
+
+    const price = this.targetPrice || this.currentLtp || undefined;
+    this.instrumentService
+      .getOptionContracts(this.selectedInstrumentSymbol, price, this.selectedExpiry || undefined)
+      .subscribe((res) => {
+        this.isLoadingOptions.set(false);
+        if (res && res.currentExpiry && Array.isArray(res.currentExpiry.strikes)) {
+          // Show maximum 3 strikes around the selected price
+          const strikes = res.currentExpiry.strikes.slice(0, 3);
+          this.strikePairs.set(strikes);
+
+          // Select ATM or middle strike by default if not set
+          const atm =
+            strikes.find((s) => s.relativeStrike === 'ATM') ||
+            strikes[Math.floor(strikes.length / 2)] ||
+            strikes[0];
+          if (atm) {
+            this.selectStrike(atm.strikePrice);
+          }
+        }
+      });
+  }
+
+  selectStrike(strikePrice: number): void {
+    this.selectedStrikePrice = strikePrice;
+    this.updateSelectedOrderContract();
+  }
+
+  updateSelectedOrderContract(): void {
+    const pair = this.strikePairs().find((s) => s.strikePrice === this.selectedStrikePrice);
+    if (!pair) return;
+
+    // If BUY action -> CALL (CE); If SELL action -> PUT (PE)
+    const contract = this.orderAction === 'BUY' ? pair.call : pair.put;
+    if (contract) {
+      this.orderSymbol = contract.symbol;
+      this.orderSecurityId = contract.securityId;
+      this.orderExchangeSegment = contract.exchangeSegment;
     }
   }
 
-  addPoints(points: number): void {
-    if (this.targetPrice !== null) {
-      this.targetPrice = Math.round((this.targetPrice + points) * 100) / 100;
-    } else if (this.currentLtp !== null) {
-      this.targetPrice = Math.round((this.currentLtp + points) * 100) / 100;
-    }
+  isNifty50(): boolean {
+    const sym = (this.selectedInstrumentSymbol || '').toUpperCase();
+    return sym === 'NIFTY 50' || sym === 'NIFTY';
+  }
+
+  selectedLotStep(): number {
+    return this.selectedInstrument?.lotSize || 25;
   }
 
   setQty(qty: number): void {
@@ -658,35 +697,158 @@ export class AlertComposerComponent implements OnInit {
   }
 
   submitAlert(): void {
-    if (!this.instrumentInput || !this.targetPrice) return;
+    if (!this.selectedInstrumentSymbol || !this.targetPrice) return;
 
+    const secId = this.selectedInstrument?.securityId || '13';
+    const exSeg = this.selectedInstrument?.exchangeSegment || 'IDX_I';
+    const priceNum = Number(this.targetPrice);
+
+    // Operator decided automatically: GREATER_THAN_EQUAL if target >= current LTP, LESS_THAN_EQUAL if target < current LTP
+    const operator: AlertOperator =
+      this.currentLtp !== null && priceNum < this.currentLtp
+        ? 'LESS_THAN_EQUAL'
+        : 'GREATER_THAN_EQUAL';
+
+    // 30 days default expiry date in YYYY-MM-DD
+    const expDate = (() => {
+      const d = new Date(Date.now() + 30 * 86400000);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+
+    const clientId =
+      this.authService.tokenStatus()?.clientId ||
+      this.authService.tokenStatus()?.payload?.clientId ||
+      'YOUR_CLIENT_ID';
+
+    // Construct the exact Dhan HQ API v2 JSON payload sent to POST /alerts/orders
+    const dhanPayload: Record<string, any> = this.executeOrderOnTrigger
+      ? {
+          dhanClientId: clientId,
+          condition: {
+            comparisonType: 'PRICE_WITH_VALUE',
+            exchangeSegment: exSeg,
+            securityId: String(secId),
+            operator: operator,
+            comparingValue: priceNum,
+            expDate: expDate,
+            userNote: `Conditional order for ${this.selectedInstrumentSymbol} at ₹${priceNum}`,
+            frequency: 'ONCE',
+          },
+          orders: [
+            {
+              transactionType: 'BUY',
+              exchangeSegment: this.orderExchangeSegment || 'NSE_FNO',
+              productType: this.productType,
+              orderType: this.orderType,
+              securityId: String(this.orderSecurityId),
+              quantity: Number(this.orderQuantity),
+              price: '0',
+              validity: 'DAY',
+            },
+          ],
+        }
+      : {
+          dhanClientId: clientId,
+          condition: {
+            comparisonType: 'PRICE_WITH_VALUE',
+            exchangeSegment: exSeg,
+            securityId: String(secId),
+            operator: operator,
+            comparingValue: priceNum,
+            expDate: expDate,
+            userNote: `Alert for ${this.selectedInstrumentSymbol} at ₹${priceNum}`,
+            frequency: 'ONCE',
+          },
+        };
+
+    const previewData: AlertPreviewData = {
+      instrument: this.selectedInstrumentSymbol,
+      securityId: secId,
+      exchangeSegment: exSeg,
+      currentLtp: this.currentLtp,
+      targetPrice: priceNum,
+      operator: operator,
+      remarks: `Alert for ${this.selectedInstrumentSymbol} @ ₹${priceNum}`,
+      expiry: this.selectedExpiry || expDate,
+      hasOrder: this.executeOrderOnTrigger,
+      order: this.executeOrderOnTrigger
+        ? {
+            action: 'BUY',
+            symbol: this.orderSymbol,
+            securityId: this.orderSecurityId,
+            exchangeSegment: this.orderExchangeSegment || 'NSE_FNO',
+            productType: this.productType,
+            orderType: this.orderType,
+            quantity: Number(this.orderQuantity),
+            price: 0,
+            strike: this.selectedStrikePrice || undefined,
+            optionType: this.orderAction === 'BUY' ? 'CALL (CE)' : 'PUT (PE)',
+            lotSize: this.selectedLotStep(),
+          }
+        : undefined,
+      dhanPayload,
+    };
+
+    const dialogRef = this.dialog.open(AlertPreviewDialogComponent, {
+      data: previewData,
+      width: '640px',
+      maxWidth: '94vw',
+      panelClass: 'alert-preview-dialog-panel',
+    });
+
+    dialogRef.afterClosed().subscribe((confirmed: boolean) => {
+      if (confirmed) {
+        this.executeCreateAlert(operator);
+      }
+    });
+  }
+
+  private executeCreateAlert(operator: AlertOperator): void {
     this.isSubmitting.set(true);
 
-    const attached = this.executeOrderOnTrigger
+    const secId = this.selectedInstrument?.securityId || '13';
+    const exSeg = this.selectedInstrument?.exchangeSegment || 'IDX_I';
+
+    const conditionalOrder = this.executeOrderOnTrigger
       ? {
-          enabled: true,
-          action: this.orderAction,
-          symbol: this.orderSymbol || `${this.instrumentInput} OPT`,
-          productType: this.productType,
+          symbol: this.orderSymbol,
+          securityId: this.orderSecurityId,
+          exchangeSegment: this.orderExchangeSegment || 'NSE_FNO',
+          transactionType: 'BUY' as const,
           orderType: this.orderType,
+          productType: this.productType,
           quantity: this.orderQuantity,
+          price: 0,
+          validity: 'DAY',
         }
       : undefined;
 
     this.alertService
       .createAlert({
-        instrument: this.instrumentInput,
-        securityId: this.securityId,
-        exchangeSegment: this.exchangeSegment,
+        instrument: this.selectedInstrumentSymbol,
+        securityId: secId,
+        exchangeSegment: exSeg,
         targetPrice: Number(this.targetPrice),
-        operator: this.operator,
-        remarks: this.remarks || `Alert for ${this.instrumentInput} @ ${this.targetPrice}`,
-        attachedOrder: attached,
+        operator: operator,
+        remarks: `Alert for ${this.selectedInstrumentSymbol} @ ₹${this.targetPrice}`,
+        conditionalOrder,
+        attachedOrder: conditionalOrder
+          ? {
+              enabled: true,
+              action: 'BUY',
+              symbol: this.orderSymbol,
+              securityId: this.orderSecurityId,
+              exchangeSegment: this.orderExchangeSegment,
+              productType: this.productType,
+              orderType: this.orderType,
+              quantity: this.orderQuantity,
+            }
+          : undefined,
+        expDate: this.selectedExpiry || undefined,
       })
       .subscribe({
         next: () => {
           this.isSubmitting.set(false);
-          this.remarks = '';
         },
         error: () => {
           this.isSubmitting.set(false);

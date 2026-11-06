@@ -25,15 +25,20 @@ export interface TokenInspection {
 }
 
 export interface TokenVerifyResult {
-  valid: boolean;
-  status?: string;
+  valid?: boolean;
+  verified?: boolean;
+  status?: string | number;
+  errorCode?: string;
   message?: string;
+  source?: string;
   profile?: {
     clientId?: string;
     dhanClientId?: string;
     userName?: string;
+    name?: string;
     email?: string;
   };
+  inspection?: TokenInspection;
 }
 
 export interface TokenUpdateDto {

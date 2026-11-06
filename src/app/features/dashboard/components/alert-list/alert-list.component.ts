@@ -512,10 +512,18 @@ export class AlertListComponent {
 
   formatOperator(op: string): string {
     switch (op) {
+      case 'GREATER_THAN_EQUAL':
       case 'GREATER_THAN_OR_EQUAL':
         return '≥ Breakout';
+      case 'GREATER_THAN':
+        return '> Breakout';
+      case 'LESS_THAN_EQUAL':
       case 'LESS_THAN_OR_EQUAL':
         return '≤ Breakdown';
+      case 'LESS_THAN':
+        return '< Breakdown';
+      case 'CROSSING_ANY_SIDE':
+        return '⇋ Any Side';
       case 'CROSSING_UP':
         return '↑ Cross Up';
       case 'CROSSING_DOWN':

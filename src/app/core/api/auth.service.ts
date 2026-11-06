@@ -79,7 +79,7 @@ export class AuthService {
     }, 15000);
   }
 
-  refreshStatus(): void {
+  refreshStatus(notify = false): void {
     this.http
       .get<TokenInspection>('/api/auth/status')
       .pipe(
@@ -88,12 +88,18 @@ export class AuthService {
           this.secondsRemaining.set(data.secondsRemaining || 0);
           this.isBackendOnline.set(true);
           this.error.set(null);
+          if (notify) {
+            this.snackBar.open(`Token status refreshed (${data.statusText})`, 'OK', { duration: 3000 });
+          }
         }),
         catchError((err) => {
           this.isBackendOnline.set(false);
           this.tokenStatus.set(null);
           this.secondsRemaining.set(0);
           this.error.set('Backend server offline (127.0.0.1:8000)');
+          if (notify) {
+            this.snackBar.open('Could not connect to backend server', 'Dismiss', { duration: 4000 });
+          }
           return of(null);
         })
       )
@@ -115,24 +121,36 @@ export class AuthService {
   }
 
   renewToken() {
+    if (this.isRenewing()) return;
     this.isRenewing.set(true);
-    return this.http.post<{ success: boolean; message?: string; inspection?: TokenInspection }>('/api/auth/renew', {}).pipe(
-      tap((res) => {
-        this.isRenewing.set(false);
-        this.refreshStatus();
-        this.snackBar.open(res.message || 'Dhan Access Token renewed successfully!', 'OK', {
-          duration: 4000,
-        });
-      }),
-      catchError((err) => {
-        this.isRenewing.set(false);
-        this.snackBar.open(err.error?.message || 'Failed to renew token. Please ensure backend is online.', 'Dismiss', {
-          duration: 5000,
-          panelClass: ['snackbar-error'],
-        });
-        return of(null);
-      })
-    );
+    this.http
+      .post<{ success: boolean; message?: string; error?: string; inspection?: TokenInspection }>('/api/auth/renew', {})
+      .pipe(
+        tap((res) => {
+          this.isRenewing.set(false);
+          if (res.success) {
+            this.refreshStatus();
+            this.snackBar.open(res.message || 'Dhan Access Token renewed successfully!', 'OK', {
+              duration: 4000,
+            });
+          } else {
+            this.snackBar.open(res.error || 'Dhan rejected token renewal. Token may already be expired.', 'Dismiss', {
+              duration: 6000,
+              panelClass: ['snackbar-error'],
+            });
+          }
+        }),
+        catchError((err) => {
+          this.isRenewing.set(false);
+          const errorMsg = err.error?.message || err.error?.error || 'Failed to renew token. Please ensure backend is online.';
+          this.snackBar.open(errorMsg, 'Dismiss', {
+            duration: 6000,
+            panelClass: ['snackbar-error'],
+          });
+          return of(null);
+        })
+      )
+      .subscribe();
   }
 
   updateToken(payload: TokenUpdateDto) {

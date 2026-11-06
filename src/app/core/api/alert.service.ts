@@ -133,7 +133,11 @@ export class AlertService {
   }
 
   createAlert(dto: CreateAlertDto) {
-    return this.http.post<{ success: boolean; message: string; alert: DhanAlert }>('/api/alerts', dto).pipe(
+    const url = dto.conditionalOrder || dto.attachedOrder?.enabled
+      ? '/api/alerts/conditional-order'
+      : '/api/alerts';
+
+    return this.http.post<{ success: boolean; message: string; alert: DhanAlert }>(url, dto).pipe(
       tap((res) => {
         this.refreshAlerts();
         this.refreshGrouped();
@@ -155,21 +159,56 @@ export class AlertService {
   }
 
   cancelAlert(id: string) {
+    // Optimistic local state update
+    this.alerts.update((alerts) =>
+      alerts.map((a) => (a.id === id || a.dhanAlertId === id ? { ...a, status: 'CANCELLED' } : a))
+    );
+    this.groupedAlerts.update((groups) =>
+      groups.map((g) => ({
+        ...g,
+        alerts: g.alerts.map((a) => (a.id === id || a.dhanAlertId === id ? { ...a, status: 'CANCELLED' } : a)),
+        activeCount: g.alerts.filter((a) => (a.id !== id && a.dhanAlertId !== id ? a.status === 'ACTIVE' : false)).length,
+      }))
+    );
+
     return this.http.post<{ success: boolean; message?: string }>(`/api/alerts/${id}/cancel`, {}).pipe(
       tap(() => {
         this.refreshAlerts();
         this.refreshGrouped();
         this.snackBar.open(`Alert ${id} cancelled`, 'OK', { duration: 3000 });
+      }),
+      catchError((err) => {
+        this.refreshAlerts();
+        this.refreshGrouped();
+        throw err;
       })
     );
   }
 
   deleteAlert(id: string) {
+    // Optimistic local state update so it disappears immediately from UI
+    this.alerts.update((alerts) => alerts.filter((a) => a.id !== id && a.dhanAlertId !== id));
+    this.groupedAlerts.update((groups) =>
+      groups
+        .map((g) => ({
+          ...g,
+          alerts: g.alerts.filter((a) => a.id !== id && a.dhanAlertId !== id),
+          activeCount: g.alerts.filter((a) => a.id !== id && a.dhanAlertId !== id && a.status === 'ACTIVE').length,
+          triggeredCount: g.alerts.filter((a) => a.id !== id && a.dhanAlertId !== id && a.status === 'TRIGGERED').length,
+        }))
+        .filter((g) => g.alerts.length > 0)
+    );
+
     return this.http.delete<{ success: boolean; message?: string }>(`/api/alerts/${id}`).pipe(
       tap(() => {
         this.refreshAlerts();
         this.refreshGrouped();
         this.snackBar.open(`Alert ${id} deleted`, 'OK', { duration: 3000 });
+      }),
+      catchError((err) => {
+        this.refreshAlerts();
+        this.refreshGrouped();
+        throw err;
       })
     );
   }

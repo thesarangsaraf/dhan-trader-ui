@@ -8,6 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { AuthService } from '../../../core/api/auth.service';
+import { OrderService } from '../../../core/api/order.service';
 import { TokenVerifyResult } from '../../../core/models/auth.models';
 
 @Component({
@@ -78,11 +79,18 @@ import { TokenVerifyResult } from '../../../core/models/auth.models';
           <div class="quick-actions">
             <button
               mat-stroked-button
+              (click)="authService.refreshStatus(true)"
+            >
+              <span class="material-symbols-rounded">refresh</span>
+              Refresh Status
+            </button>
+            <button
+              mat-stroked-button
               (click)="verifyValidity()"
               [disabled]="isVerifying()"
             >
               <span class="material-symbols-rounded">verified_user</span>
-              Verify Live on Dhan
+              Verify Live
             </button>
             <button
               mat-flat-button
@@ -90,15 +98,18 @@ import { TokenVerifyResult } from '../../../core/models/auth.models';
               (click)="authService.renewToken()"
               [disabled]="authService.isRenewing()"
             >
-              <span class="material-symbols-rounded">autorenew</span>
-              Renew Token (Auto)
+              <span class="material-symbols-rounded" [class.spinning]="authService.isRenewing()">autorenew</span>
+              {{ authService.isRenewing() ? 'Renewing...' : 'Renew Token (Auto)' }}
             </button>
           </div>
 
           <!-- Verification Outcome -->
-          <div class="verify-alert" *ngIf="verifyResult() as vr" [class.success]="vr.valid" [class.fail]="!vr.valid">
-            <span class="material-symbols-rounded">{{ vr.valid ? 'check_circle' : 'cancel' }}</span>
-            <span>{{ vr.valid ? 'Dhan Profile Verified & Active: ' + (vr.profile?.userName || vr.profile?.clientId) : (vr.message || 'Verification Failed') }}</span>
+          <div class="verify-alert" *ngIf="verifyResult() as vr" [class.success]="isTokenVerified(vr)" [class.fail]="!isTokenVerified(vr)">
+            <span class="material-symbols-rounded alert-icon">{{ isTokenVerified(vr) ? 'check_circle' : 'cancel' }}</span>
+            <div class="verify-text">
+              <span class="verify-title">{{ isTokenVerified(vr) ? ('Dhan Profile Verified & Active: ' + (vr.profile?.userName || vr.profile?.name || vr.profile?.clientId || 'Connected')) : 'Live Verification Failed' }}</span>
+              <span class="verify-desc" *ngIf="!isTokenVerified(vr)">{{ vr.message || 'Verification Failed' }}</span>
+            </div>
           </div>
         </div>
 
@@ -249,9 +260,17 @@ import { TokenVerifyResult } from '../../../core/models/auth.models';
         color: var(--text-primary);
         font-weight: 500;
       }
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .spinning {
+        animation: spin 1s linear infinite;
+        display: inline-block;
+      }
       .quick-actions {
         display: flex;
-        gap: 10px;
+        gap: 8px;
       }
       .quick-actions button {
         flex: 1;
@@ -262,12 +281,30 @@ import { TokenVerifyResult } from '../../../core/models/auth.models';
       }
       .verify-alert {
         margin-top: 12px;
-        padding: 8px 12px;
+        padding: 10px 14px;
         border-radius: 8px;
         display: flex;
-        align-items: center;
-        gap: 8px;
+        align-items: flex-start;
+        gap: 10px;
         font-size: 0.8125rem;
+        line-height: 1.4;
+      }
+      .alert-icon {
+        font-size: 20px;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      .verify-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .verify-title {
+        font-weight: 600;
+      }
+      .verify-desc {
+        font-size: 0.75rem;
+        opacity: 0.95;
       }
       .verify-alert.success {
         background: var(--color-profit-bg);
@@ -311,6 +348,7 @@ import { TokenVerifyResult } from '../../../core/models/auth.models';
 export class AuthModalComponent {
   readonly dialogRef = inject(MatDialogRef<AuthModalComponent>);
   readonly authService = inject(AuthService);
+  readonly orderService = inject(OrderService);
 
   readonly isVerifying = signal<boolean>(false);
   readonly isSubmitting = signal<boolean>(false);
@@ -326,6 +364,11 @@ export class AuthModalComponent {
     }
   }
 
+  isTokenVerified(vr: TokenVerifyResult | null): boolean {
+    if (!vr) return false;
+    return Boolean(vr.valid || vr.verified);
+  }
+
   verifyValidity(): void {
     this.isVerifying.set(true);
     this.authService.verifyToken().subscribe({
@@ -337,6 +380,7 @@ export class AuthModalComponent {
         this.isVerifying.set(false);
         this.verifyResult.set({
           valid: false,
+          verified: false,
           message: err.error?.message || 'Verification call failed',
         });
       },
@@ -355,6 +399,8 @@ export class AuthModalComponent {
         next: () => {
           this.isSubmitting.set(false);
           this.tokenInput = '';
+          this.orderService.refreshAll();
+          this.verifyValidity();
         },
         error: () => {
           this.isSubmitting.set(false);
