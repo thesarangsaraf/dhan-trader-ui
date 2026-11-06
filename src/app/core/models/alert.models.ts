@@ -11,16 +11,38 @@ export type AlertOperator =
 
 export type AlertStatus = 'ACTIVE' | 'TRIGGERED' | 'CANCELLED';
 
-export interface AlertAttachedOrder {
+export interface AlertStopLossConfig {
   enabled: boolean;
-  action: 'BUY' | 'SELL';
+  points: number;
+  targetPrice: number;
+  operator?: AlertOperator | string;
+  action?: 'BUY' | 'SELL';
+}
+
+export interface AlertAttachedOrder {
+  enabled?: boolean;
+  action?: 'BUY' | 'SELL';
+  transactionType?: 'BUY' | 'SELL';
   symbol: string;
+  tradingSymbol?: string;
+  customSymbol?: string;
+  instrumentName?: string;
+  expiryDate?: string;
+  expDate?: string;
+  strikePrice?: number;
+  optionType?: string;
   securityId?: string;
   exchangeSegment?: string;
-  productType: 'INTRADAY' | 'CNC' | 'MARGIN';
-  orderType: 'MARKET' | 'LIMIT';
+  productType?: 'INTRADAY' | 'CNC' | 'MARGIN' | string;
+  orderType?: 'MARKET' | 'LIMIT' | string;
   quantity: number;
+  lots?: number;
   price?: number;
+  triggerPrice?: number;
+  validity?: string;
+  status?: string;
+  orderId?: string | null;
+  executedAt?: string | null;
 }
 
 export interface DhanAlert {
@@ -36,7 +58,17 @@ export interface DhanAlert {
   remarks: string;
   createdAt: string;
   triggeredAt?: string | null;
+  expDate?: string;
   attachedOrder?: AlertAttachedOrder;
+  orders?: AlertAttachedOrder[];
+  conditionalOrders?: AlertAttachedOrder[];
+  hasConditionalOrder?: boolean;
+  stopLoss?: AlertStopLossConfig;
+  stopLossAlertPlaced?: boolean;
+  stopLossAlertId?: string | null;
+  linkedStopLossAlert?: DhanAlert;
+  isStopLossAlert?: boolean;
+  parentAlertId?: string | null;
   dhanMetadata?: {
     noStaticIpRequired?: boolean;
     monitoringMode?: string;
@@ -61,10 +93,12 @@ export interface CreateAlertDto {
     orderType: 'MARKET' | 'LIMIT';
     productType: 'INTRADAY' | 'CNC' | 'MARGIN';
     quantity: number;
+    lots?: number;
     price?: number;
     validity?: string;
   };
   expDate?: string;
+  stopLoss?: AlertStopLossConfig;
 }
 
 export interface UpdateAlertDto {

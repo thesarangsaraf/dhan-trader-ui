@@ -26,13 +26,22 @@ export interface AlertPreviewData {
     productType: string;
     orderType: string;
     quantity: number;
+    lots?: number;
     price: number;
     strike?: number;
     optionType?: string;
     lotSize?: number;
     moneyness?: string;
   };
+  stopLoss?: {
+    enabled: boolean;
+    points: number;
+    targetPrice: number;
+    operator: string;
+    action: string;
+  };
   dhanPayload: Record<string, any>;
+  slDhanPayload?: Record<string, any>;
 }
 
 @Component({
@@ -172,10 +181,12 @@ export interface AlertPreviewData {
                   </div>
 
                   <div class="info-item">
-                    <span class="label">Quantity & Lot Units</span>
+                    <span class="label">Quantity & Lots</span>
                     <span class="value mono-val">
-                      {{ data.order.quantity }} qty
-                      <span class="tag-badge" *ngIf="data.order.lotSize">Lot: {{ data.order.lotSize }}</span>
+                      {{ data.order.quantity }} shares
+                      <span class="tag-badge" *ngIf="data.order.lotSize">
+                        {{ data.order.lots || (data.order.quantity / data.order.lotSize) }} Lots (×{{ data.order.lotSize }})
+                      </span>
                     </span>
                   </div>
 
@@ -183,6 +194,50 @@ export interface AlertPreviewData {
                     <span class="label">Execution Price</span>
                     <span class="value mono-val">
                       {{ data.order.orderType === 'MARKET' ? 'MARKET (Best Available)' : (data.order.price | currencyInr) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Automated Stop Loss Protection Section -->
+              <div class="detail-card sl-card" *ngIf="data.hasOrder && data.stopLoss && data.stopLoss.enabled">
+                <div class="card-section-header">
+                  <span class="material-symbols-rounded section-icon text-rose">shield</span>
+                  <span class="section-title">Automated Stop Loss Order (Exit Protection)</span>
+                  <span class="status-badge sl-badge">
+                    {{ data.stopLoss.action }} @ ₹{{ data.stopLoss.targetPrice | currencyInr : false }}
+                  </span>
+                </div>
+
+                <div class="summary-grid">
+                  <div class="info-item">
+                    <span class="label">Stop Loss Trigger Level</span>
+                    <span class="value mono-val text-rose font-bold">
+                      ₹{{ data.stopLoss.targetPrice | currencyInr : false }}
+                      <span class="points-tag">({{ data.stopLoss.points }} pts distance)</span>
+                    </span>
+                  </div>
+
+                  <div class="info-item">
+                    <span class="label">Trigger Logic</span>
+                    <span class="value">
+                      <span class="op-badge breakdown">
+                        {{ formatOperator(data.stopLoss.operator) }}
+                      </span>
+                    </span>
+                  </div>
+
+                  <div class="info-item full-width-item">
+                    <span class="label">Exit Contract Order</span>
+                    <span class="value mono-val text-emerald font-semibold">
+                      {{ data.stopLoss.action }} {{ data.order?.quantity }} Qty of {{ data.order?.symbol }} (MARKET)
+                    </span>
+                  </div>
+
+                  <div class="info-item full-width-item">
+                    <span class="label">Execution Lifecycle</span>
+                    <span class="value text-muted">
+                      Placed automatically as a new Dhan alert order the moment the entry order is filled.
                     </span>
                   </div>
                 </div>
@@ -233,6 +288,20 @@ export interface AlertPreviewData {
               <div class="json-viewer-wrap">
                 <pre class="json-code"><code>{{ formattedJson }}</code></pre>
               </div>
+
+              <!-- Stop Loss Planned JSON if enabled -->
+              <ng-container *ngIf="data.slDhanPayload">
+                <div class="json-header-row" style="margin-top: 16px;">
+                  <div class="endpoint-pill">
+                    <span class="http-method" style="color: #f43f5e;">POST</span>
+                    <span class="http-url">Planned Stop Loss Alert Order Payload</span>
+                  </div>
+                </div>
+
+                <div class="json-viewer-wrap">
+                  <pre class="json-code" style="color: #fda4af;"><code>{{ formattedSlJson }}</code></pre>
+                </div>
+              </ng-container>
             </div>
           </mat-tab>
         </mat-tab-group>
@@ -537,9 +606,23 @@ export interface AlertPreviewData {
       .text-cyan { color: var(--dhan-cyan, #00d2c4); }
       .text-emerald { color: #10b981; }
       .text-amber { color: #f59e0b; }
+      .text-rose { color: #f43f5e; }
       .text-muted { color: #94a3b8; }
       .font-semibold { font-weight: 600; }
       .font-bold { font-weight: 700; }
+      .sl-card {
+        border-color: rgba(244, 63, 94, 0.25) !important;
+        background: rgba(244, 63, 94, 0.04) !important;
+      }
+      .sl-badge {
+        background: rgba(244, 63, 94, 0.2) !important;
+        color: #f43f5e !important;
+      }
+      .points-tag {
+        font-size: 0.75rem;
+        color: #fda4af;
+        margin-left: 6px;
+      }
     `,
   ],
 })
@@ -552,6 +635,10 @@ export class AlertPreviewDialogComponent {
 
   get formattedJson(): string {
     return JSON.stringify(this.data.dhanPayload, null, 2);
+  }
+
+  get formattedSlJson(): string {
+    return this.data.slDhanPayload ? JSON.stringify(this.data.slDhanPayload, null, 2) : '';
   }
 
   formatOperator(op: string): string {

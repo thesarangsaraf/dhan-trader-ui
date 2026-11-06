@@ -17,6 +17,7 @@ export interface OptionExpiryItem {
 export interface OptionContractDetails {
   symbol: string;
   tradingSymbol: string;
+  customSymbol?: string;
   instrumentName: string;
   strikePrice: number;
   optionType: 'CE' | 'PE';

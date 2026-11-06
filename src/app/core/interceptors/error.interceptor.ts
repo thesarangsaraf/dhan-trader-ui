@@ -12,11 +12,9 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       // Individual sections already display human-readable error cards with Retry buttons.
       const isBackgroundRead =
         req.method === 'GET' ||
-        req.url.includes('/api/alerts/poll') ||
         req.url.includes('/health') ||
         req.url.includes('/api/positions') ||
         req.url.includes('/api/orders') ||
-        req.url.includes('/api/holdings') ||
         req.url.includes('/api/auth/status');
 
       if (!isBackgroundRead) {

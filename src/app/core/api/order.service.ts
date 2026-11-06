@@ -4,7 +4,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, Observable, of, tap } from 'rxjs';
 import {
   AccountFunds,
-  DhanHolding,
   DhanOrder,
   DhanPosition,
   PlaceOrderDto,
@@ -21,17 +20,14 @@ export class OrderService {
 
   readonly orders = signal<DhanOrder[]>([]);
   readonly positions = signal<DhanPosition[]>([]);
-  readonly holdings = signal<DhanHolding[]>([]);
   readonly funds = signal<AccountFunds | null>(null);
   readonly summary = signal<PositionsSummary | null>(null);
 
   readonly isLoadingOrders = signal<boolean>(false);
   readonly isLoadingPositions = signal<boolean>(false);
-  readonly isLoadingHoldings = signal<boolean>(false);
 
   readonly ordersError = signal<string | null>(null);
   readonly positionsError = signal<string | null>(null);
-  readonly holdingsError = signal<string | null>(null);
 
   readonly openOrders = computed(() =>
     this.orders().filter((o) => o.status === 'PENDING' || o.status === 'TRANSIT')
@@ -40,25 +36,13 @@ export class OrderService {
     this.orders().filter((o) => o.status === 'COMPLETE')
   );
 
-  private autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
-
   constructor() {
     this.refreshAll();
-    this.startAutoRefresh();
-  }
-
-  private startAutoRefresh(): void {
-    if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
-    this.autoRefreshTimer = setInterval(() => {
-      this.refreshPositions();
-      this.refreshOrders();
-    }, 5000);
   }
 
   refreshAll(): void {
     this.refreshOrders();
     this.refreshPositions();
-    this.refreshHoldings();
   }
 
   refreshOrders(): void {
@@ -102,28 +86,6 @@ export class OrderService {
           const msg = err.error?.message || 'Backend server not available (127.0.0.1:8000)';
           this.positionsError.set(`Failed to load positions: ${msg}`);
           return of(null);
-        })
-      )
-      .subscribe();
-  }
-
-  refreshHoldings(): void {
-    this.isLoadingHoldings.set(true);
-    this.http
-      .get<DhanHolding[]>('/api/holdings')
-      .pipe(
-        tap((data) => {
-          this.isLoadingHoldings.set(false);
-          this.holdingsError.set(null);
-          if (Array.isArray(data)) {
-            this.holdings.set(data);
-          }
-        }),
-        catchError((err) => {
-          this.isLoadingHoldings.set(false);
-          const msg = err.error?.message || 'Backend server not available (127.0.0.1:8000)';
-          this.holdingsError.set(`Failed to load Demat holdings: ${msg}`);
-          return of([]);
         })
       )
       .subscribe();

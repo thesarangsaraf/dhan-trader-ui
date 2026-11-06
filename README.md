@@ -16,7 +16,7 @@ A high-performance, reactive, and trader-friendly single-page application (SPA) 
 - **Continuous 1.5s Polling Engine & Web Audio Chime**: Synthesizes pleasant two-tone audio chimes upon trigger events via the Web Audio API (`AudioContext`).
 - **Material You Dynamic Theming (Fintech Pro)**: High-contrast Dark mode (`#0B0F19`) and Light mode (`#F8FAFC`) with JetBrains Mono tabular price badges.
 - **Graceful Section-Level Error Handling**: If the backend server (`127.0.0.1:8000`) is offline, each section displays a dedicated error card with a retry button without crashing or blanking the rest of the application.
-- **Live Portfolio & Real-time Order Book**: Positions with 1-click square-off exit, live order book with status badges, and Demat holdings.
+- **Live Portfolio & Real-time Order Book**: Positions with 1-click square-off exit, and live order book with status badges.
 - **JWT Lifecycle & Auto-Renewal**: IST countdown clock, color alerts (<60m yellow, <10m red), 1-click token renewal, and manual override dialog.
 - **Spotlight Scrip Searcher (`Ctrl + K`)**: Instant command palette to search indices, strikes, and equities.
 
@@ -31,7 +31,7 @@ A high-performance, reactive, and trader-friendly single-page application (SPA) 
 |  LEFT PANEL (35%)             |  CENTER PANEL (40%)           |  RIGHT PANEL (25%)    |
 |  - Fixed Scrip Dropdown       |  - Active Alerts & Triggers   |  - Positions & P&L    |
 |  - Alert Creator Form         |  - Attached Order Monitor     |  - Order Book (Live)  |
-|  - Quick Points Adjusters     |                               |  - Holdings           |
+|  - Quick Points Adjusters     |                               |                       |
 +---------------------------------------------------------------------------------------+
 |  Bottom Dock: Token Expiry Countdown | Live Sound Toggle | Fast Scrip Searcher (Ctrl+K)
 +---------------------------------------------------------------------------------------+

@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { OrderService } from '../../../../core/api/order.service';
-import { DhanHolding, DhanPosition } from '../../../../core/models/order.models';
+import { DhanPosition } from '../../../../core/models/order.models';
 import { ConfirmationDialogComponent } from '../../../../shared/components/confirmation-dialog/confirmation-dialog.component';
 import { PriceBadgeComponent } from '../../../../shared/components/price-badge/price-badge.component';
 import { SectionErrorComponent } from '../../../../shared/components/section-error/section-error.component';

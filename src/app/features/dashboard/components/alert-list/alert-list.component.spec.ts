@@ -1,0 +1,430 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { MatDialog } from '@angular/material/dialog';
+import { of } from 'rxjs';
+import { AlertListComponent } from './alert-list.component';
+import { AlertService } from '../../../../core/api/alert.service';
+import { DhanAlert } from '../../../../core/models/alert.models';
+
+describe('AlertListComponent', () => {
+  let component: AlertListComponent;
+  let fixture: ComponentFixture<AlertListComponent>;
+  let alertService: AlertService;
+
+  const mockAlerts: DhanAlert[] = [
+    {
+      id: 'ALT-1001',
+      instrument: 'NIFTY 50',
+      securityId: '13',
+      exchangeSegment: 'IDX_I',
+      targetPrice: 24950.0,
+      operator: 'GREATER_THAN_EQUAL',
+      status: 'ACTIVE',
+      remarks: 'Breakout above 24950',
+      createdAt: '2026-11-06T10:00:00.000Z',
+      attachedOrder: {
+        enabled: true,
+        action: 'BUY',
+        symbol: 'NIFTY 24500 CE',
+        quantity: 50,
+        orderType: 'MARKET',
+        productType: 'INTRADAY',
+        status: 'PENDING',
+      },
+    },
+    {
+      id: 'ALT-1002',
+      instrument: 'BANKNIFTY',
+      securityId: '25',
+      exchangeSegment: 'IDX_I',
+      targetPrice: 51800.0,
+      operator: 'LESS_THAN_EQUAL',
+      status: 'TRIGGERED',
+      remarks: 'Support breakdown',
+      createdAt: '2026-11-06T10:15:00.000Z',
+      triggeredAt: '2026-11-06T10:45:00.000Z',
+      conditionalOrders: [
+        {
+          symbol: 'BANKNIFTY 52000 PE',
+          action: 'SELL',
+          quantity: 30,
+          orderType: 'LIMIT',
+          productType: 'INTRADAY',
+          price: 185.5,
+          status: 'PLACED',
+          orderId: 'DHAN-ORD-999',
+        },
+      ],
+    },
+    {
+      id: 'ALT-1003',
+      instrument: 'RELIANCE',
+      securityId: '2885',
+      exchangeSegment: 'NSE_EQ',
+      targetPrice: 3000.0,
+      operator: 'GREATER_THAN_EQUAL',
+      status: 'CANCELLED',
+      remarks: 'No attached order alert',
+      createdAt: '2026-11-06T09:30:00.000Z',
+    },
+  ];
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AlertListComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: MatDialog,
+          useValue: {
+            open: () => ({ afterClosed: () => of(true) }),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(AlertListComponent);
+    component = fixture.componentInstance;
+    alertService = TestBed.inject(AlertService);
+
+    // Populate alerts signal with test data
+    alertService.alerts.set(mockAlerts);
+    alertService.alertsError.set(null);
+    fixture.detectChanges();
+  });
+
+  it('should create the component', () => {
+    expect(component).toBeTruthy();
+  });
+
+  it('should display all alerts from Dhan without filter tabs', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    // Verify tabs are NOT present
+    const filterTabs = compiled.querySelector('.filter-tabs');
+    expect(filterTabs).toBeNull();
+    const tabBtns = compiled.querySelectorAll('.tab-btn');
+    expect(tabBtns.length).toBe(0);
+
+    // Verify all 3 alert items are rendered directly
+    const items = compiled.querySelectorAll('.alert-item');
+    expect(items.length).toBe(3);
+
+    // Check instruments
+    expect(items[0].textContent).toContain('NIFTY 50');
+    expect(items[1].textContent).toContain('BANKNIFTY');
+    expect(items[2].textContent).toContain('RELIANCE');
+  });
+
+  it('should NOT display LTP anywhere in the alert monitor', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const textContent = compiled.textContent || '';
+
+    // Verify no LTP label or distance sub-indicator
+    expect(textContent).not.toContain('LTP:');
+    expect(compiled.querySelector('.col-distance')).toBeNull();
+    expect(compiled.querySelector('.distance-sub')).toBeNull();
+  });
+
+  it('should display linked order details when an order is attached to the alert', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const items = compiled.querySelectorAll('.alert-item');
+
+    // First alert has NIFTY 24500 CE BUY order
+    const firstOrderCard = items[0].querySelector('.linked-order-card');
+    expect(firstOrderCard).toBeTruthy();
+    expect(firstOrderCard?.textContent).toContain('NIFTY 24500 CE');
+    expect(firstOrderCard?.textContent).toContain('BUY');
+    expect(firstOrderCard?.textContent).toContain('Qty:50');
+    // Ensure NSE_FNO, Sec ID, and Product are NOT displayed
+    expect(firstOrderCard?.textContent).not.toContain('INTRADAY');
+    expect(firstOrderCard?.textContent).not.toContain('NSE_FNO');
+    expect(firstOrderCard?.textContent).not.toContain('Sec ID');
+
+    // Second alert has BANKNIFTY 52000 PE SELL order with orderId and limit price
+    const secondOrderCard = items[1].querySelector('.linked-order-card');
+    expect(secondOrderCard).toBeTruthy();
+    expect(secondOrderCard?.textContent).toContain('BANKNIFTY 52000 PE');
+    expect(secondOrderCard?.textContent).toContain('SELL');
+    expect(secondOrderCard?.textContent).toContain('Qty:30');
+    expect(secondOrderCard?.textContent).toContain('#DHAN-ORD-999');
+
+    // Third alert has NO linked order
+    const thirdOrderCard = items[2].querySelector('.linked-order-card');
+    expect(thirdOrderCard).toBeNull();
+  });
+
+  it('should NOT show cancel button or breakout/breakdown badges, only delete button', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const items = compiled.querySelectorAll('.alert-item');
+
+    // No cancel alert button anywhere
+    const cancelBtns = compiled.querySelectorAll('.action-icon-btn.cancel');
+    expect(cancelBtns.length).toBe(0);
+
+    // Delete buttons should be present
+    const deleteBtns = compiled.querySelectorAll('.action-icon-btn.delete');
+    expect(deleteBtns.length).toBe(items.length);
+
+    // Operator badge (< breakout, > breakdown) is removed from target columns
+    const operatorBadges = compiled.querySelectorAll('.operator-badge');
+    expect(operatorBadges.length).toBe(0);
+    const targetCols = compiled.querySelectorAll('.col-target');
+    targetCols.forEach((col) => {
+      expect(col.textContent).not.toContain('Breakout');
+      expect(col.textContent).not.toContain('Breakdown');
+      expect(col.textContent).toContain('Target');
+    });
+  });
+
+  it('should format expiry dates and extract strike and option type details', () => {
+    expect(component.formatExpiry('2026-11-09')).toBe('09 Nov 2026');
+    expect(component.formatExpiry('2026-11-26')).toBe('26 Nov 2026');
+
+    const optDetails = component.getOptionDetails({ symbol: 'NIFTY 09 NOV 25000 CALL', quantity: 65 });
+    expect(optDetails.strike).toBe(25000);
+    expect(optDetails.type).toBe('CALL (CE)');
+
+    const peDetails = component.getOptionDetails({ symbol: 'BANKNIFTY-Nov2026-52000-PE', quantity: 30 });
+    expect(peDetails.strike).toBe(52000);
+    expect(peDetails.type).toBe('PUT (PE)');
+
+    // Ensure securityId fallback like "SEC-40040" is NEVER erroneously parsed as a strike price
+    const secIdFallback = component.getOptionDetails({ symbol: 'SEC-40040', securityId: '40040', quantity: 65 });
+    expect(secIdFallback.strike).toBeUndefined();
+
+    // Ensure explicit strikePrice and optionType take priority
+    const explicitDetails = component.getOptionDetails({
+      symbol: 'SEC-40040',
+      strikePrice: 25050,
+      optionType: 'PE',
+      quantity: 325,
+    });
+    expect(explicitDetails.strike).toBe(25050);
+    expect(explicitDetails.type).toBe('PUT (PE)');
+  });
+
+  it('should correctly prioritize contract symbol and instrument name over security ID fallback', () => {
+    const alert: DhanAlert = mockAlerts[0];
+
+    // Priority 1: customSymbol
+    expect(
+      component.getDisplaySymbol(
+        { symbol: 'SEC-40040', customSymbol: 'NIFTY 09 NOV 25050 PUT', quantity: 325 },
+        alert
+      )
+    ).toBe('NIFTY 09 NOV 25050 PUT');
+
+    // Priority 2: instrumentName
+    expect(
+      component.getDisplaySymbol(
+        { symbol: 'SEC-40040', instrumentName: 'NIFTY 09 NOV 25050 PUT', quantity: 325 },
+        alert
+      )
+    ).toBe('NIFTY 09 NOV 25050 PUT');
+
+    // Priority 3: strikePrice + optionType composition
+    expect(
+      component.getDisplaySymbol(
+        { symbol: 'SEC-40040', strikePrice: 25050, optionType: 'PE', quantity: 325 },
+        alert
+      )
+    ).toBe('NIFTY 50 25050 PE');
+  });
+
+  it('should render BUY order with Stop Loss as a single unified trade order card', () => {
+    const slAlerts: DhanAlert[] = [
+      {
+        id: 'ALT-SL-PARENT',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25017.0,
+        operator: 'LESS_THAN',
+        status: 'ACTIVE',
+        remarks: 'Entry at 25017',
+        createdAt: '2026-11-06T10:00:00.000Z',
+        stopLoss: {
+          enabled: true,
+          points: 12,
+          targetPrice: 25005.0,
+          operator: 'LESS_THAN',
+          action: 'SELL',
+        },
+        attachedOrder: {
+          symbol: 'NIFTY 25000 CE',
+          quantity: 325,
+          action: 'BUY',
+        },
+      },
+      {
+        id: 'ALT-SL-CHILD',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25005.0,
+        operator: 'LESS_THAN',
+        status: 'ACTIVE',
+        remarks: '[STOP LOSS] Exit for #ALT-SL-PARENT (NIFTY 25000 CE)',
+        createdAt: '2026-11-06T10:05:00.000Z',
+        isStopLossAlert: true,
+        parentAlertId: 'ALT-SL-PARENT',
+        conditionalOrders: [
+          {
+            symbol: 'NIFTY 25000 CE',
+            quantity: 325,
+            transactionType: 'SELL',
+          },
+        ],
+      },
+    ];
+
+    alertService.alerts.set(slAlerts);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const items = compiled.querySelectorAll('.alert-item');
+
+    // CRITICAL: Must be rendered as EXACTLY 1 unified order card, not 2 separate disconnected cards!
+    expect(items.length).toBe(1);
+
+    const unifiedCard = items[0];
+    const textContent = unifiedCard.textContent || '';
+
+    // Entry BUY Order Details
+    expect(textContent).toContain('NIFTY 50');
+    expect(textContent).toContain('BUY');
+    expect(textContent).toContain('NIFTY 25000 CE');
+    expect(textContent).toContain('25,017');
+    expect(textContent).toContain('With Stop Loss (12 pts)');
+
+    // Embedded Attached Stop Loss Section inside the SAME card
+    const embeddedSl = unifiedCard.querySelector('.embedded-stop-loss-section');
+    expect(embeddedSl).toBeTruthy();
+    const slText = embeddedSl?.textContent || '';
+    expect(slText).toContain('Attached Stop Loss Order (Exit Protection)');
+    expect(slText).toContain('-12 pts');
+    expect(slText).toContain('25,005');
+    expect(slText).toContain('SELL');
+    expect(slText).toContain('Square Off:');
+    expect(slText).toContain('NIFTY 25000 CE');
+    expect(slText).toContain('Qty: 325');
+    expect(slText).toContain('SL Alert #ALT-SL-CHILD');
+  });
+
+  it('should render multiple trades with attached Stop Loss as separate unified cards (no card scattering)', () => {
+    const multiAlerts: DhanAlert[] = [
+      // Trade 1: NIFTY 50 Buy + SL
+      {
+        id: 'NIFTY-BUY',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25017.0,
+        operator: 'LESS_THAN',
+        status: 'ACTIVE',
+        remarks: 'Nifty trade',
+        createdAt: '2026-11-06T10:00:00.000Z',
+        stopLoss: { enabled: true, points: 12, targetPrice: 25005.0, action: 'SELL' },
+        attachedOrder: { symbol: 'NIFTY 25000 CE', quantity: 325, action: 'BUY' },
+      },
+      {
+        id: 'NIFTY-SL',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25005.0,
+        operator: 'LESS_THAN',
+        status: 'ACTIVE',
+        remarks: '[STOP LOSS] Exit for #NIFTY-BUY',
+        createdAt: '2026-11-06T10:00:01.000Z',
+        isStopLossAlert: true,
+        parentAlertId: 'NIFTY-BUY',
+        conditionalOrders: [{ symbol: 'NIFTY 25000 CE', quantity: 325, transactionType: 'SELL' }],
+      },
+      // Trade 2: BANK NIFTY Buy + SL
+      {
+        id: 'BANK-BUY',
+        instrument: 'BANKNIFTY',
+        securityId: '25',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 52000.0,
+        operator: 'LESS_THAN',
+        status: 'ACTIVE',
+        remarks: 'Bank trade',
+        createdAt: '2026-11-06T10:05:00.000Z',
+        stopLoss: { enabled: true, points: 20, targetPrice: 51980.0, action: 'SELL' },
+        attachedOrder: { symbol: 'BANKNIFTY 52000 PE', quantity: 150, action: 'BUY' },
+      },
+      {
+        id: 'BANK-SL',
+        instrument: 'BANKNIFTY',
+        securityId: '25',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 51980.0,
+        operator: 'GREATER_THAN',
+        status: 'ACTIVE',
+        remarks: '[STOP LOSS] Exit for #BANK-BUY',
+        createdAt: '2026-11-06T10:05:01.000Z',
+        isStopLossAlert: true,
+        parentAlertId: 'BANK-BUY',
+        conditionalOrders: [{ symbol: 'BANKNIFTY 52000 PE', quantity: 150, transactionType: 'SELL' }],
+      },
+    ];
+
+    alertService.alerts.set(multiAlerts);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const items = compiled.querySelectorAll('.alert-item');
+
+    // 4 Dhan alerts collapsed into exactly 2 unified trade order cards
+    expect(items.length).toBe(2);
+
+    // Trade 1 is NIFTY with its own SL
+    expect(items[0].textContent).toContain('NIFTY 50');
+    expect(items[0].textContent).toContain('NIFTY 25000 CE');
+    expect(items[0].querySelector('.embedded-stop-loss-section')?.textContent).toContain('-12 pts');
+    expect(items[0].querySelector('.embedded-stop-loss-section')?.textContent).toContain('25,005');
+
+    // Trade 2 is BANKNIFTY with its own SL
+    expect(items[1].textContent).toContain('BANKNIFTY');
+    expect(items[1].textContent).toContain('BANKNIFTY 52000 PE');
+    expect(items[1].querySelector('.embedded-stop-loss-section')?.textContent).toContain('-20 pts');
+    expect(items[1].querySelector('.embedded-stop-loss-section')?.textContent).toContain('51,980');
+  });
+
+  it('should render orphan Stop Loss alert if parent alert was removed', () => {
+    const orphanAlert: DhanAlert = {
+      id: 'ALT-ORPHAN-SL',
+      instrument: 'NIFTY 50',
+      securityId: '13',
+      exchangeSegment: 'IDX_I',
+      targetPrice: 25005.0,
+      operator: 'LESS_THAN',
+      status: 'ACTIVE',
+      remarks: '[STOP LOSS] Exit for #OLD-DELETED-PARENT',
+      createdAt: '2026-11-06T10:00:00.000Z',
+      isStopLossAlert: true,
+      parentAlertId: 'OLD-DELETED-PARENT',
+      conditionalOrders: [
+        {
+          symbol: 'NIFTY 25000 CE',
+          quantity: 325,
+          transactionType: 'SELL',
+        },
+      ],
+    };
+
+    alertService.alerts.set([orphanAlert]);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const items = compiled.querySelectorAll('.alert-item');
+    expect(items.length).toBe(1);
+    expect(items[0].textContent).toContain('STOP LOSS');
+    expect(items[0].textContent).toContain('Exit order for parent alert #OLD-DELETED-PARENT');
+  });
+});

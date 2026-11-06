@@ -14,7 +14,7 @@ This document provides operational context, architectural contracts, design rule
 
 ## 2. Technology Stack & Design System
 
-- **Framework**: Angular 19+ (Standalone Components, Signals, Computed Signals, and RxJS for polling loops).
+- **Framework**: Angular 19+ (Standalone Components, Signals, Computed Signals).
 - **Design Language**: Google Material Design 3 (Material You / M3 dynamic tokens).
 - **Component Library**: `@angular/material` (M3 tokens) + `@angular/cdk`.
 - **Theming**:
@@ -56,7 +56,19 @@ This document provides operational context, architectural contracts, design rule
 - In the "Execute Instant Order" section:
   - Option expiry selection dropdown is provided, backed by the backend API (`GET /api/instruments/expiries`).
   - Maximum 3 option strike prices around the selected price are displayed for selection, returned by the backend API (`GET /api/instruments/option-contracts`).
-  - Default quantity is 5 for NIFTY 50, with 5, 10, and 15 quick quantity buttons.
+  - Product is always `INTRADAY` (MIS) and order type is always `MARKET` (selectors hidden to streamline rapid execution).
+  - Number of lots text box is removed; fixed lot size selection buttons (**5**, **10**, and **15 Lots**) are provided with dynamic total quantity calculation (`lots × lotSize`).
+- **Automated Stop Loss Alert Order**:
+  - Attached Stop Loss alert order option allows automating downside/upside exit protection.
+  - No text box to input Stop Loss points; uses defined index stop loss points automatically:
+    - **12 points for NIFTY 50**
+    - **20 points for BANK NIFTY**
+    - **15 points for other scrips**
+  - Stop loss trigger calculation:
+    - If Buy order (or BUY CALL): `entry - stopLossPoints` (operator: `LESS_THAN` / breakdown).
+    - If Sell order (or BUY PUT): `entry + stopLossPoints` (operator: `GREATER_THAN` / breakout).
+  - Lifecycle: Both the Entry alert order and Stop Loss alert order are deployed immediately to Dhan HQ API v2 (`POST /alerts/orders`) to **SELL / square off the exact same option contract** that was bought.
+  - **Unified Trade Order Card**: In the Live Alert Monitor, Buy orders with attached Stop Loss orders are presented as **a single, unified trade order card** rather than two scattered cards. The child Stop Loss order is embedded directly inside the parent card, displaying its trigger price, point distance (-12 pts / -20 pts), and square-off contract details. Deleting the card removes both the entry and stop loss alerts from Dhan.
 
 ---
 
@@ -77,14 +89,12 @@ This document provides operational context, architectural contracts, design rule
 | `/api/alerts` | `GET`, `POST` | Alerts | List all price alerts or create a new alert |
 | `/api/alerts/indices` | `GET` | Alerts | Real-time popular benchmark NSE indices |
 | `/api/alerts/grouped` | `GET` | Alerts | Alerts grouped by instrument |
-| `/api/alerts/poll?since={id}` | `GET` | Alerts | 1.5s interval long-poll for triggered alerts |
 | `/api/alerts/{id}/cancel` | `POST` | Alerts | Cancel an active alert |
 | `/api/alerts/{id}` | `PUT`, `DELETE` | Alerts | Update or permanently delete an alert |
 | `/api/alerts/test-chime` | `POST` | Alerts | Trigger simulated chime notification |
 | `/api/orders` | `GET`, `POST` | Orders | Order book inspection and placement |
 | `/api/orders/{id}` | `DELETE` | Orders | Cancel an open pending order |
 | `/api/positions` | `GET` | Portfolio | Live positions, account funds, and P&L metrics |
-| `/api/holdings` | `GET` | Portfolio | Demat equity portfolio holdings |
 | `/api/instruments?q={term}` | `GET` | Instruments | Search scrip master with debounce |
 | `/api/instruments/expiries` | `GET` | Instruments | Available weekly/monthly option expiries |
 | `/api/instruments/option-contracts` | `GET`, `POST` | Instruments | 3 strikes (ATM-1, ATM, ATM+1) around target price |
@@ -100,10 +110,10 @@ This document provides operational context, architectural contracts, design rule
 src/app/
 ├── core/
 │   ├── api/
-│   │   ├── alert.service.ts         // Alerts endpoints + 1.5s polling engine
+│   │   ├── alert.service.ts         // Alerts endpoints and live alert state
 │   │   ├── auth.service.ts          // JWT status, countdown, and renewal
 │   │   ├── instrument.service.ts    // Real scrip search
-│   │   ├── order.service.ts         // Orders, positions, and holdings
+│   │   ├── order.service.ts         // Orders and positions
 │   │   └── telegram.service.ts      // Telegram bot connection & test
 │   ├── interceptors/
 │   │   ├── api-prefix.interceptor.ts// Auto-prefixes http://127.0.0.1:8000

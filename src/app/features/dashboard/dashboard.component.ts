@@ -16,7 +16,6 @@ import { AuthModalComponent } from '../settings/auth-modal/auth-modal.component'
 import { TelegramModalComponent } from '../settings/telegram-modal/telegram-modal.component';
 import { ScripSearcherModalComponent } from '../../shared/components/scrip-searcher-modal/scrip-searcher-modal.component';
 import { PriceBadgeComponent } from '../../shared/components/price-badge/price-badge.component';
-import { SectionErrorComponent } from '../../shared/components/section-error/section-error.component';
 import { CurrencyInrPipe } from '../../shared/pipes/currency-inr.pipe';
 import { IstDatePipe } from '../../shared/pipes/ist-date.pipe';
 import { AlertComposerComponent } from './components/alert-composer/alert-composer.component';
@@ -35,7 +34,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
     MatTooltipModule,
     MatDialogModule,
     PriceBadgeComponent,
-    SectionErrorComponent,
     CurrencyInrPipe,
     IstDatePipe,
     AlertComposerComponent,
@@ -218,43 +216,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
                 <app-order-book></app-order-book>
               </div>
             </mat-tab>
-
-            <!-- Tab 3: Demat Holdings -->
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <span class="material-symbols-rounded tab-icon">inventory_2</span>
-                <span>Holdings</span>
-              </ng-template>
-              <div class="tab-content holdings-tab">
-                <!-- Section Error for Holdings -->
-                <app-section-error
-                  *ngIf="orderService.holdingsError() as err"
-                  title="Failed to Load Holdings"
-                  [message]="err"
-                  (retry)="orderService.refreshHoldings()"
-                ></app-section-error>
-
-                <div *ngIf="!orderService.holdingsError() && orderService.holdings().length === 0" class="empty-state">
-                  <span class="material-symbols-rounded empty-icon">account_balance_wallet</span>
-                  <p>No Demat equity holdings recorded on your Dhan account.</p>
-                </div>
-
-                <div *ngFor="let h of orderService.holdings()" class="holding-card m3-card">
-                  <div class="h-top">
-                    <span class="h-sym">{{ h.symbol }}</span>
-                    <span class="h-qty mono-val">{{ h.totalQty }} Qty</span>
-                  </div>
-                  <div class="h-sub mono-val">
-                    <span>Avg: {{ h.avgCostPrice | currencyInr : false }}</span>
-                    <span>LTP: {{ h.ltp | currencyInr : false }}</span>
-                  </div>
-                  <div class="h-bottom mono-val">
-                    <span class="val-text">Val: {{ h.currentValue | currencyInr : false }}</span>
-                    <app-price-badge [value]="h.pnl" size="compact"></app-price-badge>
-                  </div>
-                </div>
-              </div>
-            </mat-tab>
           </mat-tab-group>
         </aside>
       </main>
@@ -264,10 +225,10 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
         <div class="dock-left">
           <div class="dock-item">
             <span class="pulse-dot-cyan" [class.offline]="!authService.isBackendOnline()"></span>
-            <span class="text">Engine: {{ authService.isBackendOnline() ? 'Live Alert Polling (1.5s Interval)' : 'Backend Disconnected' }}</span>
+            <span class="text">Engine: {{ authService.isBackendOnline() ? 'Dhan Pro Engine Active' : 'Backend Disconnected' }}</span>
           </div>
           <div class="dock-item mono-val" *ngIf="alertService.lastPollTime() as pt">
-            <span>Last Tick: {{ pt | istDate : 'timeOnly' }}</span>
+            <span>Last Updated: {{ pt | istDate : 'timeOnly' }}</span>
           </div>
           <div class="dock-item">
             <span class="material-symbols-rounded dock-icon">verified</span>
@@ -565,56 +526,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
         padding-top: 12px;
         height: calc(100vh - 160px);
         overflow-y: auto;
-      }
-      .holdings-tab {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      .empty-state {
-        padding: 28px 12px;
-        text-align: center;
-        color: var(--text-muted);
-        font-size: 0.8125rem;
-      }
-      .empty-icon {
-        font-size: 32px;
-        opacity: 0.5;
-        margin-bottom: 6px;
-      }
-      .holding-card {
-        padding: 8px 12px;
-      }
-      .h-top {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 4px;
-      }
-      .h-sym {
-        font-weight: 700;
-        font-size: 0.875rem;
-      }
-      .h-qty {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-      }
-      .h-sub {
-        display: flex;
-        gap: 10px;
-        font-size: 0.6875rem;
-        color: var(--text-muted);
-        margin-bottom: 6px;
-      }
-      .h-bottom {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-top: 1px dashed var(--border-subtle);
-        padding-top: 4px;
-        font-size: 0.75rem;
-      }
-      .val-text {
-        color: var(--text-secondary);
       }
 
       /* BOTTOM DOCK */

@@ -22,15 +22,10 @@ export class AlertService {
   readonly alerts = signal<DhanAlert[]>([]);
   readonly groupedAlerts = signal<GroupedAlert[]>([]);
   readonly recentEvents = signal<AlertTriggerEvent[]>([]);
-  readonly isPolling = signal<boolean>(true);
   readonly lastPollTime = signal<Date | null>(null);
 
   readonly alertsError = signal<string | null>(null);
   readonly isLoadingAlerts = signal<boolean>(false);
-
-  private lastReceivedEventId: string | null = null;
-  private pollIntervalTimer: ReturnType<typeof setInterval> | null = null;
-  private isPollInFlight = false;
 
   readonly activeAlerts = computed(() => this.alerts().filter((a) => a.status === 'ACTIVE'));
   readonly triggeredAlerts = computed(() => this.alerts().filter((a) => a.status === 'TRIGGERED'));
@@ -39,62 +34,6 @@ export class AlertService {
   constructor() {
     this.refreshAlerts();
     this.refreshGrouped();
-    this.startPollingEngine();
-  }
-
-  startPollingEngine(): void {
-    if (this.pollIntervalTimer) clearInterval(this.pollIntervalTimer);
-    this.pollIntervalTimer = setInterval(() => {
-      this.pollTriggeredEvents();
-    }, 1500);
-  }
-
-  stopPollingEngine(): void {
-    if (this.pollIntervalTimer) {
-      clearInterval(this.pollIntervalTimer);
-      this.pollIntervalTimer = null;
-    }
-  }
-
-  private pollTriggeredEvents(): void {
-    if (this.isPollInFlight) return;
-    this.isPollInFlight = true;
-
-    const url = this.lastReceivedEventId
-      ? `/api/alerts/poll?since=${encodeURIComponent(this.lastReceivedEventId)}`
-      : '/api/alerts/poll';
-
-    this.http
-      .get<{ events?: AlertTriggerEvent[] }>(url)
-      .pipe(
-        tap((res) => {
-          this.lastPollTime.set(new Date());
-          const newEvents = res?.events || [];
-
-          if (newEvents.length > 0) {
-            this.lastReceivedEventId = newEvents[newEvents.length - 1].id;
-            this.audioChime.playAlertTriggerChime();
-
-            const updatedEvents = [...newEvents, ...this.recentEvents()].slice(0, 30);
-            this.recentEvents.set(updatedEvents);
-
-            const latest = newEvents[newEvents.length - 1];
-            this.snackBar.open(
-              `🔔 ALERT TRIGGERED: ${latest.instrument} hit ₹${latest.triggeredPrice} (${latest.operator})`,
-              'View',
-              { duration: 6000, horizontalPosition: 'right', verticalPosition: 'top' }
-            );
-
-            this.refreshAlerts();
-          }
-        }),
-        catchError(() => of(null))
-      )
-      .subscribe({
-        complete: () => {
-          this.isPollInFlight = false;
-        },
-      });
   }
 
   refreshAlerts(): void {
@@ -105,6 +44,7 @@ export class AlertService {
         tap((data) => {
           this.isLoadingAlerts.set(false);
           this.alertsError.set(null);
+          this.lastPollTime.set(new Date());
           if (Array.isArray(data)) {
             this.alerts.set(data);
           }

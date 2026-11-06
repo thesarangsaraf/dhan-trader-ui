@@ -68,15 +68,3 @@ export interface PositionsResponse {
   funds: AccountFunds;
   summary: PositionsSummary;
 }
-
-export interface DhanHolding {
-  symbol: string;
-  securityId: string;
-  exchange: string;
-  totalQty: number;
-  dpQty: number;
-  avgCostPrice: number;
-  ltp: number;
-  currentValue: number;
-  pnl: number;
-}

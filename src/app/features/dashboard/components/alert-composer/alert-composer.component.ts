@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -188,54 +188,84 @@ import {
                 </div>
               </div>
 
-              <!-- Product -->
-              <div class="grid-col">
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Product</mat-label>
-                  <mat-select [(ngModel)]="productType" name="productType">
-                    <mat-option value="INTRADAY">INTRADAY (MIS)</mat-option>
-                    <mat-option value="CNC">CNC (Delivery)</mat-option>
-                    <mat-option value="MARGIN">MARGIN (NRML)</mat-option>
-                  </mat-select>
-                </mat-form-field>
+              <!-- Fixed Lot Size Selection (5, 10, 15 Lots) -->
+              <div class="grid-col col-span-2 lots-selector-box">
+                <div class="lots-header-line">
+                  <span class="lots-title">Order Lot Size:</span>
+                  <span class="lots-qty-summary mono-val">
+                    Total: <strong>{{ totalOrderQuantity() }} Qty</strong> ({{ orderLots }} lots &times; {{ currentContractLotSize() }}/lot &bull; INTRADAY MARKET)
+                  </span>
+                </div>
+                <div class="fixed-lots-group">
+                  <button
+                    type="button"
+                    class="lot-select-btn"
+                    [class.active-qty]="orderLots === 5"
+                    (click)="setLots(5)"
+                  >
+                    5 Lots
+                  </button>
+                  <button
+                    type="button"
+                    class="lot-select-btn"
+                    [class.active-qty]="orderLots === 10"
+                    (click)="setLots(10)"
+                  >
+                    10 Lots
+                  </button>
+                  <button
+                    type="button"
+                    class="lot-select-btn"
+                    [class.active-qty]="orderLots === 15"
+                    (click)="setLots(15)"
+                  >
+                    15 Lots
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stop Loss Configuration Section -->
+            <div class="stop-loss-section">
+              <div class="sl-header-row">
+                <mat-checkbox
+                  [checked]="enableStopLoss()"
+                  (change)="enableStopLoss.set($event.checked)"
+                  name="enableStopLoss"
+                  color="accent"
+                >
+                  <span class="sl-toggle-text">🛡️ Attach Automated Stop Loss Alert Order</span>
+                </mat-checkbox>
+                <span class="sl-badge" *ngIf="enableStopLoss()">
+                  {{ stopLossPoints() }} pts SL ({{ selectedInstrumentSymbol }})
+                </span>
               </div>
 
-              <!-- Type -->
-              <div class="grid-col">
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Type</mat-label>
-                  <mat-select [(ngModel)]="orderType" name="orderType">
-                    <mat-option value="MARKET">MARKET</mat-option>
-                    <mat-option value="LIMIT">LIMIT</mat-option>
-                  </mat-select>
-                </mat-form-field>
-              </div>
-
-              <!-- Quantity: 5, 10, 15 by default for NIFTY 50 -->
-              <div class="grid-col qty-col">
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Quantity</mat-label>
-                  <input matInput type="number" [(ngModel)]="orderQuantity" name="orderQuantity" [step]="isNifty50() ? 5 : selectedLotStep()" />
-                </mat-form-field>
-
-                <!-- Quick buttons for NIFTY 50: 5, 10, 15 -->
-                <div class="qty-quick-buttons" *ngIf="isNifty50()">
-                  <button type="button" [class.active-qty]="orderQuantity === 5" (click)="setQty(5)">5</button>
-                  <button type="button" [class.active-qty]="orderQuantity === 10" (click)="setQty(10)">10</button>
-                  <button type="button" [class.active-qty]="orderQuantity === 15" (click)="setQty(15)">15</button>
+              <div class="sl-details-box" *ngIf="enableStopLoss()">
+                <!-- Defined Stop Loss Index Points Pill -->
+                <div class="sl-defined-info-row mono-val">
+                  <span class="sl-defined-tag">
+                    <span class="material-symbols-rounded tag-icon">rule</span>
+                    Defined SL Distance: <strong>{{ stopLossPoints() }} Points</strong> for {{ selectedInstrumentSymbol }}
+                  </span>
                 </div>
 
-                <!-- Quick buttons for Other Instruments -->
-                <div class="qty-quick-buttons" *ngIf="!isNifty50()">
-                  <button type="button" [class.active-qty]="orderQuantity === selectedLotStep() * 1" (click)="setQty(selectedLotStep() * 1)">
-                    1x Lot
-                  </button>
-                  <button type="button" [class.active-qty]="orderQuantity === selectedLotStep() * 2" (click)="setQty(selectedLotStep() * 2)">
-                    2x Lot
-                  </button>
-                  <button type="button" [class.active-qty]="orderQuantity === selectedLotStep() * 3" (click)="setQty(selectedLotStep() * 3)">
-                    3x Lot
-                  </button>
+                <!-- Stop Loss Realtime Calculation Card -->
+                <div class="sl-preview-banner mono-val" *ngIf="stopLossPrice() !== null">
+                  <div class="sl-preview-line">
+                    <span class="sl-calc-label">Calculated SL Alert Price:</span>
+                    <span class="sl-calc-val">₹{{ stopLossPrice() | currencyInr : false }}</span>
+                    <span class="sl-calc-diff">
+                      ({{ orderAction === 'BUY' ? '-' : '+' }}{{ stopLossPoints() }} pts from entry ₹{{ targetPrice || currentLtp }})
+                    </span>
+                  </div>
+                  <div class="sl-action-line">
+                    <span class="material-symbols-rounded sl-icon">shield</span>
+                    <span>
+                      Trigger Logic: <strong>{{ orderAction === 'BUY' ? '≤ Drops to/below' : '≥ Rises to/above' }} ₹{{ stopLossPrice() | currencyInr : false }}</strong>
+                      &bull; Action: <strong>SELL {{ totalOrderQuantity() }} Qty</strong> of {{ orderSymbol }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -465,39 +495,154 @@ import {
         color: var(--dhan-indigo, #6366f1);
         font-weight: 700;
       }
-      .qty-col {
+      .lots-selector-box {
         grid-column: span 2;
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      .qty-col mat-form-field {
-        flex: 1;
-      }
-      .qty-quick-buttons {
-        display: flex;
-        gap: 4px;
-      }
-      .qty-quick-buttons button {
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
-        color: var(--text-secondary);
-        padding: 6px 12px;
-        border-radius: 6px;
+        border-radius: 8px;
+        padding: 10px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .lots-header-line {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .lots-title {
         font-size: 0.75rem;
-        font-family: var(--font-mono);
         font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .lots-qty-summary {
+        font-size: 0.75rem;
+        color: var(--dhan-cyan, #00d2c4);
+      }
+      .fixed-lots-group {
+        display: flex;
+        gap: 8px;
+      }
+      .lot-select-btn {
+        flex: 1;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        font-family: var(--font-mono);
+        font-weight: 700;
         cursor: pointer;
         transition: all 0.15s ease;
+        text-align: center;
       }
-      .qty-quick-buttons button:hover {
+      .lot-select-btn:hover {
         border-color: var(--dhan-cyan);
         color: var(--dhan-cyan);
+        background: rgba(0, 210, 196, 0.08);
       }
-      .qty-quick-buttons button.active-qty {
+      .lot-select-btn.active-qty {
         border-color: var(--dhan-cyan);
         background: rgba(0, 210, 196, 0.15);
         color: var(--dhan-cyan);
+        box-shadow: 0 0 10px rgba(0, 210, 196, 0.2);
+      }
+      .stop-loss-section {
+        margin-top: 10px;
+        padding: 10px 12px;
+        background: rgba(244, 63, 94, 0.05);
+        border: 1px solid rgba(244, 63, 94, 0.25);
+        border-radius: 8px;
+      }
+      .sl-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .sl-toggle-text {
+        font-weight: 600;
+        font-size: 0.8125rem;
+        color: #fca5a5;
+      }
+      .sl-badge {
+        font-size: 0.6875rem;
+        font-weight: 700;
+        color: #f43f5e;
+        background: rgba(244, 63, 94, 0.15);
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 1px solid rgba(244, 63, 94, 0.3);
+      }
+      .sl-details-box {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px dashed rgba(244, 63, 94, 0.2);
+      }
+      .sl-defined-info-row {
+        margin-bottom: 8px;
+      }
+      .sl-defined-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(244, 63, 94, 0.1);
+        border: 1px solid rgba(244, 63, 94, 0.25);
+        color: #fca5a5;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+      }
+      .sl-defined-tag .tag-icon {
+        font-size: 1rem;
+        color: #f43f5e;
+      }
+      .sl-defined-tag strong {
+        color: #fff;
+      }
+      .sl-preview-banner {
+        margin-top: 8px;
+        padding: 8px 10px;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(244, 63, 94, 0.25);
+        border-radius: 6px;
+        font-size: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .sl-preview-line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .sl-calc-label {
+        color: var(--text-muted);
+      }
+      .sl-calc-val {
+        color: #f43f5e;
+        font-weight: 700;
+        font-size: 0.875rem;
+      }
+      .sl-calc-diff {
+        color: #fda4af;
+        font-size: 0.6875rem;
+      }
+      .sl-action-line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text-secondary);
+        font-size: 0.6875rem;
+      }
+      .sl-icon {
+        font-size: 16px;
+        color: #f43f5e;
       }
       .composer-submit-row {
         margin-top: 8px;
@@ -528,12 +673,32 @@ export class AlertComposerComponent implements OnInit {
 
   selectedInstrumentSymbol = 'NIFTY 50';
   selectedInstrument: Instrument | null = null;
-  currentLtp: number | null = null;
-  targetPrice: number | null = null;
+  private readonly _currentLtp = signal<number | null>(null);
+  get currentLtp(): number | null {
+    return this._currentLtp();
+  }
+  set currentLtp(val: number | null) {
+    this._currentLtp.set(val !== null && val !== undefined ? Number(val) : null);
+  }
+
+  private readonly _targetPrice = signal<number | null>(null);
+  get targetPrice(): number | null {
+    return this._targetPrice();
+  }
+  set targetPrice(val: number | null) {
+    this._targetPrice.set(val !== null && val !== undefined ? Number(val) : null);
+  }
 
   // Conditional Order Form Fields
   executeOrderOnTrigger = false;
-  orderAction: 'BUY' | 'SELL' = 'BUY';
+  private readonly _orderAction = signal<'BUY' | 'SELL'>('BUY');
+  get orderAction(): 'BUY' | 'SELL' {
+    return this._orderAction();
+  }
+  set orderAction(val: 'BUY' | 'SELL') {
+    this._orderAction.set(val);
+  }
+
   selectedExpiry = '';
   selectedStrikePrice: number | null = null;
   orderSymbol = 'NIFTY 24500 CE';
@@ -541,7 +706,39 @@ export class AlertComposerComponent implements OnInit {
   orderExchangeSegment = 'NSE_FNO';
   productType: 'INTRADAY' | 'CNC' | 'MARGIN' = 'INTRADAY';
   orderType: 'MARKET' | 'LIMIT' = 'MARKET';
-  orderQuantity = 5;
+  orderLots = 5;
+
+  // Automated Stop Loss Form Fields
+  enableStopLoss = signal<boolean>(true);
+  stopLossPoints = signal<number>(12);
+
+  readonly isBankNifty = computed(() => {
+    const sym = (this.selectedInstrumentSymbol || '').toUpperCase();
+    return sym.includes('BANK');
+  });
+
+  readonly stopLossPrice = computed(() => {
+    const entry = this._targetPrice() ?? this._currentLtp() ?? 0;
+    const pts = Number(this.stopLossPoints()) || 0;
+    const action = this._orderAction();
+    if (!entry || !pts) return null;
+
+    // User rule:
+    // "the stop loss alert will be placed entry - 12 point. if it is sell order then entry + 12 point. if buy order then entry - 12 point of nifty 50. same goes to bank nifty, but in case of bank nifty the stop loss is 20 points."
+    if (action === 'BUY') {
+      return Math.round((entry - pts) * 100) / 100;
+    } else {
+      return Math.round((entry + pts) * 100) / 100;
+    }
+  });
+
+  readonly stopLossOperator = computed<AlertOperator>(() => {
+    return this._orderAction() === 'BUY' ? 'LESS_THAN' : 'GREATER_THAN';
+  });
+
+  setStopLossPoints(pts: number): void {
+    this.stopLossPoints.set(pts);
+  }
 
   ngOnInit(): void {
     this.loadInstruments();
@@ -560,7 +757,7 @@ export class AlertComposerComponent implements OnInit {
         this.onInstrumentChange(nifty.symbol);
       } else {
         const fallback: Instrument[] = [
-          { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 50, ltp: 24500 },
+          { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, ltp: 24500 },
           { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 30, ltp: 52000 },
           { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, ltp: 80000 },
           { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', securityId: '2885', exchangeSegment: 'NSE_EQ', instrumentType: 'EQUITY', lotSize: 1, ltp: 2500 },
@@ -571,6 +768,13 @@ export class AlertComposerComponent implements OnInit {
     });
   }
 
+  getDefinedSlPoints(symbol: string): number {
+    const upperSym = (symbol || '').toUpperCase();
+    if (upperSym.includes('BANK')) return 20;
+    if (upperSym.includes('NIFTY')) return 12;
+    return 15;
+  }
+
   onInstrumentChange(symbol: string): void {
     this.selectedInstrumentSymbol = symbol;
     const found = this.instruments().find((i) => i.symbol === symbol);
@@ -578,12 +782,16 @@ export class AlertComposerComponent implements OnInit {
 
     this.selectedInstrument = found;
 
-    // Set default quantity: 5 for Nifty 50; lotSize for other instruments
-    if (this.isNifty50()) {
-      this.orderQuantity = 5;
-    } else {
-      this.orderQuantity = found.lotSize || 25;
+    // User uses fixed lot sizes: 5, 10, or 15 lots (default 5)
+    if (![5, 10, 15].includes(this.orderLots)) {
+      this.orderLots = 5;
     }
+
+    // Set defined Stop Loss points based on instrument:
+    // NIFTY 50 -> 12 points
+    // BANK NIFTY -> 20 points
+    // Others -> 15 points
+    this.stopLossPoints.set(this.getDefinedSlPoints(symbol));
 
     // Set initial LTP & target price
     if (found.ltp) {
@@ -688,12 +896,44 @@ export class AlertComposerComponent implements OnInit {
     return sym === 'NIFTY 50' || sym === 'NIFTY';
   }
 
-  selectedLotStep(): number {
-    return this.selectedInstrument?.lotSize || 25;
+  currentContractLotSize(): number {
+    const pair = this.strikePairs().find((s) => s.strikePrice === this.selectedStrikePrice);
+    if (pair) {
+      const contract = this.orderAction === 'BUY' ? pair.call : pair.put;
+      if (contract && contract.lotSize) {
+        return contract.lotSize;
+      }
+    }
+    return this.selectedInstrument?.lotSize || (this.isNifty50() ? 65 : 1);
+  }
+
+  totalOrderQuantity(): number {
+    const lots = Math.max(1, Number(this.orderLots) || 1);
+    return lots * this.currentContractLotSize();
+  }
+
+  setLots(lots: number): void {
+    this.orderLots = lots;
   }
 
   setQty(qty: number): void {
-    this.orderQuantity = qty;
+    const lotSize = this.currentContractLotSize();
+    if (lotSize > 1) {
+      this.orderLots = Math.max(1, Math.round(qty / lotSize));
+    } else {
+      this.orderLots = Math.max(1, qty);
+    }
+  }
+
+  get orderQuantity(): number {
+    return this.totalOrderQuantity();
+  }
+  set orderQuantity(val: number) {
+    this.setQty(val);
+  }
+
+  selectedLotStep(): number {
+    return this.currentContractLotSize();
   }
 
   submitAlert(): void {
@@ -702,12 +942,14 @@ export class AlertComposerComponent implements OnInit {
     const secId = this.selectedInstrument?.securityId || '13';
     const exSeg = this.selectedInstrument?.exchangeSegment || 'IDX_I';
     const priceNum = Number(this.targetPrice);
+    const totalQty = this.totalOrderQuantity();
 
-    // Operator decided automatically: GREATER_THAN_EQUAL if target >= current LTP, LESS_THAN_EQUAL if target < current LTP
+    // Operator decided automatically: GREATER_THAN if target >= current LTP, LESS_THAN if target < current LTP
+    // Matches Dhan HQ API v2 and Dhan Web/App operator specifications, preventing 'Price undefined' on Dhan
     const operator: AlertOperator =
       this.currentLtp !== null && priceNum < this.currentLtp
-        ? 'LESS_THAN_EQUAL'
-        : 'GREATER_THAN_EQUAL';
+        ? 'LESS_THAN'
+        : 'GREATER_THAN';
 
     // 30 days default expiry date in YYYY-MM-DD
     const expDate = (() => {
@@ -719,6 +961,50 @@ export class AlertComposerComponent implements OnInit {
       this.authService.tokenStatus()?.clientId ||
       this.authService.tokenStatus()?.payload?.clientId ||
       'YOUR_CLIENT_ID';
+
+    const slPrice = this.stopLossPrice();
+    const slPts = this.stopLossPoints();
+    const slOp = this.stopLossOperator();
+
+    const stopLossConfig =
+      this.executeOrderOnTrigger && this.enableStopLoss() && slPrice !== null
+        ? {
+            enabled: true,
+            points: slPts,
+            targetPrice: slPrice,
+            operator: slOp,
+            action: 'SELL' as const,
+          }
+        : undefined;
+
+    // Planned Stop Loss Alert payload for Dhan HQ API v2
+    const slDhanPayload = stopLossConfig
+      ? {
+          dhanClientId: clientId,
+          condition: {
+            comparisonType: 'PRICE_WITH_VALUE',
+            exchangeSegment: exSeg,
+            securityId: String(secId),
+            operator: slOp === 'LESS_THAN' ? 'LESS_THAN' : 'GREATER_THAN',
+            comparingValue: slPrice,
+            expDate: expDate,
+            userNote: `[STOP LOSS] Exit for ${this.selectedInstrumentSymbol} at ₹${slPrice}`,
+            frequency: 'ONCE',
+          },
+          orders: [
+            {
+              transactionType: 'SELL',
+              exchangeSegment: this.orderExchangeSegment || 'NSE_FNO',
+              productType: this.productType,
+              orderType: 'MARKET',
+              securityId: String(this.orderSecurityId),
+              quantity: totalQty,
+              price: '0',
+              validity: 'DAY',
+            },
+          ],
+        }
+      : undefined;
 
     // Construct the exact Dhan HQ API v2 JSON payload sent to POST /alerts/orders
     const dhanPayload: Record<string, any> = this.executeOrderOnTrigger
@@ -741,7 +1027,7 @@ export class AlertComposerComponent implements OnInit {
               productType: this.productType,
               orderType: this.orderType,
               securityId: String(this.orderSecurityId),
-              quantity: Number(this.orderQuantity),
+              quantity: totalQty,
               price: '0',
               validity: 'DAY',
             },
@@ -779,14 +1065,17 @@ export class AlertComposerComponent implements OnInit {
             exchangeSegment: this.orderExchangeSegment || 'NSE_FNO',
             productType: this.productType,
             orderType: this.orderType,
-            quantity: Number(this.orderQuantity),
+            quantity: totalQty,
+            lots: this.orderLots,
             price: 0,
             strike: this.selectedStrikePrice || undefined,
             optionType: this.orderAction === 'BUY' ? 'CALL (CE)' : 'PUT (PE)',
-            lotSize: this.selectedLotStep(),
+            lotSize: this.currentContractLotSize(),
           }
         : undefined,
+      stopLoss: stopLossConfig,
       dhanPayload,
+      slDhanPayload,
     };
 
     const dialogRef = this.dialog.open(AlertPreviewDialogComponent, {
@@ -808,20 +1097,41 @@ export class AlertComposerComponent implements OnInit {
 
     const secId = this.selectedInstrument?.securityId || '13';
     const exSeg = this.selectedInstrument?.exchangeSegment || 'IDX_I';
+    const totalQty = this.totalOrderQuantity();
+    const pair = this.strikePairs().find((s) => s.strikePrice === this.selectedStrikePrice);
+    const contract = pair ? (this.orderAction === 'BUY' ? pair.call : pair.put) : null;
 
     const conditionalOrder = this.executeOrderOnTrigger
       ? {
           symbol: this.orderSymbol,
+          tradingSymbol: contract?.tradingSymbol || this.orderSymbol,
+          customSymbol: contract?.customSymbol || this.orderSymbol,
+          instrumentName: this.orderSymbol,
+          strikePrice: this.selectedStrikePrice || contract?.strikePrice,
+          optionType: contract?.optionType || (this.orderAction === 'BUY' ? 'CE' : 'PE'),
+          expiryDate: this.selectedExpiry || undefined,
           securityId: this.orderSecurityId,
           exchangeSegment: this.orderExchangeSegment || 'NSE_FNO',
           transactionType: 'BUY' as const,
           orderType: this.orderType,
           productType: this.productType,
-          quantity: this.orderQuantity,
+          quantity: totalQty,
+          lots: this.orderLots,
           price: 0,
           validity: 'DAY',
         }
       : undefined;
+
+    const stopLoss =
+      this.executeOrderOnTrigger && this.enableStopLoss() && this.stopLossPrice() !== null
+        ? {
+            enabled: true,
+            points: this.stopLossPoints(),
+            targetPrice: this.stopLossPrice()!,
+            operator: this.stopLossOperator(),
+            action: 'SELL' as const,
+          }
+        : undefined;
 
     this.alertService
       .createAlert({
@@ -832,16 +1142,24 @@ export class AlertComposerComponent implements OnInit {
         operator: operator,
         remarks: `Alert for ${this.selectedInstrumentSymbol} @ ₹${this.targetPrice}`,
         conditionalOrder,
+        stopLoss,
         attachedOrder: conditionalOrder
           ? {
               enabled: true,
               action: 'BUY',
               symbol: this.orderSymbol,
+              tradingSymbol: contract?.tradingSymbol || this.orderSymbol,
+              customSymbol: contract?.customSymbol || this.orderSymbol,
+              instrumentName: this.orderSymbol,
+              strikePrice: this.selectedStrikePrice || contract?.strikePrice,
+              optionType: contract?.optionType || (this.orderAction === 'BUY' ? 'CE' : 'PE'),
+              expiryDate: this.selectedExpiry || undefined,
               securityId: this.orderSecurityId,
               exchangeSegment: this.orderExchangeSegment,
               productType: this.productType,
               orderType: this.orderType,
-              quantity: this.orderQuantity,
+              quantity: totalQty,
+              lots: this.orderLots,
             }
           : undefined,
         expDate: this.selectedExpiry || undefined,

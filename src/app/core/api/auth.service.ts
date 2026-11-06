@@ -18,7 +18,6 @@ export class AuthService {
   readonly error = signal<string | null>(null);
 
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
-  private statusPollTimer: ReturnType<typeof setInterval> | null = null;
 
   // Computed state
   readonly statusColor = computed<'green' | 'yellow' | 'red'>(() => {
@@ -59,7 +58,6 @@ export class AuthService {
   constructor() {
     this.refreshStatus();
     this.startCountdown();
-    this.startPeriodicStatusPoll();
   }
 
   private startCountdown(): void {
@@ -70,13 +68,6 @@ export class AuthService {
         this.secondsRemaining.set(current - 1);
       }
     }, 1000);
-  }
-
-  private startPeriodicStatusPoll(): void {
-    if (this.statusPollTimer) clearInterval(this.statusPollTimer);
-    this.statusPollTimer = setInterval(() => {
-      this.refreshStatus();
-    }, 15000);
   }
 
   refreshStatus(notify = false): void {
