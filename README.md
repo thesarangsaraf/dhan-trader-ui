@@ -6,7 +6,7 @@ A high-performance, reactive, and trader-friendly single-page application (SPA) 
 
 ## ⚡ Core Features
 
-- **Zero Static IP Index Price Monitoring**: Real-time monitoring of user-traded benchmark indices (NIFTY 50, BANK NIFTY, SENSEX, MIDCAP NIFTY).
+- **Index Price Monitoring**: Real-time monitoring of user-traded benchmark indices (NIFTY 50, BANK NIFTY, SENSEX, MIDCAP NIFTY).
 - **Sub-millisecond Conditional Execution ("Trigger to Action")**: Direct conditional execution that automatically places orders or F&O legs the moment an index crosses a threshold.
 - **Dedicated Traded Indices in Alert Composer**: Focused selector featuring:
   1. `NIFTY 50` (`IDX_I`, 65 lot size)

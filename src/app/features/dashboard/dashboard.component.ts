@@ -93,10 +93,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
             <span class="pulse-dot-cyan" [class.offline]="!ws.connected"></span>
             <span>Order Socket: {{ ws.connected ? 'Live Feed' : 'Standby' }}</span>
           </div>
-          <div class="dock-item">
-            <span class="material-symbols-rounded dock-icon">verified</span>
-            <span>Zero Static IP Architecture</span>
-          </div>
         </div>
 
         <div class="dock-right">

@@ -49,7 +49,7 @@ import {
           <span class="material-symbols-rounded header-icon">add_alert</span>
           <div>
             <h3 class="card-title">Conditional Alert Composer</h3>
-            <span class="subtitle">Zero Static IP Index & Scrip Execution Engine</span>
+            <span class="subtitle">Index & Scrip Execution Engine</span>
           </div>
         </div>
       </div>

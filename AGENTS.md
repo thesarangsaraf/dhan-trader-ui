@@ -8,7 +8,7 @@ This document provides operational context, architectural contracts, design rule
 
 - **Name**: Dhan Trader Pro UI
 - **Role**: High-performance, reactive, trader-friendly Single-Page Application (SPA) interfacing directly with the **Dhan Trader Backend API v2.0.0** (`http://127.0.0.1:8000`).
-- **Core Value Proposition**: Zero Static IP Index Price Monitoring coupled with sub-millisecond Instant & Automated Conditional Execution (ATM Call/Put options and equity orders).
+- **Core Value Proposition**: Index Price Monitoring coupled with sub-millisecond Instant & Automated Conditional Execution (ATM Call/Put options and equity orders).
 
 ---
 

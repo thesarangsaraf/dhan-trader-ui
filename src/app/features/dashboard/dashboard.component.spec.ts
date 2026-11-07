@@ -102,7 +102,6 @@ describe('DashboardComponent', () => {
     const dock = compiled.querySelector('.bottom-dock');
     expect(dock).toBeTruthy();
     expect(dock?.textContent).toContain('Dhan Pro Engine Active');
-    expect(dock?.textContent).toContain('Zero Static IP Architecture');
     expect(dock?.textContent).toContain('Client: 1106885516');
     expect(dock?.textContent).toContain('Chime Synthesizer: Armed');
     expect(dock?.textContent).toContain('Order Socket: Live Feed');

@@ -70,7 +70,6 @@ export interface DhanAlert {
   isStopLossAlert?: boolean;
   parentAlertId?: string | null;
   dhanMetadata?: {
-    noStaticIpRequired?: boolean;
     monitoringMode?: string;
     exchangeSegment?: string;
     securityId?: string;

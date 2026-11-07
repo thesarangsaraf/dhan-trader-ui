@@ -66,7 +66,7 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
       <div class="searcher-footer">
         <span class="hint">Use <kbd>↑</kbd> <kbd>↓</kbd> to navigate, <kbd>Enter</kbd> to select</span>
-        <span class="tag">Zero Static IP Master</span>
+        <span class="tag">Scrip Master</span>
       </div>
     </div>
   `,
