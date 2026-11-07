@@ -12,6 +12,7 @@ describe('AlertListComponent', () => {
   let component: AlertListComponent;
   let fixture: ComponentFixture<AlertListComponent>;
   let alertService: AlertService;
+  let mockDialog: { open: ReturnType<typeof vi.fn> };
 
   const mockAlerts: DhanAlert[] = [
     {
@@ -72,6 +73,10 @@ describe('AlertListComponent', () => {
   ];
 
   beforeEach(async () => {
+    mockDialog = {
+      open: vi.fn().mockReturnValue({ afterClosed: () => of(true) }),
+    };
+
     await TestBed.configureTestingModule({
       imports: [AlertListComponent],
       providers: [
@@ -79,15 +84,14 @@ describe('AlertListComponent', () => {
         provideHttpClientTesting(),
         {
           provide: MatDialog,
-          useValue: {
-            open: () => ({ afterClosed: () => of(true) }),
-          },
+          useValue: mockDialog,
         },
       ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(AlertListComponent);
     component = fixture.componentInstance;
+    (component as any).dialog = mockDialog;
     alertService = TestBed.inject(AlertService);
 
     // Populate alerts signal with test data
@@ -668,5 +672,41 @@ describe('AlertListComponent', () => {
     // Verify deleteAlert was called for both parent and child SL immediately without popup dialog
     expect(deleteSpy).toHaveBeenCalledWith('ALT-ENTRY-1');
     expect(deleteSpy).toHaveBeenCalledWith('ALT-SL-1');
+  });
+
+  it('should render a JSON button on every alert row to inspect raw Dhan JSON', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const jsonBtns = compiled.querySelectorAll('.action-icon-btn.json-btn');
+    expect(jsonBtns.length).toBe(mockAlerts.length);
+
+    // Verify first button icon
+    const icon = jsonBtns[0].querySelector('.material-symbols-rounded');
+    expect(icon?.textContent?.trim()).toBe('data_object');
+    expect(jsonBtns[0].getAttribute('matTooltip')).toBe('View Raw JSON from Dhan');
+  });
+
+  it('should open AlertPreviewDialogComponent when clicking the JSON button', () => {
+    mockDialog.open.mockClear();
+
+    const alertWithRaw: DhanAlert = {
+      ...mockAlerts[0],
+      rawDhanJson: {
+        alertId: 'ALT-1001',
+        condition: { securityId: '13', comparingValue: 24950 },
+      },
+    };
+    alertService.alerts.set([alertWithRaw]);
+    fixture.detectChanges();
+
+    const jsonBtn = fixture.nativeElement.querySelector('.action-icon-btn.json-btn') as HTMLButtonElement;
+    expect(jsonBtn).toBeTruthy();
+    jsonBtn.click();
+
+    expect(mockDialog.open).toHaveBeenCalled();
+    const callArgs = mockDialog.open.mock.calls[0];
+    const passedData = (callArgs[1]?.data as any);
+    expect(passedData?.mode).toBe('view');
+    expect(passedData?.initialTabIndex).toBe(1);
+    expect(passedData?.dhanPayload).toEqual(alertWithRaw.rawDhanJson);
   });
 });

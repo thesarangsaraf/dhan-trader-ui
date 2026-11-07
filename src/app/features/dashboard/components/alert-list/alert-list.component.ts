@@ -3,11 +3,16 @@ import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AlertService } from '../../../../core/api/alert.service';
 import { AlertAttachedOrder, DhanAlert } from '../../../../core/models/alert.models';
 import { SectionErrorComponent } from '../../../../shared/components/section-error/section-error.component';
 import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
 import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
+import {
+  AlertPreviewDialogComponent,
+  AlertPreviewData,
+} from '../../../../shared/components/alert-preview-dialog/alert-preview-dialog.component';
 
 export interface LinkedStopLossDetails {
   alertId?: string;
@@ -83,6 +88,7 @@ export function isClaimedByAnother(
     MatButtonModule,
     MatIconModule,
     MatTooltipModule,
+    MatDialogModule,
     SectionErrorComponent,
     CurrencyInrPipe,
     IstDatePipe,
@@ -181,12 +187,21 @@ export function isClaimedByAnother(
               </div>
             </div>
 
-            <!-- Instant 1-Click Delete Action without confirmation popup -->
+            <!-- Action buttons: View Raw JSON from Dhan + Instant Delete -->
             <div class="col-actions">
+              <button
+                class="action-icon-btn json-btn"
+                (click)="openJsonDialog(alert)"
+                matTooltip="View Raw JSON from Dhan"
+                aria-label="View Raw JSON from Dhan"
+              >
+                <span class="material-symbols-rounded">data_object</span>
+              </button>
               <button
                 class="action-icon-btn delete"
                 (click)="deleteAlert(alert)"
                 matTooltip="Delete Order & Stop Loss"
+                aria-label="Delete Order & Stop Loss"
               >
                 <span class="material-symbols-rounded">delete</span>
               </button>
@@ -466,6 +481,7 @@ export function isClaimedByAnother(
       .col-actions {
         display: flex;
         align-items: center;
+        gap: 4px;
       }
       .action-icon-btn {
         background: transparent;
@@ -479,6 +495,9 @@ export function isClaimedByAnother(
       }
       .action-icon-btn:hover {
         background: rgba(255, 255, 255, 0.08);
+      }
+      .action-icon-btn.json-btn:hover {
+        color: var(--dhan-cyan, #00d2c4);
       }
       .action-icon-btn.delete:hover {
         color: var(--color-loss);
@@ -681,6 +700,7 @@ export function isClaimedByAnother(
 })
 export class AlertListComponent {
   readonly alertService = inject(AlertService);
+  private readonly dialog = inject(MatDialog);
 
   /**
    * Unified display alerts: hides child Stop Loss alerts whose parent exists
@@ -1051,5 +1071,106 @@ export class AlertListComponent {
 
   confirmCancel(alert: DhanAlert): void {
     this.alertService.cancelAlert(alert.id).subscribe();
+  }
+
+  /**
+   * Opens dialog displaying the exact raw JSON received from Dhan HQ API for this alert.
+   */
+  openJsonDialog(alert: DhanAlert): void {
+    const linkedOrders = this.getLinkedOrders(alert);
+    const firstOrd = linkedOrders[0];
+    const sl = this.getLinkedStopLoss(alert);
+    const rawDhan = alert.rawDhanJson || alert.rawAlertJson || {
+      alertId: alert.dhanAlertId || alert.id,
+      alertStatus: alert.status,
+      createdTime: alert.createdAt,
+      condition: {
+        securityId: alert.securityId,
+        exchangeSegment: alert.exchangeSegment,
+        comparingValue: alert.targetPrice,
+        operator: alert.operator,
+        userNote: alert.remarks,
+        expDate: alert.expDate,
+      },
+      orders: linkedOrders,
+    };
+
+    let slRawDhan = alert.linkedStopLossAlert?.rawDhanJson || alert.linkedStopLossAlert?.rawAlertJson;
+    if (!slRawDhan && sl?.alertId) {
+      const matchingSlAlert = this.alertService.alerts().find((a) => matchesAlertId(sl.alertId, a));
+      slRawDhan = matchingSlAlert?.rawDhanJson || matchingSlAlert?.rawAlertJson;
+    }
+
+    const previewData: AlertPreviewData = {
+      title: `Dhan HQ Alert #${alert.dhanAlertId || alert.id}`,
+      subtitle: `Received JSON data directly from Dhan HQ API (/v2/alerts/orders)`,
+      mode: 'view',
+      initialTabIndex: 1,
+      instrument: alert.instrument,
+      securityId: alert.securityId,
+      exchangeSegment: alert.exchangeSegment,
+      currentLtp: alert.currentPrice ?? null,
+      targetPrice: alert.targetPrice,
+      operator: alert.operator,
+      remarks: alert.remarks,
+      status: alert.status,
+      alertId: alert.dhanAlertId || alert.id,
+      expiry: alert.expDate,
+      hasOrder: linkedOrders.length > 0,
+      order: firstOrd
+        ? {
+            action: (firstOrd.action || firstOrd.transactionType || 'BUY') as 'BUY' | 'SELL',
+            symbol: this.getDisplaySymbol(firstOrd, alert),
+            securityId: firstOrd.securityId || alert.securityId,
+            exchangeSegment: firstOrd.exchangeSegment || alert.exchangeSegment,
+            productType: firstOrd.productType || 'INTRADAY',
+            orderType: firstOrd.orderType || 'MARKET',
+            quantity: firstOrd.quantity,
+            price: firstOrd.price || 0,
+            status: this.getOrderStatus(firstOrd, alert),
+            orderId: firstOrd.orderId,
+            strike: firstOrd.strikePrice,
+            optionType: firstOrd.optionType,
+          }
+        : undefined,
+      stopLoss: sl
+        ? {
+            enabled: true,
+            points: sl.points || 0,
+            targetPrice: sl.targetPrice,
+            operator: sl.operator || 'LESS_THAN_OR_EQUAL',
+            action: sl.action,
+            status: sl.status,
+            orderId: sl.orderId,
+            alertId: sl.alertId,
+          }
+        : undefined,
+      endpoint: {
+        method: 'GET',
+        url: 'https://api.dhan.co/v2/alerts/orders',
+      },
+      dhanPayload: rawDhan,
+      slDhanPayload: slRawDhan || (sl ? {
+        alertId: sl.alertId,
+        targetPrice: sl.targetPrice,
+        points: sl.points,
+        action: sl.action,
+        symbol: sl.symbol,
+        quantity: sl.quantity,
+        status: sl.status || (sl.isPlaced ? 'PLACED' : 'PENDING'),
+        orderId: sl.orderId,
+      } : undefined),
+      rawJsonTitle: `Received Alert JSON: #${alert.dhanAlertId || alert.id}`,
+      slRawJsonTitle: sl?.alertId
+        ? `Received Stop Loss Alert JSON: #${sl.alertId}`
+        : `Linked Stop Loss Order Payload`,
+    };
+
+    this.dialog.open(AlertPreviewDialogComponent, {
+      data: previewData,
+      width: '680px',
+      maxWidth: '94vw',
+      panelClass: 'alert-preview-dialog-panel',
+    });
   }
 }

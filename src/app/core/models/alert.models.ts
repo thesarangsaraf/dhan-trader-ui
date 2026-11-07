@@ -69,6 +69,8 @@ export interface DhanAlert {
   linkedStopLossAlert?: DhanAlert;
   isStopLossAlert?: boolean;
   parentAlertId?: string | null;
+  rawDhanJson?: Record<string, any> | any;
+  rawAlertJson?: Record<string, any> | any;
   dhanMetadata?: {
     monitoringMode?: string;
     exchangeSegment?: string;
