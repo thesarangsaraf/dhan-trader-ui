@@ -153,6 +153,16 @@ export class AlertService {
     );
   }
 
+  fetchInstrumentName(securityId: string) {
+    const clean = (securityId || '').trim();
+    if (!clean) return of(null);
+    return this.http
+      .get<{ securityId: string; instrumentName: string; symbol: string; exchangeSegment?: string; lotSize?: number }>(
+        `/api/alerts/instrument-name/${encodeURIComponent(clean)}`
+      )
+      .pipe(catchError(() => of(null)));
+  }
+
   testChime(instrument = 'NIFTY 50') {
     return this.http
       .post<{ success: boolean; message: string; event: AlertTriggerEvent }>('/api/alerts/test-chime', {

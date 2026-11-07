@@ -79,6 +79,22 @@ export class InstrumentService {
       );
   }
 
+  getBySecurityId(securityId: string): Observable<Instrument | null> {
+    const clean = (securityId || '').trim();
+    if (!clean) {
+      return of(null);
+    }
+    return this.http
+      .get<Instrument>(`/api/instruments/by-security-id/${encodeURIComponent(clean)}`)
+      .pipe(
+        catchError((err) => {
+          console.warn(`Backend /api/instruments/by-security-id unavailable for ${clean}:`, err);
+          return of(null);
+        }),
+        shareReplay(1)
+      );
+  }
+
   getLtp(symbol: string): Observable<InstrumentLtpResponse> {
     const clean = (symbol || '').trim();
     if (!clean) {
