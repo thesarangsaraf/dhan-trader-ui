@@ -282,4 +282,25 @@ describe('AlertComposerComponent', () => {
     // Attach Order with Alert text must be present
     expect(compiled.querySelector('.toggle-text')?.textContent).toContain('Attach Order with Alert');
   });
+
+  it('should not show ATM - 1, ATM, or relative strike tags when selecting option contracts', () => {
+    component.executeOrderOnTrigger = true;
+    component.targetPrice = 25000;
+    component.loadOptionContracts();
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const strikeChips = compiled.querySelectorAll('.strike-chip');
+    expect(strikeChips.length).toBeGreaterThan(0);
+
+    // .strike-tag element must not exist in any chip
+    const strikeTags = compiled.querySelectorAll('.strike-tag');
+    expect(strikeTags.length).toBe(0);
+
+    // None of the strike chips should contain 'ATM' text
+    strikeChips.forEach((chip) => {
+      expect(chip.textContent).not.toContain('ATM');
+      expect(chip.textContent).toContain('25000 CE');
+    });
+  });
 });

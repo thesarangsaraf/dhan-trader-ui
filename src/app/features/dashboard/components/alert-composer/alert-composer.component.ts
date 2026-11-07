@@ -158,7 +158,6 @@ import {
                     [class.selected]="selectedStrikePrice === strike.strikePrice"
                     (click)="selectStrike(strike.strikePrice)"
                   >
-                    <span class="strike-tag">{{ strike.relativeStrike || 'STRIKE' }}</span>
                     <span class="strike-val">{{ strike.strikePrice }} {{ orderAction === 'BUY' ? 'CE' : 'PE' }}</span>
                     <span class="strike-ltp" *ngIf="orderAction === 'BUY'">
                       LTP: {{ strike.call.ltp | currencyInr : false }}
@@ -418,11 +417,6 @@ import {
         border-color: var(--dhan-cyan);
         background: rgba(0, 210, 196, 0.12);
         box-shadow: 0 0 0 1px var(--dhan-cyan);
-      }
-      .strike-tag {
-        font-size: 0.625rem;
-        font-weight: 700;
-        color: var(--text-muted);
       }
       .strike-val {
         font-size: 0.875rem;

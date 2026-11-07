@@ -27,7 +27,20 @@ export class IstDatePipe implements PipeTransform {
   transform(value: string | number | Date | null | undefined, mode: 'full' | 'timeOnly' = 'full'): string {
     if (!value) return 'N/A';
     try {
-      const date = new Date(value);
+      let strVal = String(value).trim();
+      if (!strVal || strVal === 'null' || strVal === 'undefined') return 'N/A';
+
+      // Check if it's already a time-only string like "10:15:30" or "10:15"
+      if (/^\d{2}:\d{2}(:\d{2})?$/.test(strVal)) {
+        return `${strVal} IST`;
+      }
+
+      // If it contains space between date and time (e.g. "2026-11-07 10:15:30"), normalize to ISO
+      if (strVal.includes(' ') && strVal.includes('-')) {
+        strVal = strVal.replace(' ', 'T');
+      }
+
+      const date = new Date(strVal);
       if (isNaN(date.getTime())) return 'N/A';
       if (mode === 'timeOnly') {
         return `${this.timeOnlyFormatter.format(date)} IST`;

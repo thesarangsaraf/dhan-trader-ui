@@ -26,6 +26,7 @@ export class OrderService {
 
   readonly isLoadingOrders = signal<boolean>(false);
   readonly isLoadingPositions = signal<boolean>(false);
+  readonly isRefreshingFunds = signal<boolean>(false);
 
   readonly ordersError = signal<string | null>(null);
   readonly positionsError = signal<string | null>(null);
@@ -45,6 +46,7 @@ export class OrderService {
   refreshAll(): void {
     this.refreshOrders();
     this.refreshPositions();
+    this.refreshFunds();
     this.refreshWebSocketStatus();
   }
 
@@ -98,6 +100,25 @@ export class OrderService {
           this.isLoadingPositions.set(false);
           const msg = err.error?.message || 'Backend server not available (127.0.0.1:8000)';
           this.positionsError.set(`Failed to load positions: ${msg}`);
+          return of(null);
+        })
+      )
+      .subscribe();
+  }
+
+  refreshFunds(): void {
+    this.isRefreshingFunds.set(true);
+    this.http
+      .get<AccountFunds>('/api/funds')
+      .pipe(
+        tap((funds) => {
+          this.isRefreshingFunds.set(false);
+          if (funds) {
+            this.funds.set(funds);
+          }
+        }),
+        catchError(() => {
+          this.isRefreshingFunds.set(false);
           return of(null);
         })
       )

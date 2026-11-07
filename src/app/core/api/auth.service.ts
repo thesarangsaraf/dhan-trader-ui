@@ -97,20 +97,6 @@ export class AuthService {
       .subscribe();
   }
 
-  checkHealth() {
-    return this.http.get<{ status?: string }>('/health').pipe(
-      tap(() => {
-        this.isBackendOnline.set(true);
-        this.error.set(null);
-      }),
-      catchError(() => {
-        this.isBackendOnline.set(false);
-        this.error.set('Backend server offline (127.0.0.1:8000)');
-        return of({ status: 'offline' });
-      })
-    );
-  }
-
   renewToken() {
     if (this.isRenewing()) return;
     this.isRenewing.set(true);

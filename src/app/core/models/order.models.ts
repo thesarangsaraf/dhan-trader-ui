@@ -53,6 +53,11 @@ export interface AccountFunds {
   availableBalance: number;
   utilizedMargin: number;
   collateralAmount: number;
+  withdrawableBalance?: number;
+  dematHoldingsValue?: number;
+  holdingsCount?: number;
+  totalAccountValue?: number;
+  dhanClientId?: string;
 }
 
 export interface PositionsSummary {

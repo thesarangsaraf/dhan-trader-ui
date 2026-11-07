@@ -4,17 +4,10 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AlertService } from '../../core/api/alert.service';
 import { AuthService } from '../../core/api/auth.service';
 import { OrderService } from '../../core/api/order.service';
-import { TelegramApiService } from '../../core/api/telegram.service';
 import { AudioChimeService } from '../../core/services/audio-chime.service';
-import { ThemeService } from '../../core/services/theme.service';
-import { AuthModalComponent } from '../settings/auth-modal/auth-modal.component';
-import { TelegramModalComponent } from '../settings/telegram-modal/telegram-modal.component';
-import { PriceBadgeComponent } from '../../shared/components/price-badge/price-badge.component';
-import { CurrencyInrPipe } from '../../shared/pipes/currency-inr.pipe';
 import { IstDatePipe } from '../../shared/pipes/ist-date.pipe';
 import { AlertComposerComponent } from './components/alert-composer/alert-composer.component';
 import { AlertListComponent } from './components/alert-list/alert-list.component';
@@ -30,9 +23,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
     MatButtonModule,
     MatIconModule,
     MatTooltipModule,
-    MatDialogModule,
-    PriceBadgeComponent,
-    CurrencyInrPipe,
     IstDatePipe,
     AlertComposerComponent,
     AlertListComponent,
@@ -41,126 +31,6 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
   ],
   template: `
     <div class="dashboard-root">
-      <!-- TOP APP BAR -->
-      <header class="top-app-bar">
-        <div class="header-brand">
-          <div class="brand-logo">
-            <span class="material-symbols-rounded">candlestick_chart</span>
-          </div>
-          <div class="brand-text">
-            <div class="brand-name">DHAN TRADER PRO</div>
-            <div class="brand-badge">API v2.0 &bull; Live Marketfeed Engine</div>
-          </div>
-        </div>
-
-        <!-- Middle: Status Badges & Funds (Strict Real Backend Data) -->
-        <div class="header-status-group">
-          <!-- Backend Status -->
-          <div class="status-chip" [class.online]="authService.isBackendOnline()" [class.offline]="!authService.isBackendOnline()">
-            <span class="pulse-dot"></span>
-            <span>{{ authService.isBackendOnline() ? 'Dhan Engine Online' : 'Backend Offline (127.0.0.1:8000)' }}</span>
-          </div>
-
-          <!-- Token Expiry Countdown Pill -->
-          <div
-            class="token-expiry-chip"
-            [class.green]="authService.statusColor() === 'green'"
-            [class.yellow]="authService.statusColor() === 'yellow'"
-            [class.red]="authService.statusColor() === 'red'"
-            (click)="openAuthModal()"
-            matTooltip="Click to inspect JWT token, expiry, or manual renewal"
-          >
-            <span class="material-symbols-rounded token-icon">timer</span>
-            <span class="mono-val text">{{ authService.timeRemainingFormatted() }}</span>
-            <button
-              *ngIf="authService.isBackendOnline()"
-              class="mini-renew-btn"
-              (click)="$event.stopPropagation(); authService.renewToken()"
-              [disabled]="authService.isRenewing()"
-              matTooltip="1-Click Auto-Renew Dhan Token"
-            >
-              <span class="material-symbols-rounded" [class.spinning]="authService.isRenewing()">autorenew</span>
-            </button>
-          </div>
-
-          <!-- Telegram Bot Status Pill -->
-          <div
-            class="telegram-chip"
-            [class.configured]="telegramService.status().configured"
-            (click)="openTelegramModal()"
-            matTooltip="Click to manage Telegram Bot alerts & test connection"
-          >
-            <span class="material-symbols-rounded tg-icon">send</span>
-            <span>TG Bot: {{ telegramService.status().configured ? telegramService.status().chatId : 'Disabled' }}</span>
-          </div>
-
-          <!-- Real Funds Bar -->
-          <div class="funds-bar">
-            <span class="funds-label">Avail Margin:</span>
-            <span *ngIf="orderService.funds() as f" class="funds-val mono-val">
-              {{ f.availableBalance | currencyInr : false }}
-            </span>
-            <span *ngIf="!orderService.funds()" class="funds-val mono-val muted">--</span>
-          </div>
-
-          <!-- Live Real Net P&L Badge -->
-          <div class="pnl-pill">
-            <span class="pnl-label">Net P&L:</span>
-            <app-price-badge
-              *ngIf="orderService.summary() as sum"
-              [value]="sum.netPnL"
-              [pulse]="true"
-              size="normal"
-            ></app-price-badge>
-            <span *ngIf="!orderService.summary()" class="mono-val muted">--</span>
-          </div>
-        </div>
-
-        <!-- Right: Quick Actions -->
-        <div class="header-quick-actions">
-          <!-- Sound Toggle Button -->
-          <button
-            class="action-btn"
-            [class.active]="audioChime.soundEnabled()"
-            (click)="audioChime.toggleSound()"
-            [matTooltip]="audioChime.soundEnabled() ? 'Audio Chime Enabled' : 'Audio Chime Muted'"
-          >
-            <span class="material-symbols-rounded">
-              {{ audioChime.soundEnabled() ? 'volume_up' : 'volume_off' }}
-            </span>
-          </button>
-
-          <!-- Test Chime Button -->
-          <button
-            class="action-btn"
-            (click)="alertService.testChime()"
-            matTooltip="Verify browser audio chime trigger"
-          >
-            <span class="material-symbols-rounded">notifications_active</span>
-          </button>
-
-          <!-- Dark/Light Mode Switcher -->
-          <button
-            class="action-btn"
-            (click)="themeService.toggleTheme()"
-            [matTooltip]="themeService.isDarkMode() ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
-          >
-            <span class="material-symbols-rounded">
-              {{ themeService.isDarkMode() ? 'light_mode' : 'dark_mode' }}
-            </span>
-          </button>
-
-          <!-- Settings / Auth Modal Trigger -->
-          <button
-            class="action-btn settings"
-            (click)="openAuthModal()"
-            matTooltip="API Token & Settings"
-          >
-            <span class="material-symbols-rounded">settings</span>
-          </button>
-        </div>
-      </header>
-
       <!-- 3-ZONE DASHBOARD MAIN BODY -->
       <main class="dashboard-body">
         <!-- ZONE 1: LEFT PANEL (35%) -->
@@ -247,210 +117,11 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
       .dashboard-root {
         display: flex;
         flex-direction: column;
-        height: 100vh;
-        width: 100vw;
+        height: 100%;
+        width: 100%;
         background-color: var(--bg-primary);
         color: var(--text-primary);
         overflow: hidden;
-      }
-
-      /* TOP APP BAR */
-      .top-app-bar {
-        height: 60px;
-        flex: 0 0 60px;
-        background-color: var(--header-bg);
-        backdrop-filter: blur(12px);
-        border-bottom: 1px solid var(--border-subtle);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 16px;
-        z-index: 100;
-      }
-      .header-brand {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-      .brand-logo {
-        width: 38px;
-        height: 38px;
-        background: linear-gradient(135deg, #00D2C4, #6366F1);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #0B0F19;
-      }
-      .brand-logo span {
-        font-size: 24px;
-        font-weight: 700;
-      }
-      .brand-name {
-        font-weight: 800;
-        font-size: 1rem;
-        letter-spacing: -0.01em;
-        line-height: 1.1;
-      }
-      .brand-badge {
-        font-size: 0.6875rem;
-        color: var(--text-muted);
-      }
-      .header-status-group {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-      .status-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-      }
-      .status-chip.online {
-        color: var(--color-profit);
-        background: var(--color-profit-bg);
-      }
-      .status-chip.offline {
-        color: var(--color-loss);
-        background: var(--color-loss-bg);
-        border: 1px solid rgba(244, 63, 94, 0.3);
-      }
-      .pulse-dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background-color: currentColor;
-      }
-      .token-expiry-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.15s ease;
-      }
-      .token-expiry-chip.green {
-        color: var(--color-profit);
-        background: var(--color-profit-bg);
-        border: 1px solid rgba(16, 185, 129, 0.3);
-      }
-      .token-expiry-chip.yellow {
-        color: var(--color-pending);
-        background: var(--color-pending-bg);
-        border: 1px solid rgba(245, 158, 11, 0.3);
-      }
-      .token-expiry-chip.red {
-        color: var(--color-loss);
-        background: var(--color-loss-bg);
-        border: 1px solid rgba(244, 63, 94, 0.4);
-      }
-      .token-icon {
-        font-size: 16px;
-      }
-      @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      .spinning {
-        animation: spin 1s linear infinite;
-        display: inline-block;
-      }
-      .mini-renew-btn {
-        background: transparent;
-        border: none;
-        color: currentColor;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        padding: 1px;
-      }
-      .mini-renew-btn span {
-        font-size: 15px;
-      }
-      .telegram-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        background: rgba(34, 158, 217, 0.1);
-        color: #229ED9;
-        cursor: pointer;
-        border: 1px solid rgba(34, 158, 217, 0.25);
-      }
-      .tg-icon {
-        font-size: 15px;
-      }
-      .funds-bar {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        background: var(--bg-surface);
-        border-radius: 8px;
-        border: 1px solid var(--border-subtle);
-        font-size: 0.75rem;
-      }
-      .funds-label {
-        color: var(--text-muted);
-      }
-      .funds-val {
-        color: var(--text-primary);
-        font-weight: 700;
-      }
-      .pnl-pill {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        background: var(--bg-surface);
-        border-radius: 8px;
-        border: 1px solid var(--border-subtle);
-        font-size: 0.75rem;
-      }
-      .pnl-label {
-        color: var(--text-muted);
-        font-weight: 600;
-      }
-      .muted {
-        color: var(--text-muted);
-      }
-      .header-quick-actions {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .action-btn {
-        background: var(--bg-surface);
-        border: 1px solid var(--border-subtle);
-        color: var(--text-secondary);
-        border-radius: 8px;
-        width: 36px;
-        height: 36px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.15s ease;
-      }
-      .action-btn:hover {
-        color: var(--dhan-cyan);
-        border-color: var(--dhan-cyan);
-      }
-      .action-btn.active {
-        color: var(--dhan-cyan);
-      }
-      .action-btn span {
-        font-size: 18px;
       }
 
       /* 3-ZONE MAIN LAYOUT */
@@ -498,7 +169,7 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
       .tab-badge {
         font-size: 0.625rem;
         background: var(--dhan-cyan);
-        color: #0B0F19;
+        color: #0b0f19;
         font-weight: 800;
         padding: 1px 6px;
         border-radius: 999px;
@@ -559,20 +230,5 @@ export class DashboardComponent {
   readonly authService = inject(AuthService);
   readonly alertService = inject(AlertService);
   readonly orderService = inject(OrderService);
-  readonly telegramService = inject(TelegramApiService);
   readonly audioChime = inject(AudioChimeService);
-  readonly themeService = inject(ThemeService);
-  private readonly dialog = inject(MatDialog);
-
-  openAuthModal(): void {
-    this.dialog.open(AuthModalComponent, {
-      width: '560px',
-    });
-  }
-
-  openTelegramModal(): void {
-    this.dialog.open(TelegramModalComponent, {
-      width: '520px',
-    });
-  }
 }

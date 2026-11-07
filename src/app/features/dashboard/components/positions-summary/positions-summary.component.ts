@@ -68,7 +68,7 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
           </div>
 
           <div class="metric-box">
-            <span class="m-label">Available Margin</span>
+            <span class="m-label">Available Balance</span>
             <span *ngIf="orderService.funds() as f" class="m-val mono-val">
               {{ f.availableBalance | currencyInr : false }}
             </span>
