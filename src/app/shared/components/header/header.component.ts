@@ -10,7 +10,6 @@ import { AlertService } from '../../../core/api/alert.service';
 import { OrderService } from '../../../core/api/order.service';
 import { TelegramApiService } from '../../../core/api/telegram.service';
 import { AudioChimeService } from '../../../core/services/audio-chime.service';
-import { ThemeService } from '../../../core/services/theme.service';
 import { AuthModalComponent } from '../../../features/settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../../../features/settings/telegram-modal/telegram-modal.component';
 import { FundsModalComponent } from '../../../features/settings/funds-modal/funds-modal.component';
@@ -136,16 +135,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
           <span class="material-symbols-rounded">notifications_active</span>
         </button>
 
-        <!-- Dark/Light Mode Switcher -->
-        <button
-          class="action-btn"
-          (click)="themeService.toggleTheme()"
-          [matTooltip]="themeService.isDarkMode() ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
-        >
-          <span class="material-symbols-rounded">
-            {{ themeService.isDarkMode() ? 'light_mode' : 'dark_mode' }}
-          </span>
-        </button>
 
         <!-- Settings / Auth Modal Trigger -->
         <button
@@ -221,11 +210,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         border: 1px solid rgba(255, 255, 255, 0.08);
       }
 
-      :host-context(html.light-theme) .header-nav-tabs {
-        background: rgba(0, 0, 0, 0.05);
-        border-color: rgba(0, 0, 0, 0.08);
-      }
-
       .nav-tab {
         display: inline-flex;
         align-items: center;
@@ -246,10 +230,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
       .nav-tab:hover {
         color: var(--text-primary);
         background: rgba(255, 255, 255, 0.06);
-      }
-
-      :host-context(html.light-theme) .nav-tab:hover {
-        background: rgba(0, 0, 0, 0.04);
       }
 
       .nav-tab.active {
@@ -440,7 +420,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
   readonly orderService = inject(OrderService);
   readonly telegramService = inject(TelegramApiService);
   readonly audioChime = inject(AudioChimeService);
-  readonly themeService = inject(ThemeService);
   private readonly dialog = inject(MatDialog);
 
   private fundsPollInterval: ReturnType<typeof setInterval> | null = null;

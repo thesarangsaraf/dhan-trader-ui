@@ -18,8 +18,7 @@ This document provides operational context, architectural contracts, design rule
 - **Design Language**: Google Material Design 3 (Material You / M3 dynamic tokens).
 - **Component Library**: `@angular/material` (M3 tokens) + `@angular/cdk`.
 - **Theming**:
-  - **Dark Mode (Default)**: Deep Slate (`#0B0F19`), Surface Container (`#151C2C`), Elevated Card (`#1E293B`).
-  - **Light Mode**: Soft Frost (`#F8FAFC`), Surface Container (`#F1F5F9`).
+  - **Dark Mode (Strict / Only)**: Deep Slate (`#0B0F19`), Surface Container (`#151C2C`), Elevated Card (`#1E293B`). Light mode is permanently disabled and removed.
   - **Brand Colors**: Dhan Cyan (`#00D2C4`), Indigo (`#6366F1`).
   - **Semantic Trading Colors**: Mint Emerald (`#10B981`) for Profit/Buy/Long, Rose Coral (`#F43F5E`) for Loss/Sell/Short, Amber Glow (`#F59E0B`) for Pending/Triggered.
 - **Typography**: Google Sans / Roboto Flex paired with **JetBrains Mono** for all monetary values, strike prices, and IST timestamps.
@@ -126,8 +125,7 @@ src/app/
 │   │   ├── order.models.ts
 │   │   └── telegram.models.ts
 │   └── services/
-│       ├── audio-chime.service.ts   // Web Audio API synthesizer
-│       └── theme.service.ts         // Material You Dark/Light theme manager
+│       └── audio-chime.service.ts   // Web Audio API synthesizer
 ├── features/
 │   ├── dashboard/
 │   │   ├── components/

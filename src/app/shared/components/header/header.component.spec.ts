@@ -12,7 +12,6 @@ import { AuthService } from '../../../core/api/auth.service';
 import { AlertService } from '../../../core/api/alert.service';
 import { TelegramApiService } from '../../../core/api/telegram.service';
 import { AudioChimeService } from '../../../core/services/audio-chime.service';
-import { ThemeService } from '../../../core/services/theme.service';
 import { FundsModalComponent } from '../../../features/settings/funds-modal/funds-modal.component';
 import { AuthModalComponent } from '../../../features/settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../../../features/settings/telegram-modal/telegram-modal.component';
@@ -57,11 +56,6 @@ describe('HeaderComponent', () => {
     toggleSound: vi.fn(),
   };
 
-  const mockThemeService = {
-    isDarkMode: signal(true),
-    toggleTheme: vi.fn(),
-  };
-
   beforeEach(async () => {
     mockFunds.set(null);
     mockIsRefreshingFunds.set(false);
@@ -81,7 +75,6 @@ describe('HeaderComponent', () => {
         { provide: AlertService, useValue: mockAlertService },
         { provide: TelegramApiService, useValue: mockTelegramService },
         { provide: AudioChimeService, useValue: mockAudioChime },
-        { provide: ThemeService, useValue: mockThemeService },
       ],
     }).compileComponents();
 
@@ -207,14 +200,6 @@ describe('HeaderComponent', () => {
     const chimeBtn = fixture.nativeElement.querySelectorAll('.action-btn')[1] as HTMLButtonElement;
     chimeBtn.click();
     expect(mockAlertService.testChime).toHaveBeenCalled();
-  });
-
-  it('should toggle theme when theme button is clicked', () => {
-    fixture.detectChanges();
-
-    const themeBtn = fixture.nativeElement.querySelectorAll('.action-btn')[2] as HTMLButtonElement;
-    themeBtn.click();
-    expect(mockThemeService.toggleTheme).toHaveBeenCalled();
   });
 
   it('should not render Dhan Engine Online or Net P&L in the top bar', () => {
