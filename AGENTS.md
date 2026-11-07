@@ -93,7 +93,6 @@ This document provides operational context, architectural contracts, design rule
 | `/api/alerts/test-chime` | `POST` | Alerts | Trigger simulated chime notification |
 | `/api/orders` | `GET`, `POST` | Orders | Order book inspection and placement |
 | `/api/orders/{id}` | `DELETE` | Orders | Cancel an open pending order |
-| `/api/orders/websocket/status` | `GET` | Orders | Dhan Order WebSocket connection & live feed status |
 | `/api/positions` | `GET` | Portfolio | Live positions, account funds, and P&L metrics |
 | `/api/instruments?q={term}` | `GET` | Instruments | Search scrip master with debounce |
 | `/api/instruments/expiries` | `GET` | Instruments | Available weekly/monthly option expiries |
@@ -133,7 +132,7 @@ src/app/
 │   │   │   ├── alert-list/          // Active/Triggered alerts + progress distance
 │   │   │   ├── order-book/          // Live orders table with cancel action
 │   │   │   └── positions-summary/   // Real positions, net P&L, 1-click square-off
-│   │   └── dashboard.component.ts   // 3-Zone dashboard layout, header & dock
+│   │   └── dashboard.component.ts   // 3-Zone dashboard layout (composer, monitor, positions/orders)
 │   └── settings/
 │       ├── auth-modal/              // Token inspection, live verify, manual edit
 │       └── telegram-modal/          // Bot token & chat ID configuration

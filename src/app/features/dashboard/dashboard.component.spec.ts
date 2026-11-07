@@ -32,7 +32,6 @@ describe('DashboardComponent', () => {
     isLoadingOrders: signal(false),
     ordersError: signal(null),
     positionsError: signal(null),
-    wsStatus: signal({ connected: true }),
   };
 
   const mockAuthService = {
@@ -95,16 +94,11 @@ describe('DashboardComponent', () => {
     expect(compiled.querySelector('.right-panel .right-tab-group')).toBeTruthy();
   });
 
-  it('should render the bottom dock with status indicators', () => {
+  it('should not render the bottom dock bar', () => {
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    const dock = compiled.querySelector('.bottom-dock');
-    expect(dock).toBeTruthy();
-    expect(dock?.textContent).toContain('Dhan Pro Engine Active');
-    expect(dock?.textContent).toContain('Client: 1106885516');
-    expect(dock?.textContent).toContain('Chime Synthesizer: Armed');
-    expect(dock?.textContent).toContain('Order Socket: Live Feed');
+    expect(compiled.querySelector('.bottom-dock')).toBeNull();
   });
 
   it('should not contain the top app bar inside dashboard component (moved to shared header)', () => {

@@ -305,14 +305,16 @@ describe('AlertListComponent', () => {
     const embeddedSl = unifiedCard.querySelector('.embedded-stop-loss-section');
     expect(embeddedSl).toBeTruthy();
     const slText = embeddedSl?.textContent || '';
-    expect(slText).toContain('Attached Stop Loss Order (Exit Protection)');
+    expect(slText).toContain('Stop Loss');
+    expect(slText).not.toContain('Attached Stop Loss Order (Exit Protection)');
     expect(slText).toContain('-12 pts');
     expect(slText).toContain('25,005');
     expect(slText).toContain('SELL');
     expect(slText).toContain('Square Off:');
     expect(slText).toContain('NIFTY 25000 CE');
     expect(slText).toContain('Qty: 325');
-    expect(slText).toContain('SL Alert #ALT-SL-CHILD');
+    expect(slText).not.toContain('SL Alert #ALT-SL-CHILD');
+    expect(slText).not.toContain('SL Alert #');
   });
 
   it('should render multiple trades with attached Stop Loss as separate unified cards (no card scattering)', () => {
@@ -395,6 +397,95 @@ describe('AlertListComponent', () => {
     expect(items[1].textContent).toContain('BANKNIFTY 52000 PE');
     expect(items[1].querySelector('.embedded-stop-loss-section')?.textContent).toContain('-20 pts');
     expect(items[1].querySelector('.embedded-stop-loss-section')?.textContent).toContain('51,980');
+  });
+
+  it('should NOT attach stop loss of other orders to an order placed without stop loss', () => {
+    const alerts: DhanAlert[] = [
+      // Trade 1: NIFTY 50 Buy PUT with Stop Loss
+      {
+        id: '1106885516_A_1794049765167_909',
+        dhanAlertId: '1106885516_A_1794049765167_909',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25060,
+        operator: 'GREATER_THAN',
+        status: 'ACTIVE',
+        remarks: 'Alert for NIFTY 50 @ ₹25060',
+        createdAt: '2026-11-07T11:09:25.000Z',
+        stopLoss: { enabled: true, points: 12, targetPrice: 25072, operator: 'GREATER_THAN', action: 'SELL' },
+        stopLossAlertPlaced: true,
+        stopLossAlertId: '1106885516_B_1794049765210_485',
+        attachedOrder: {
+          symbol: 'NIFTY 09 NOV 25050 PUT',
+          quantity: 975,
+          action: 'BUY',
+        },
+      },
+      // SL Child Alert for Trade 1
+      {
+        id: '1106885516_B_1794049765210_485',
+        dhanAlertId: '1106885516_B_1794049765210_485',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25072,
+        operator: 'GREATER_THAN',
+        status: 'ACTIVE',
+        remarks: '[STOP LOSS] Exit for #1106885516_A_1794049765167_909 (NIFTY 09 NOV 25050 PUT)',
+        createdAt: '2026-11-07T11:09:25.000Z',
+        isStopLossAlert: true,
+        parentAlertId: '1106885516_A_1794049765167_909',
+        attachedOrder: {
+          symbol: 'NIFTY 09 NOV 25050 PUT',
+          quantity: 975,
+          action: 'SELL',
+        },
+      },
+      // Trade 2: Placed WITHOUT Stop Loss!
+      {
+        id: '1106885516_B_1794049849812_285',
+        dhanAlertId: '1106885516_B_1794049849812_285',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25000,
+        operator: 'LESS_THAN',
+        status: 'ACTIVE',
+        remarks: 'Alert for NIFTY 50 @ ₹25000',
+        createdAt: '2026-11-07T11:10:49.000Z',
+        attachedOrder: {
+          symbol: 'NIFTY 09 NOV 25000 CALL',
+          quantity: 325,
+          action: 'BUY',
+        },
+      },
+    ];
+
+    alertService.alerts.set(alerts);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const items = compiled.querySelectorAll('.alert-item');
+
+    // 2 cards: Trade 1 (with embedded SL) and Trade 2 (WITHOUT SL). The SL child is embedded in Trade 1.
+    expect(items.length).toBe(2);
+
+    // Trade 1 Card
+    const trade1Card = items[0];
+    expect(trade1Card.textContent).toContain('25,060');
+    expect(trade1Card.querySelector('.embedded-stop-loss-section')).toBeTruthy();
+    expect(trade1Card.textContent).not.toContain('Attached Stop Loss Order (Exit Protection)');
+    expect(trade1Card.textContent).not.toContain('SL Alert #1106885516_B_1794049765210_485');
+
+    // Trade 2 Card (WITHOUT Stop Loss)
+    const trade2Card = items[1];
+    expect(trade2Card.textContent).toContain('25,000');
+    expect(trade2Card.querySelector('.embedded-stop-loss-section')).toBeFalsy();
+    expect(trade2Card.textContent).not.toContain('With Stop Loss');
+    expect(trade2Card.textContent).not.toContain('Attached Stop Loss Order (Exit Protection)');
+    expect(trade2Card.textContent).not.toContain('SL Alert #1106885516_B_1794049765210_485');
+    expect(trade2Card.textContent).not.toContain('25,072');
   });
 
   it('should render orphan Stop Loss alert without boilerplate exit message', () => {

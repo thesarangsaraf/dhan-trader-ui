@@ -25,12 +25,11 @@ describe('OrderService', () => {
 
     httpTesting = TestBed.inject(HttpTestingController);
 
-    // Initial constructor calls: /api/orders, /api/positions, /api/funds, /api/orders/websocket/status
+    // Initial constructor calls: /api/orders, /api/positions, /api/funds
     service = TestBed.inject(OrderService);
     httpTesting.expectOne('/api/orders').flush([]);
     httpTesting.expectOne('/api/positions').flush({ positions: [], funds: null, summary: null });
     httpTesting.expectOne('/api/funds').flush(null);
-    httpTesting.expectOne('/api/orders/websocket/status').flush({ connected: true });
   });
 
   afterEach(() => {

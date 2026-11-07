@@ -23,6 +23,58 @@ export interface LinkedStopLossDetails {
   isPlaced?: boolean;
 }
 
+export function normalizeAlertId(id?: string | null): string {
+  return (id || '').replace(/^DHAN-/, '').trim();
+}
+
+export function areAlertIdsEqual(idA?: string | null, idB?: string | null): boolean {
+  const a = normalizeAlertId(idA);
+  const b = normalizeAlertId(idB);
+  return Boolean(a && b && a === b);
+}
+
+export function matchesAlertId(candidateId?: string | null, alert?: DhanAlert | null): boolean {
+  if (!candidateId || !alert) return false;
+  return areAlertIdsEqual(candidateId, alert.id) || areAlertIdsEqual(candidateId, alert.dhanAlertId);
+}
+
+export function isClaimedByAnother(
+  candidate: DhanAlert,
+  currentAlert: DhanAlert,
+  allAlerts: DhanAlert[],
+): boolean {
+  return allAlerts.some((other) => {
+    if (other === currentAlert || other === candidate) return false;
+
+    // 1. Other explicitly has candidate as linkedStopLossAlert
+    if (
+      other.linkedStopLossAlert &&
+      (other.linkedStopLossAlert === candidate ||
+        matchesAlertId(other.linkedStopLossAlert.id, candidate))
+    ) {
+      return true;
+    }
+
+    // 2. Other's stopLossAlertId matches candidate
+    if (other.stopLossAlertId && matchesAlertId(other.stopLossAlertId, candidate)) {
+      return true;
+    }
+
+    // 3. Candidate explicitly has parentAlertId matching other
+    if (candidate.parentAlertId && matchesAlertId(candidate.parentAlertId, other)) {
+      return true;
+    }
+
+    // 4. Candidate's remarks explicitly lists other's alert ID: Exit for #<otherId>
+    const m = (candidate.remarks || '').match(/Exit (?:order )?for (?:parent )?(?:alert )?#([\w-]+)/i);
+    if (m && matchesAlertId(m[1], other)) {
+      return true;
+    }
+
+    return false;
+  });
+}
+
 @Component({
   selector: 'app-alert-list',
   standalone: true,
@@ -101,7 +153,7 @@ export interface LinkedStopLossDetails {
                 <span
                   class="sl-guard-badge"
                   *ngIf="getLinkedStopLoss(alert) as sl"
-                  [matTooltip]="'Attached Stop Loss Order: ₹' + sl.targetPrice + (sl.points ? ' (' + sl.points + ' pts)' : '')"
+                  [matTooltip]="'Stop Loss Order: ₹' + sl.targetPrice + (sl.points ? ' (' + sl.points + ' pts)' : '')"
                 >
                   🛡️ With Stop Loss ({{ sl.points ? sl.points + ' pts' : '₹' + sl.targetPrice }})
                 </span>
@@ -199,7 +251,7 @@ export interface LinkedStopLossDetails {
             <div class="sl-embedded-header">
               <div class="sl-embedded-title-wrap">
                 <span class="material-symbols-rounded sl-shield-icon">shield</span>
-                <span class="sl-embedded-title">Attached Stop Loss Order (Exit Protection)</span>
+                <span class="sl-embedded-title">Stop Loss</span>
                 <span class="sl-pill-distance mono-val" *ngIf="sl.points">
                   {{ sl.action === 'SELL' ? '-' : '+' }}{{ sl.points }} pts
                 </span>
@@ -208,9 +260,6 @@ export interface LinkedStopLossDetails {
                 <span class="sl-trigger-price mono-val">₹{{ sl.targetPrice | currencyInr : false }}</span>
               </div>
               <div class="sl-embedded-meta mono-val">
-                <span class="sl-alert-id" *ngIf="sl.alertId" matTooltip="Dhan SL Alert ID">
-                  SL Alert #{{ sl.alertId }}
-                </span>
                 <!-- Status badge: ONLY if placed, never 'ARMED' or 'PENDING' -->
                 <span class="sl-status-badge placed" *ngIf="sl.isPlaced">
                   PLACED
@@ -647,9 +696,7 @@ export class AlertListComponent {
         const sl = this.getLinkedStopLoss(parent);
         return (
           sl !== null &&
-          (sl.alertId === a.id ||
-            (a.dhanAlertId && sl.alertId === a.dhanAlertId) ||
-            (sl.alertId && (a.id.includes(sl.alertId) || (a.dhanAlertId && a.dhanAlertId.includes(sl.alertId)))))
+          (areAlertIdsEqual(sl.alertId, a.id) || areAlertIdsEqual(sl.alertId, a.dhanAlertId))
         );
       });
       if (isChildOfAny) {
@@ -663,13 +710,9 @@ export class AlertListComponent {
         const parentExists = all.some(
           (p) =>
             p !== a &&
-            (p.id === parentId ||
-              (p.dhanAlertId && p.dhanAlertId === parentId) ||
-              (p.dhanAlertId && parentId.includes(p.dhanAlertId)) ||
-              (p.id && parentId.includes(p.id)) ||
-              (p.stopLossAlertId &&
-                (p.stopLossAlertId === a.id ||
-                  (a.dhanAlertId && p.stopLossAlertId === a.dhanAlertId)))),
+            (matchesAlertId(parentId, p) ||
+              areAlertIdsEqual(p.stopLossAlertId, a.id) ||
+              areAlertIdsEqual(p.stopLossAlertId, a.dhanAlertId)),
         );
         if (parentExists) {
           return false; // Displayed inside the parent order card
@@ -678,6 +721,136 @@ export class AlertListComponent {
       return true;
     });
   });
+
+  /**
+   * Resolves Stop Loss details for a given parent alert, either from its
+   * linked child alert in the alert list, or from its attached stopLoss config.
+   */
+  getLinkedStopLoss(alert: DhanAlert): LinkedStopLossDetails | null {
+    // 0. A Stop Loss alert itself can never have an attached Stop Loss!
+    if (alert.isStopLossAlert || (alert.remarks && alert.remarks.includes('[STOP LOSS]'))) {
+      return null;
+    }
+
+    const all = this.alertService.alerts();
+
+    // 1. Check explicit linked child alert already attached to alert object
+    let child = alert.linkedStopLossAlert;
+
+    // 2. Check if a child in 'all' explicitly points to this alert as its parent
+    if (!child) {
+      child = all.find((c) => {
+        if (c === alert) return false;
+        const isChildSl = c.isStopLossAlert || (c.remarks && c.remarks.includes('[STOP LOSS]'));
+        if (!isChildSl) return false;
+
+        // Check if child's parentAlertId matches this alert
+        if (matchesAlertId(c.parentAlertId, alert)) {
+          return true;
+        }
+
+        // Check if this alert's stopLossAlertId matches child
+        if (alert.stopLossAlertId && matchesAlertId(alert.stopLossAlertId, c)) {
+          return true;
+        }
+
+        // Check child's remarks for exact parent ID: "Exit for #<parentId>"
+        const remarks = c.remarks || '';
+        const m = remarks.match(/Exit (?:order )?for (?:parent )?(?:alert )?#([\w-]+)/i);
+        if (m) {
+          const parentRefId = m[1];
+          if (matchesAlertId(parentRefId, alert)) {
+            return true;
+          }
+        }
+
+        return false;
+      });
+    }
+
+    // 3. Fallback pairing by same contract option:
+    // Only pair if child is NOT already claimed by another alert!
+    if (!child) {
+      const parentOrders = this.getLinkedOrders(alert);
+      const parentOrder = parentOrders[0];
+      if (parentOrder && this.isBuy(parentOrder)) {
+        child = all.find((c) => {
+          if (c === alert) return false;
+          // Must not be claimed by another alert
+          if (isClaimedByAnother(c, alert, all)) return false;
+          return this.isSameContractOption(alert, c);
+        });
+      }
+    }
+
+    const parentOrders = this.getLinkedOrders(alert);
+    const parentOrder = parentOrders[0];
+    const childOrders = child ? this.getLinkedOrders(child) : [];
+    const childOrder = childOrders[0];
+
+    if (child) {
+      let points = alert.stopLoss?.points;
+      if (points === undefined && alert.targetPrice && child.targetPrice) {
+        points = Math.round(Math.abs(alert.targetPrice - child.targetPrice) * 100) / 100;
+      }
+      const rawAction =
+        childOrder?.action || childOrder?.transactionType || alert.stopLoss?.action || 'SELL';
+      const action = rawAction.toUpperCase() as 'BUY' | 'SELL';
+      const symbol = childOrder
+        ? this.getDisplaySymbol(childOrder, child)
+        : parentOrder
+        ? this.getDisplaySymbol(parentOrder, alert)
+        : undefined;
+      const quantity = childOrder?.quantity || parentOrder?.quantity || 0;
+      const orderType = childOrder?.orderType || 'MARKET';
+      const orderId = childOrder?.orderId || null;
+
+      return {
+        alertId: child.dhanAlertId || child.id,
+        targetPrice: child.targetPrice,
+        points,
+        operator: child.operator,
+        status: child.status,
+        action,
+        symbol,
+        quantity,
+        orderType,
+        orderId,
+        isPlaced:
+          child.status === 'TRIGGERED' ||
+          childOrder?.status === 'PLACED' ||
+          childOrder?.status === 'EXECUTED' ||
+          childOrder?.status === 'TRADED',
+      };
+    }
+
+    // 3. Fallback to locally configured stop loss ONLY if explicitly enabled on alert
+    if (alert.stopLoss && alert.stopLoss.enabled) {
+      const rawAction = alert.stopLoss.action || 'SELL';
+      const action = rawAction.toUpperCase() as 'BUY' | 'SELL';
+      const symbol = parentOrder ? this.getDisplaySymbol(parentOrder, alert) : undefined;
+      const quantity = parentOrder?.quantity || 0;
+
+      return {
+        alertId: alert.stopLossAlertId || undefined,
+        targetPrice: alert.stopLoss.targetPrice,
+        points: alert.stopLoss.points,
+        operator: alert.stopLoss.operator,
+        status: alert.stopLossAlertPlaced ? 'ACTIVE' : 'ARMED',
+        action,
+        symbol,
+        quantity,
+        orderType: 'MARKET',
+        isPlaced: Boolean(alert.stopLossAlertPlaced && alert.status === 'TRIGGERED'),
+      };
+    }
+
+    return null;
+  }
+
+  hasLinkedOrder(alert: DhanAlert): boolean {
+    return this.getLinkedOrders(alert).length > 0;
+  }
 
   /**
    * Checks whether two alerts are buying and selling the same instrument / contract option.
@@ -733,132 +906,6 @@ export class AlertListComponent {
     }
 
     return false;
-  }
-
-  /**
-   * Resolves Stop Loss details for a given parent alert, either from its
-   * linked child alert in the alert list, from contract option matching, or from its attached stopLoss config.
-   */
-  getLinkedStopLoss(alert: DhanAlert): LinkedStopLossDetails | null {
-    const linked = alert.linkedStopLossAlert;
-    const all = this.alertService.alerts();
-
-    // 1. Check explicit linked child alert or matching parentAlertId
-    let child =
-      linked ||
-      all.find(
-        (c) =>
-          c !== alert &&
-          (c.isStopLossAlert || (c.remarks && c.remarks.includes('[STOP LOSS]'))) &&
-          (c.parentAlertId === alert.id ||
-            (alert.dhanAlertId && c.parentAlertId === alert.dhanAlertId) ||
-            (alert.dhanAlertId && c.parentAlertId && c.parentAlertId.includes(alert.dhanAlertId)) ||
-            (alert.id && c.parentAlertId && c.parentAlertId.includes(alert.id)) ||
-            (alert.stopLossAlertId &&
-              (c.id === alert.stopLossAlertId ||
-                (c.dhanAlertId && c.dhanAlertId === alert.stopLossAlertId)))),
-      );
-
-    // 2. Check if child has remarks containing parent's alert ID (e.g. "Exit order for parent alert #...")
-    if (!child) {
-      child = all.find((c) => {
-        if (c === alert) return false;
-        const remarks = c.remarks || '';
-        const m = remarks.match(/Exit (?:order )?for (?:parent )?(?:alert )?#(\d+|DHAN-[\w-]+)/i);
-        if (m) {
-          const refId = m[1];
-          return (
-            refId === alert.id ||
-            refId === alert.dhanAlertId ||
-            (alert.dhanAlertId && alert.dhanAlertId.includes(refId)) ||
-            (alert.id && alert.id.includes(refId))
-          );
-        }
-        return false;
-      });
-    }
-
-    // 3. User Rule: Identify entry and stop loss pair by checking if entry and stop loss
-    // are buying and selling the same instrument / contract option!
-    if (!child) {
-      const parentOrders = this.getLinkedOrders(alert);
-      const parentOrder = parentOrders[0];
-      if (parentOrder && this.isBuy(parentOrder)) {
-        child = all.find((c) => {
-          if (c === alert) return false;
-          // Ensure c is not already claimed as another alert's linkedStopLossAlert
-          if (c.linkedStopLossAlert && c.linkedStopLossAlert !== alert) return false;
-          return this.isSameContractOption(alert, c);
-        });
-      }
-    }
-
-    const parentOrders = this.getLinkedOrders(alert);
-    const parentOrder = parentOrders[0];
-    const childOrders = child ? this.getLinkedOrders(child) : [];
-    const childOrder = childOrders[0];
-
-    if (child) {
-      let points = alert.stopLoss?.points;
-      if (points === undefined && alert.targetPrice && child.targetPrice) {
-        points = Math.round(Math.abs(alert.targetPrice - child.targetPrice) * 100) / 100;
-      }
-      const rawAction =
-        childOrder?.action || childOrder?.transactionType || alert.stopLoss?.action || 'SELL';
-      const action = rawAction.toUpperCase() as 'BUY' | 'SELL';
-      const symbol = childOrder
-        ? this.getDisplaySymbol(childOrder, child)
-        : parentOrder
-        ? this.getDisplaySymbol(parentOrder, alert)
-        : undefined;
-      const quantity = childOrder?.quantity || parentOrder?.quantity || 0;
-      const orderType = childOrder?.orderType || 'MARKET';
-      const orderId = childOrder?.orderId || null;
-
-      return {
-        alertId: child.dhanAlertId || child.id,
-        targetPrice: child.targetPrice,
-        points,
-        operator: child.operator,
-        status: child.status,
-        action,
-        symbol,
-        quantity,
-        orderType,
-        orderId,
-        isPlaced:
-          child.status === 'TRIGGERED' ||
-          childOrder?.status === 'PLACED' ||
-          childOrder?.status === 'EXECUTED' ||
-          childOrder?.status === 'TRADED',
-      };
-    }
-
-    if (alert.stopLoss && alert.stopLoss.enabled) {
-      const rawAction = alert.stopLoss.action || 'SELL';
-      const action = rawAction.toUpperCase() as 'BUY' | 'SELL';
-      const symbol = parentOrder ? this.getDisplaySymbol(parentOrder, alert) : undefined;
-      const quantity = parentOrder?.quantity || 0;
-
-      return {
-        alertId: alert.stopLossAlertId || undefined,
-        targetPrice: alert.stopLoss.targetPrice,
-        points: alert.stopLoss.points,
-        operator: alert.stopLoss.operator,
-        status: alert.stopLossAlertPlaced ? 'ACTIVE' : 'ARMED',
-        action,
-        symbol,
-        quantity,
-        orderType: 'MARKET',
-        isPlaced: Boolean(alert.stopLossAlertPlaced && alert.status === 'TRIGGERED'),
-      };
-    }
-
-    return null;
-  }
-
-  hasLinkedOrder(alert: DhanAlert): boolean {
-    return this.getLinkedOrders(alert).length > 0;
   }
 
   getLinkedOrders(alert: DhanAlert): AlertAttachedOrder[] {

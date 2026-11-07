@@ -30,15 +30,6 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
           Orders: {{ orderService.orders().length }} Total ({{ orderService.openOrders().length }} Open)
         </span>
         <div class="header-actions">
-          <span
-            *ngIf="orderService.wsStatus() as ws"
-            class="ws-pill"
-            [class.live]="ws.connected"
-            [matTooltip]="ws.connected ? 'Dhan Order Update WebSocket Live (Listening for executions)' : 'Order WebSocket Standby'"
-          >
-            <span class="ws-dot"></span>
-            {{ ws.connected ? 'Live Feed' : 'WS Feed' }}
-          </span>
           <button mat-icon-button (click)="orderService.refreshOrders()" matTooltip="Refresh Orders Book">
             <span class="material-symbols-rounded">refresh</span>
           </button>
@@ -113,32 +104,6 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
         display: flex;
         align-items: center;
         gap: 6px;
-      }
-      .ws-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        padding: 2px 7px;
-        border-radius: 999px;
-        font-size: 0.6875rem;
-        font-weight: 600;
-        background: rgba(148, 163, 184, 0.1);
-        color: var(--text-muted);
-        border: 1px solid var(--border-subtle);
-      }
-      .ws-pill.live {
-        background: rgba(16, 185, 129, 0.12);
-        color: var(--color-profit);
-        border-color: rgba(16, 185, 129, 0.3);
-      }
-      .ws-dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: currentColor;
-      }
-      .ws-pill.live .ws-dot {
-        box-shadow: 0 0 6px var(--color-profit);
       }
       .sub-label {
         font-size: 0.75rem;
