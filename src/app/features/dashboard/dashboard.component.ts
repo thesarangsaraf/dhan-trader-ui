@@ -79,7 +79,7 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
         </aside>
       </main>
 
-      <!-- BOTTOM DOCK -->
+      <!-- BOTTOM DOCK (Pinned to viewport bottom) -->
       <footer class="bottom-dock">
         <div class="dock-left">
           <div class="dock-item">
@@ -110,10 +110,20 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
   `,
   styles: [
     `
+      :host {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        height: 100%;
+        min-height: 0;
+        width: 100%;
+      }
+
       .dashboard-root {
         display: flex;
         flex-direction: column;
         height: 100%;
+        min-height: calc(100vh - 56px);
         width: 100%;
         background-color: var(--bg-primary);
         color: var(--text-primary);
@@ -127,12 +137,14 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
         padding: 12px;
         gap: 12px;
         overflow: hidden;
+        min-height: 0;
       }
       .panel {
         display: flex;
         flex-direction: column;
         gap: 12px;
         overflow-y: auto;
+        min-height: 0;
       }
       .left-panel {
         flex: 0 0 35%;
@@ -180,10 +192,11 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
         overflow-y: auto;
       }
 
-      /* BOTTOM DOCK */
+      /* BOTTOM DOCK (Pinned to bottom) */
       .bottom-dock {
         height: 38px;
         flex: 0 0 38px;
+        margin-top: auto;
         background-color: var(--bg-dock);
         border-top: 1px solid var(--border-subtle);
         display: flex;

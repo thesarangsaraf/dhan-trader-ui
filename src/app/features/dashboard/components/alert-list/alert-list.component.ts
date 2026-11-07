@@ -3,10 +3,8 @@ import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatDialog } from '@angular/material/dialog';
 import { AlertService } from '../../../../core/api/alert.service';
 import { AlertAttachedOrder, DhanAlert } from '../../../../core/models/alert.models';
-import { ConfirmationDialogComponent } from '../../../../shared/components/confirmation-dialog/confirmation-dialog.component';
 import { SectionErrorComponent } from '../../../../shared/components/section-error/section-error.component';
 import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
 import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
@@ -83,25 +81,23 @@ export interface LinkedStopLossDetails {
           [class.has-stop-loss]="getLinkedStopLoss(alert) !== null"
           [class.is-sl-alert]="alert.isStopLossAlert || (alert.remarks && alert.remarks.includes('[STOP LOSS]'))"
         >
+          <!-- Main Row: Instrument, Target Price, Delete Action -->
           <div class="item-main">
             <div class="col-inst">
               <div class="inst-line">
                 <span class="inst-name">{{ alert.instrument }}</span>
+
+                <!-- Status chip: Omit 'ACTIVE' because all alerts are active by default -->
                 <span
                   class="status-chip"
-                  [class.active]="alert.status === 'ACTIVE'"
+                  *ngIf="alert.status !== 'ACTIVE'"
                   [class.triggered]="alert.status === 'TRIGGERED'"
                   [class.cancelled]="alert.status === 'CANCELLED'"
                 >
                   {{ alert.status }}
                 </span>
-                <span
-                  class="order-attached-badge"
-                  *ngIf="hasLinkedOrder(alert) && !alert.isStopLossAlert && !(alert.remarks && alert.remarks.includes('[STOP LOSS]'))"
-                  matTooltip="Conditional order linked to trigger"
-                >
-                  ⚡ Entry Order
-                </span>
+
+                <!-- Guard badge if attached Stop Loss exists -->
                 <span
                   class="sl-guard-badge"
                   *ngIf="getLinkedStopLoss(alert) as sl"
@@ -109,26 +105,20 @@ export interface LinkedStopLossDetails {
                 >
                   🛡️ With Stop Loss ({{ sl.points ? sl.points + ' pts' : '₹' + sl.targetPrice }})
                 </span>
+
+                <!-- Standalone Stop Loss Badge if orphan SL alert -->
                 <span
                   class="sl-alert-badge"
-                  *ngIf="alert.isStopLossAlert || (alert.remarks && alert.remarks.includes('[STOP LOSS]'))"
+                  *ngIf="(alert.isStopLossAlert || (alert.remarks && alert.remarks.includes('[STOP LOSS]'))) && !getLinkedStopLoss(alert)"
                   matTooltip="Automated Stop Loss Order"
                 >
                   🛡️ STOP LOSS
                 </span>
-              </div>
 
-              <!-- User Remarks (skip internal tags) -->
-              <span class="remarks-text" *ngIf="alert.remarks && !alert.remarks.startsWith('[STOP LOSS]')">{{ alert.remarks }}</span>
-
-              <!-- Standalone Stop Loss Reference if parent not found -->
-              <div class="sl-parent-ref mono-val" *ngIf="alert.parentAlertId && (alert.isStopLossAlert || (alert.remarks && alert.remarks.includes('[STOP LOSS]')))">
-                <span>Exit order for parent alert #{{ alert.parentAlertId }}</span>
-              </div>
-
-              <div class="time-line mono-val">
-                <span>Created: {{ alert.createdAt | istDate : 'timeOnly' }}</span>
-                <span *ngIf="alert.triggeredAt"> &bull; Triggered: {{ alert.triggeredAt | istDate : 'timeOnly' }}</span>
+                <!-- Triggered timestamp only when triggered -->
+                <span class="time-trigger mono-val" *ngIf="alert.triggeredAt">
+                  &bull; Triggered: {{ alert.triggeredAt | istDate : 'timeOnly' }}
+                </span>
               </div>
             </div>
 
@@ -139,11 +129,11 @@ export interface LinkedStopLossDetails {
               </div>
             </div>
 
-            <!-- Actions: delete alert -->
+            <!-- Instant 1-Click Delete Action without confirmation popup -->
             <div class="col-actions">
               <button
                 class="action-icon-btn delete"
-                (click)="confirmDelete(alert)"
+                (click)="deleteAlert(alert)"
                 matTooltip="Delete Order & Stop Loss"
               >
                 <span class="material-symbols-rounded">delete</span>
@@ -151,13 +141,12 @@ export interface LinkedStopLossDetails {
             </div>
           </div>
 
-          <!-- Primary Entry Linked Order Section -->
+          <!-- Primary Entry Linked Order Section (Compact 1-liner) -->
           <div class="linked-orders-section" *ngIf="getLinkedOrders(alert) as linkedOrders">
             <div *ngIf="linkedOrders.length > 0" class="linked-orders-list">
               <div *ngFor="let ord of linkedOrders" class="linked-order-card entry-order-card">
-                <!-- Top Row: BUY/SELL + Option Instrument Symbol + Status -->
-                <div class="ord-top-row">
-                  <div class="ord-side-symbol">
+                <div class="ord-compact-row">
+                  <div class="ord-left-group">
                     <span
                       class="ord-side-chip"
                       [class.buy]="isBuy(ord)"
@@ -166,61 +155,46 @@ export interface LinkedStopLossDetails {
                       {{ (ord.action || ord.transactionType || 'BUY').toUpperCase() }}
                     </span>
                     <span class="ord-symbol mono-val">{{ getDisplaySymbol(ord, alert) }}</span>
+                    <span class="spec-dot">&bull;</span>
+                    <span class="ord-spec">
+                      <span class="spec-label">Qty:</span>
+                      <span class="spec-val mono-val">{{ ord.quantity }}</span>
+                    </span>
+                    <span class="spec-dot" *ngIf="ord.orderType && ord.orderType !== 'MARKET'">&bull;</span>
+                    <span class="ord-spec" *ngIf="ord.orderType && ord.orderType !== 'MARKET'">
+                      <span class="spec-val mono-val">{{ ord.orderType }}</span>
+                    </span>
+                    <ng-container *ngIf="ord.price && ord.price > 0">
+                      <span class="spec-dot">&bull;</span>
+                      <span class="ord-spec">
+                        <span class="spec-label">Limit:</span>
+                        <span class="spec-val mono-val">{{ ord.price | currencyInr : false }}</span>
+                      </span>
+                    </ng-container>
+                    <ng-container *ngIf="ord.orderId">
+                      <span class="spec-dot">&bull;</span>
+                      <span class="ord-spec order-id-spec" matTooltip="Dhan Order ID">
+                        <span class="spec-val mono-val">#{{ ord.orderId }}</span>
+                      </span>
+                    </ng-container>
                   </div>
 
-                  <div class="ord-status-wrap">
+                  <!-- Status badge: ONLY shown if placed/executed/failed, NEVER 'PENDING' or 'ARMED' -->
+                  <div class="ord-status-wrap" *ngIf="!isPending(ord)">
                     <span
                       class="ord-status-badge"
                       [class.placed]="isPlaced(ord)"
-                      [class.pending]="isPending(ord)"
                       [class.failed]="isFailed(ord)"
                     >
                       {{ getOrderStatus(ord, alert) }}
                     </span>
                   </div>
                 </div>
-
-                <!-- Instrument & Expiry Highlight Row -->
-                <div class="ord-highlight-row">
-                  <span class="highlight-badge instrument-badge mono-val" *ngIf="getOptionDetails(ord).strike">
-                    🎯 Strike: {{ getOptionDetails(ord).strike }} {{ getOptionDetails(ord).type }}
-                  </span>
-                  <span class="highlight-badge expiry-badge mono-val" *ngIf="getExpiryDate(ord, alert)">
-                    📅 Expiry: {{ formatExpiry(getExpiryDate(ord, alert)) }}
-                  </span>
-                </div>
-
-                <!-- Specs row: Qty, Order Type, Limit Price, Order ID -->
-                <div class="ord-details-row">
-                  <span class="ord-spec">
-                    <span class="spec-label">Qty:</span>
-                    <span class="spec-val mono-val">{{ ord.quantity }}</span>
-                  </span>
-                  <span class="spec-dot">&bull;</span>
-                  <span class="ord-spec">
-                    <span class="spec-label">Type:</span>
-                    <span class="spec-val mono-val">{{ ord.orderType || 'MARKET' }}</span>
-                  </span>
-                  <ng-container *ngIf="ord.price && ord.price > 0">
-                    <span class="spec-dot">&bull;</span>
-                    <span class="ord-spec">
-                      <span class="spec-label">Limit:</span>
-                      <span class="spec-val mono-val">{{ ord.price | currencyInr : false }}</span>
-                    </span>
-                  </ng-container>
-                  <ng-container *ngIf="ord.orderId">
-                    <span class="spec-dot">&bull;</span>
-                    <span class="ord-spec order-id-spec" matTooltip="Dhan Order ID">
-                      <span class="spec-label">Order ID:</span>
-                      <span class="spec-val mono-val">#{{ ord.orderId }}</span>
-                    </span>
-                  </ng-container>
-                </div>
               </div>
             </div>
           </div>
 
-          <!-- Unified Embedded Stop Loss Section (Inside Same Card) -->
+          <!-- Unified Embedded Stop Loss Section (Inside Same Card, Compact) -->
           <div class="embedded-stop-loss-section" *ngIf="getLinkedStopLoss(alert) as sl">
             <div class="sl-embedded-header">
               <div class="sl-embedded-title-wrap">
@@ -229,40 +203,30 @@ export interface LinkedStopLossDetails {
                 <span class="sl-pill-distance mono-val" *ngIf="sl.points">
                   {{ sl.action === 'SELL' ? '-' : '+' }}{{ sl.points }} pts
                 </span>
+                <span class="sl-spec-dot">&bull;</span>
+                <span class="sl-spec-label">Trigger:</span>
+                <span class="sl-trigger-price mono-val">₹{{ sl.targetPrice | currencyInr : false }}</span>
               </div>
               <div class="sl-embedded-meta mono-val">
                 <span class="sl-alert-id" *ngIf="sl.alertId" matTooltip="Dhan SL Alert ID">
                   SL Alert #{{ sl.alertId }}
                 </span>
-                <span class="sl-status-badge" [class.placed]="sl.isPlaced">
-                  {{ sl.status || 'ARMED' }}
+                <!-- Status badge: ONLY if placed, never 'ARMED' or 'PENDING' -->
+                <span class="sl-status-badge placed" *ngIf="sl.isPlaced">
+                  PLACED
                 </span>
               </div>
             </div>
 
-            <div class="sl-order-card">
-              <div class="sl-trigger-row">
-                <div class="sl-trigger-info">
-                  <span class="sl-spec-label">Trigger Price:</span>
-                  <span class="sl-trigger-price mono-val">₹{{ sl.targetPrice | currencyInr : false }}</span>
-                  <span class="sl-trigger-tag" *ngIf="sl.operator">
-                    {{ formatOperator(sl.operator) }}
-                  </span>
-                </div>
-                <div class="sl-action-badge-wrap">
-                  <span class="ord-side-chip sell">
-                    {{ sl.action }}
-                  </span>
-                </div>
-              </div>
-
-              <div class="sl-contract-row" *ngIf="sl.symbol">
+            <div class="sl-order-card" *ngIf="sl.symbol">
+              <div class="sl-contract-row">
+                <span class="ord-side-chip sell">{{ sl.action }}</span>
                 <span class="sl-contract-label">Square Off:</span>
                 <span class="sl-contract-symbol mono-val">{{ sl.symbol }}</span>
                 <span class="sl-spec-dot">&bull;</span>
                 <span class="sl-spec-qty mono-val">Qty: {{ sl.quantity }}</span>
-                <span class="sl-spec-dot">&bull;</span>
-                <span class="sl-spec-type mono-val">{{ sl.orderType || 'MARKET' }}</span>
+                <span class="sl-spec-dot" *ngIf="sl.orderType && sl.orderType !== 'MARKET'">&bull;</span>
+                <span class="sl-spec-type mono-val" *ngIf="sl.orderType && sl.orderType !== 'MARKET'">{{ sl.orderType }}</span>
                 <ng-container *ngIf="sl.orderId">
                   <span class="sl-spec-dot">&bull;</span>
                   <span class="sl-order-id mono-val">#{{ sl.orderId }}</span>
@@ -276,29 +240,32 @@ export interface LinkedStopLossDetails {
   `,
   styles: [
     `
+      :host {
+        display: block;
+        width: 100%;
+      }
       .alert-list-card {
-        padding: 16px;
+        padding: 12px 14px;
         display: flex;
         flex-direction: column;
-        height: 100%;
       }
       .list-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
       }
       .header-left {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
       }
       .alert-icon {
-        font-size: 24px;
+        font-size: 20px;
         color: var(--dhan-cyan);
       }
       .card-title {
-        font-size: 1rem;
+        font-size: 0.9375rem;
         font-weight: 600;
         margin: 0;
       }
@@ -315,39 +282,52 @@ export interface LinkedStopLossDetails {
         gap: 4px;
       }
       .alerts-scroll-area {
-        flex: 1;
-        overflow-y: auto;
-        padding-right: 4px;
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        max-height: 520px;
+        gap: 6px;
+        max-height: 620px;
+        overflow-y: auto;
+        padding-right: 4px;
+        -webkit-overflow-scrolling: touch;
+      }
+      .alerts-scroll-area::-webkit-scrollbar {
+        width: 6px;
+      }
+      .alerts-scroll-area::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+      }
+      .alerts-scroll-area::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+      }
+      .alerts-scroll-area::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.35);
       }
       .empty-state {
         text-align: center;
-        padding: 32px 16px;
+        padding: 24px 16px;
         color: var(--text-muted);
       }
       .empty-icon {
-        font-size: 36px;
-        margin-bottom: 6px;
+        font-size: 32px;
+        margin-bottom: 4px;
         opacity: 0.6;
       }
       .alert-item {
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
-        border-radius: 10px;
-        padding: 12px 14px;
+        border-radius: 8px;
+        padding: 6px 10px;
         transition: all 0.15s ease;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 4px;
       }
       .alert-item:hover {
         border-color: var(--border-medium);
       }
       .alert-item.has-stop-loss {
-        border-color: rgba(99, 102, 241, 0.35);
+        border-color: rgba(99, 102, 241, 0.3);
       }
       .alert-item.triggered {
         border-left: 3px solid var(--color-profit);
@@ -357,39 +337,37 @@ export interface LinkedStopLossDetails {
         opacity: 0.6;
         border-left: 3px solid var(--text-muted);
       }
+      .alert-item.is-sl-alert {
+        border-left: 3px solid #f43f5e;
+      }
       .item-main {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        gap: 8px;
       }
       .col-inst {
         display: flex;
         flex-direction: column;
-        gap: 3px;
         flex: 1;
       }
       .inst-line {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         flex-wrap: wrap;
       }
       .inst-name {
         font-weight: 700;
-        font-size: 0.9375rem;
+        font-size: 0.875rem;
         color: var(--text-primary);
       }
       .status-chip {
         font-size: 0.625rem;
         font-weight: 700;
-        padding: 2px 6px;
+        padding: 1px 5px;
         border-radius: 4px;
         text-transform: uppercase;
-      }
-      .status-chip.active {
-        color: var(--color-pending);
-        background: var(--color-pending-bg);
       }
       .status-chip.triggered {
         color: var(--color-profit);
@@ -399,20 +377,12 @@ export interface LinkedStopLossDetails {
         color: var(--text-muted);
         background: rgba(255, 255, 255, 0.06);
       }
-      .order-attached-badge {
-        font-size: 0.625rem;
-        font-weight: 600;
-        color: #a5b4fc;
-        background: rgba(99, 102, 241, 0.15);
-        padding: 2px 6px;
-        border-radius: 4px;
-      }
       .sl-guard-badge {
         font-size: 0.625rem;
         font-weight: 700;
         color: #fca5a5;
         background: rgba(244, 63, 94, 0.15);
-        padding: 2px 6px;
+        padding: 1px 5px;
         border-radius: 4px;
         border: 1px solid rgba(244, 63, 94, 0.3);
       }
@@ -421,54 +391,39 @@ export interface LinkedStopLossDetails {
         font-weight: 700;
         color: #ffffff;
         background: #f43f5e;
-        padding: 2px 6px;
+        padding: 1px 5px;
         border-radius: 4px;
-        letter-spacing: 0.5px;
       }
-      .sl-parent-ref {
+      .time-trigger {
         font-size: 0.6875rem;
-        color: #fca5a5;
-        margin-top: 2px;
-      }
-      .alert-item.is-sl-alert {
-        border-left: 3px solid #f43f5e;
-      }
-      .remarks-text {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-      }
-      .time-line {
-        font-size: 0.6875rem;
-        color: var(--text-muted);
+        color: var(--color-profit);
       }
       .col-target {
         display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 2px;
+        align-items: center;
+        gap: 6px;
       }
       .target-label {
         font-size: 0.6875rem;
         color: var(--text-muted);
         text-transform: uppercase;
-        letter-spacing: 0.04em;
         font-weight: 500;
       }
       .price-val {
-        font-size: 1rem;
+        font-size: 0.875rem;
         font-weight: 700;
         color: var(--dhan-cyan);
       }
       .col-actions {
         display: flex;
-        gap: 4px;
+        align-items: center;
       }
       .action-icon-btn {
         background: transparent;
         border: none;
         color: var(--text-muted);
         cursor: pointer;
-        padding: 4px;
+        padding: 3px;
         border-radius: 4px;
         display: flex;
         align-items: center;
@@ -480,38 +435,41 @@ export interface LinkedStopLossDetails {
         color: var(--color-loss);
       }
 
-      /* Linked Primary Order Details */
+      /* Primary Order Compact */
       .linked-orders-section {
-        border-top: 1px dashed var(--border-subtle);
-        padding-top: 8px;
+        border-top: 1px dashed rgba(255, 255, 255, 0.08);
+        padding-top: 4px;
       }
       .linked-orders-list {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
       }
       .linked-order-card {
-        background: rgba(99, 102, 241, 0.05);
-        border: 1px solid rgba(99, 102, 241, 0.2);
-        border-radius: 6px;
-        padding: 8px 10px;
+        background: rgba(99, 102, 241, 0.04);
+        border: 1px solid rgba(99, 102, 241, 0.15);
+        border-radius: 5px;
+        padding: 4px 8px;
       }
-      .ord-top-row {
+      .ord-compact-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+        flex-wrap: wrap;
       }
-      .ord-side-symbol {
+      .ord-left-group {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+        flex-wrap: wrap;
+        font-size: 0.75rem;
       }
       .ord-side-chip {
-        font-size: 0.6875rem;
+        font-size: 0.625rem;
         font-weight: 700;
-        padding: 2px 6px;
-        border-radius: 4px;
+        padding: 1px 5px;
+        border-radius: 3px;
         text-transform: uppercase;
       }
       .ord-side-chip.buy {
@@ -523,75 +481,15 @@ export interface LinkedStopLossDetails {
         background: var(--color-loss-bg);
       }
       .ord-symbol {
-        font-weight: 700;
-        font-size: 0.875rem;
-        color: var(--text-primary);
-      }
-      .ord-status-wrap {
-        display: flex;
-        align-items: center;
-      }
-      .ord-status-badge {
-        font-size: 0.625rem;
-        font-weight: 700;
-        padding: 2px 6px;
-        border-radius: 4px;
-        text-transform: uppercase;
-      }
-      .ord-status-badge.placed {
-        color: var(--color-profit);
-        background: var(--color-profit-bg);
-      }
-      .ord-status-badge.pending {
-        color: var(--color-pending);
-        background: var(--color-pending-bg);
-      }
-      .ord-status-badge.failed {
-        color: var(--color-loss);
-        background: var(--color-loss-bg);
-      }
-
-      /* Highlight Row for Option Instrument & Expiry */
-      .ord-highlight-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-top: 6px;
-        flex-wrap: wrap;
-      }
-      .highlight-badge {
-        font-size: 0.6875rem;
-        padding: 2px 7px;
-        border-radius: 4px;
         font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-      }
-      .highlight-badge.instrument-badge {
-        background: rgba(0, 210, 196, 0.12);
-        color: var(--dhan-cyan);
-        border: 1px solid rgba(0, 210, 196, 0.25);
-      }
-      .highlight-badge.expiry-badge {
-        background: rgba(99, 102, 241, 0.12);
-        color: #a5b4fc;
-        border: 1px solid rgba(99, 102, 241, 0.25);
-      }
-
-      .ord-details-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 0.6875rem;
-        color: var(--text-secondary);
-        margin-top: 6px;
-        flex-wrap: wrap;
+        font-size: 0.8125rem;
+        color: var(--text-primary);
       }
       .ord-spec {
         display: inline-flex;
         align-items: center;
         gap: 2px;
+        color: var(--text-secondary);
       }
       .spec-label {
         color: var(--text-muted);
@@ -607,48 +505,75 @@ export interface LinkedStopLossDetails {
       .order-id-spec .spec-val {
         color: var(--dhan-cyan);
       }
+      .ord-status-wrap {
+        display: flex;
+        align-items: center;
+      }
+      .ord-status-badge {
+        font-size: 0.625rem;
+        font-weight: 700;
+        padding: 1px 5px;
+        border-radius: 3px;
+        text-transform: uppercase;
+      }
+      .ord-status-badge.placed {
+        color: var(--color-profit);
+        background: var(--color-profit-bg);
+      }
+      .ord-status-badge.failed {
+        color: var(--color-loss);
+        background: var(--color-loss-bg);
+      }
 
-      /* Unified Embedded Stop Loss Section */
+      /* Compact Stop Loss Section */
       .embedded-stop-loss-section {
-        margin-top: 4px;
-        background: rgba(244, 63, 94, 0.05);
-        border: 1px dashed rgba(244, 63, 94, 0.3);
-        border-radius: 8px;
-        padding: 8px 10px;
+        background: rgba(244, 63, 94, 0.04);
+        border: 1px dashed rgba(244, 63, 94, 0.25);
+        border-radius: 6px;
+        padding: 4px 8px;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 3px;
       }
       .sl-embedded-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         flex-wrap: wrap;
       }
       .sl-embedded-title-wrap {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
+        flex-wrap: wrap;
       }
       .sl-shield-icon {
-        font-size: 16px;
+        font-size: 14px;
         color: #f43f5e;
       }
       .sl-embedded-title {
-        font-size: 0.75rem;
-        font-weight: 700;
+        font-size: 0.6875rem;
+        font-weight: 600;
         color: #fda4af;
-        letter-spacing: 0.2px;
       }
       .sl-pill-distance {
         font-size: 0.625rem;
         font-weight: 700;
-        padding: 1px 6px;
-        border-radius: 4px;
-        background: rgba(244, 63, 94, 0.2);
+        padding: 1px 5px;
+        border-radius: 3px;
+        background: rgba(244, 63, 94, 0.18);
         color: #fca5a5;
-        border: 1px solid rgba(244, 63, 94, 0.35);
+        border: 1px solid rgba(244, 63, 94, 0.3);
+      }
+      .sl-spec-label {
+        font-size: 0.6875rem;
+        color: var(--text-muted);
+      }
+      .sl-trigger-price {
+        font-size: 0.8125rem;
+        font-weight: 700;
+        color: #f43f5e;
       }
       .sl-embedded-meta {
         display: flex;
@@ -662,10 +587,8 @@ export interface LinkedStopLossDetails {
       .sl-status-badge {
         font-size: 0.625rem;
         font-weight: 700;
-        padding: 1px 5px;
+        padding: 1px 4px;
         border-radius: 3px;
-        background: rgba(244, 63, 94, 0.2);
-        color: #fca5a5;
         text-transform: uppercase;
       }
       .sl-status-badge.placed {
@@ -673,46 +596,15 @@ export interface LinkedStopLossDetails {
         color: #10b981;
       }
       .sl-order-card {
-        background: rgba(0, 0, 0, 0.2);
-        border: 1px solid rgba(244, 63, 94, 0.15);
-        border-radius: 6px;
-        padding: 6px 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-      .sl-trigger-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 8px;
-      }
-      .sl-trigger-info {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
-      .sl-spec-label {
-        font-size: 0.6875rem;
-        color: var(--text-muted);
-      }
-      .sl-trigger-price {
-        font-size: 0.875rem;
-        font-weight: 700;
-        color: #f43f5e;
-      }
-      .sl-trigger-tag {
-        font-size: 0.625rem;
-        padding: 1px 5px;
-        border-radius: 3px;
-        background: rgba(244, 63, 94, 0.15);
-        color: #fca5a5;
+        background: rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(244, 63, 94, 0.12);
+        border-radius: 4px;
+        padding: 3px 6px;
       }
       .sl-contract-row {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
         font-size: 0.6875rem;
         color: var(--text-secondary);
         flex-wrap: wrap;
@@ -721,7 +613,7 @@ export interface LinkedStopLossDetails {
         color: var(--text-muted);
       }
       .sl-contract-symbol {
-        font-weight: 700;
+        font-weight: 600;
         color: var(--text-primary);
       }
       .sl-spec-dot {
@@ -740,7 +632,6 @@ export interface LinkedStopLossDetails {
 })
 export class AlertListComponent {
   readonly alertService = inject(AlertService);
-  private readonly dialog = inject(MatDialog);
 
   /**
    * Unified display alerts: hides child Stop Loss alerts whose parent exists
@@ -750,6 +641,22 @@ export class AlertListComponent {
   readonly displayAlerts = computed(() => {
     const all = this.alertService.alerts();
     return all.filter((a) => {
+      // If 'a' is identified as the child Stop Loss of another alert in 'all', hide it from main list
+      const isChildOfAny = all.some((parent) => {
+        if (parent === a) return false;
+        const sl = this.getLinkedStopLoss(parent);
+        return (
+          sl !== null &&
+          (sl.alertId === a.id ||
+            (a.dhanAlertId && sl.alertId === a.dhanAlertId) ||
+            (sl.alertId && (a.id.includes(sl.alertId) || (a.dhanAlertId && a.dhanAlertId.includes(sl.alertId)))))
+        );
+      });
+      if (isChildOfAny) {
+        return false;
+      }
+
+      // Also check explicit parentAlertId or stop loss flag
       const isSl = a.isStopLossAlert || (a.remarks && a.remarks.includes('[STOP LOSS]'));
       const parentId = a.parentAlertId;
       if (isSl && parentId) {
@@ -773,13 +680,71 @@ export class AlertListComponent {
   });
 
   /**
+   * Checks whether two alerts are buying and selling the same instrument / contract option.
+   */
+  isSameContractOption(alertA: DhanAlert, alertB: DhanAlert): boolean {
+    const ordersA = this.getLinkedOrders(alertA);
+    const ordersB = this.getLinkedOrders(alertB);
+    if (ordersA.length === 0 || ordersB.length === 0) return false;
+
+    const ordA = ordersA[0];
+    const ordB = ordersB[0];
+
+    // Must be opposite actions (one BUY and one SELL)
+    const isBuyA = this.isBuy(ordA);
+    const isBuyB = this.isBuy(ordB);
+    if (isBuyA === isBuyB) return false;
+
+    // Check underlying instrument compatibility (e.g. NIFTY 50 vs BANKNIFTY)
+    const instA = (alertA.instrument || '').trim().toUpperCase();
+    const instB = (alertB.instrument || '').trim().toUpperCase();
+    if (instA && instB && instA !== instB && !instA.includes(instB) && !instB.includes(instA)) {
+      return false;
+    }
+
+    // 1. Check option security ID match
+    const secIdA = (ordA.securityId || '').trim();
+    const secIdB = (ordB.securityId || '').trim();
+    if (secIdA && secIdB && secIdA !== '0' && secIdA === secIdB && secIdA !== alertA.securityId) {
+      return true;
+    }
+
+    // 2. Check normalized symbol match
+    const cleanSym = (s?: string) => (s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const symA = cleanSym(ordA.customSymbol || ordA.tradingSymbol || ordA.symbol);
+    const symB = cleanSym(ordB.customSymbol || ordB.tradingSymbol || ordB.symbol);
+    if (symA && symB && !symA.startsWith('SEC') && !symB.startsWith('SEC') && symA === symB) {
+      return true;
+    }
+
+    // 3. Check strike price and option type match
+    const optA = this.getOptionDetails(ordA);
+    const optB = this.getOptionDetails(ordB);
+    if (optA.strike && optB.strike && optA.strike === optB.strike) {
+      const typeA = (optA.type || '').toUpperCase();
+      const typeB = (optB.type || '').toUpperCase();
+      const isCallA = typeA.includes('CALL') || typeA.includes('CE');
+      const isCallB = typeB.includes('CALL') || typeB.includes('CE');
+      const isPutA = typeA.includes('PUT') || typeA.includes('PE');
+      const isPutB = typeB.includes('PUT') || typeB.includes('PE');
+      if ((isCallA && isCallB) || (isPutA && isPutB)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Resolves Stop Loss details for a given parent alert, either from its
-   * linked child alert in the alert list, or from its attached stopLoss config.
+   * linked child alert in the alert list, from contract option matching, or from its attached stopLoss config.
    */
   getLinkedStopLoss(alert: DhanAlert): LinkedStopLossDetails | null {
     const linked = alert.linkedStopLossAlert;
     const all = this.alertService.alerts();
-    const child =
+
+    // 1. Check explicit linked child alert or matching parentAlertId
+    let child =
       linked ||
       all.find(
         (c) =>
@@ -793,6 +758,40 @@ export class AlertListComponent {
               (c.id === alert.stopLossAlertId ||
                 (c.dhanAlertId && c.dhanAlertId === alert.stopLossAlertId)))),
       );
+
+    // 2. Check if child has remarks containing parent's alert ID (e.g. "Exit order for parent alert #...")
+    if (!child) {
+      child = all.find((c) => {
+        if (c === alert) return false;
+        const remarks = c.remarks || '';
+        const m = remarks.match(/Exit (?:order )?for (?:parent )?(?:alert )?#(\d+|DHAN-[\w-]+)/i);
+        if (m) {
+          const refId = m[1];
+          return (
+            refId === alert.id ||
+            refId === alert.dhanAlertId ||
+            (alert.dhanAlertId && alert.dhanAlertId.includes(refId)) ||
+            (alert.id && alert.id.includes(refId))
+          );
+        }
+        return false;
+      });
+    }
+
+    // 3. User Rule: Identify entry and stop loss pair by checking if entry and stop loss
+    // are buying and selling the same instrument / contract option!
+    if (!child) {
+      const parentOrders = this.getLinkedOrders(alert);
+      const parentOrder = parentOrders[0];
+      if (parentOrder && this.isBuy(parentOrder)) {
+        child = all.find((c) => {
+          if (c === alert) return false;
+          // Ensure c is not already claimed as another alert's linkedStopLossAlert
+          if (c.linkedStopLossAlert && c.linkedStopLossAlert !== alert) return false;
+          return this.isSameContractOption(alert, c);
+        });
+      }
+    }
 
     const parentOrders = this.getLinkedOrders(alert);
     const parentOrder = parentOrders[0];
@@ -827,7 +826,11 @@ export class AlertListComponent {
         quantity,
         orderType,
         orderId,
-        isPlaced: true,
+        isPlaced:
+          child.status === 'TRIGGERED' ||
+          childOrder?.status === 'PLACED' ||
+          childOrder?.status === 'EXECUTED' ||
+          childOrder?.status === 'TRADED',
       };
     }
 
@@ -847,7 +850,7 @@ export class AlertListComponent {
         symbol,
         quantity,
         orderType: 'MARKET',
-        isPlaced: Boolean(alert.stopLossAlertPlaced),
+        isPlaced: Boolean(alert.stopLossAlertPlaced && alert.status === 'TRIGGERED'),
       };
     }
 
@@ -955,24 +958,6 @@ export class AlertListComponent {
     return {};
   }
 
-  getExpiryDate(ord: AlertAttachedOrder, alert: DhanAlert): string | null {
-    if (ord.expiryDate) return ord.expiryDate;
-    if (ord.expDate) return ord.expDate;
-    if (alert.expDate) return alert.expDate;
-
-    const candidates = [ord.customSymbol, ord.instrumentName, ord.symbol, ord.tradingSymbol];
-    for (const s of candidates) {
-      if (!s || s.startsWith('SEC-')) continue;
-      const m = s.match(/\b(\d{1,2}\s+[A-Za-z]{3}(?:\s+\d{2,4})?)\b/i);
-      if (m) return m[1];
-
-      const m2 = s.match(/-([A-Za-z]{3}\d{4})-/i);
-      if (m2) return m2[1];
-    }
-
-    return null;
-  }
-
   formatExpiry(exp: string | null): string {
     if (!exp) return '--';
     const parts = exp.split('-');
@@ -998,62 +983,26 @@ export class AlertListComponent {
     return exp;
   }
 
-  formatOperator(op: string): string {
-    switch (op) {
-      case 'GREATER_THAN_EQUAL':
-      case 'GREATER_THAN_OR_EQUAL':
-        return '≥ Breakout';
-      case 'GREATER_THAN':
-        return '> Breakout';
-      case 'LESS_THAN_EQUAL':
-      case 'LESS_THAN_OR_EQUAL':
-        return '≤ Breakdown';
-      case 'LESS_THAN':
-        return '< Breakdown';
-      case 'CROSSING_ANY_SIDE':
-        return '⇋ Any Side';
-      case 'CROSSING_UP':
-        return '↑ Cross Up';
-      case 'CROSSING_DOWN':
-        return '↓ Cross Down';
-      default:
-        return op;
+  /**
+   * Instantly deletes the alert (and its linked Stop Loss alert if present)
+   * without any confirmation dialog popup.
+   */
+  deleteAlert(alert: DhanAlert): void {
+    const sl = this.getLinkedStopLoss(alert);
+    this.alertService.deleteAlert(alert.id).subscribe();
+    if (sl && sl.alertId && sl.alertId !== alert.id) {
+      this.alertService.deleteAlert(sl.alertId).subscribe();
     }
   }
 
-  confirmCancel(alert: DhanAlert): void {
-    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
-      data: {
-        title: 'Cancel Alert',
-        message: `Are you sure you want to cancel the price alert for ${alert.instrument} at ₹${alert.targetPrice}?`,
-        confirmText: 'Cancel Alert',
-        isDestructive: true,
-      },
-    });
-
-    dialogRef.afterClosed().subscribe((confirmed) => {
-      if (confirmed) {
-        this.alertService.cancelAlert(alert.id).subscribe();
-      }
-    });
+  /**
+   * Alias for backward compatibility. Directly calls deleteAlert without dialog.
+   */
+  confirmDelete(alert: DhanAlert): void {
+    this.deleteAlert(alert);
   }
 
-  confirmDelete(alert: DhanAlert): void {
-    const sl = this.getLinkedStopLoss(alert);
-    const slNote = sl ? ' and its attached Stop Loss order' : '';
-    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
-      data: {
-        title: 'Delete Alert Permanently',
-        message: `Delete order alert ${alert.id} (${alert.instrument} @ ₹${alert.targetPrice})${slNote}? This cannot be undone.`,
-        confirmText: 'Delete',
-        isDestructive: true,
-      },
-    });
-
-    dialogRef.afterClosed().subscribe((confirmed) => {
-      if (confirmed) {
-        this.alertService.deleteAlert(alert.id).subscribe();
-      }
-    });
+  confirmCancel(alert: DhanAlert): void {
+    this.alertService.cancelAlert(alert.id).subscribe();
   }
 }

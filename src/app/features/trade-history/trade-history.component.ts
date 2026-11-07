@@ -273,9 +273,6 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
                   <td class="num-col pnl-cell mono-val" [class.profit-text]="(t.pnl || 0) > 0" [class.loss-text]="(t.pnl || 0) < 0">
                     <div *ngIf="t.pnl !== null && t.pnl !== undefined" class="pnl-val-wrap">
                       <span class="pnl-amount">{{ t.pnl | currencyInr : true }}</span>
-                      <span *ngIf="t.pnlPercentage !== null && t.pnlPercentage !== undefined" class="pnl-pct" [class.profit-pct]="(t.pnlPercentage || 0) > 0" [class.loss-pct]="(t.pnlPercentage || 0) < 0">
-                        ({{ (t.pnlPercentage || 0) > 0 ? '+' : '' }}{{ t.pnlPercentage }}%)
-                      </span>
                       <div *ngIf="t.totalCharges" class="charges-subtext" [matTooltip]="'Dhan Brokerage & Statutory Taxes: ₹' + t.totalCharges">
                         Charges: ₹{{ t.totalCharges }}
                       </div>
@@ -817,18 +814,11 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         gap: 2px;
       }
 
-      .pnl-pct {
-        font-size: 11px;
-        font-weight: 600;
-      }
-
-      .profit-text,
-      .profit-pct {
+      .profit-text {
         color: #10b981;
       }
 
-      .loss-text,
-      .loss-pct {
+      .loss-text {
         color: #f43f5e;
       }
 

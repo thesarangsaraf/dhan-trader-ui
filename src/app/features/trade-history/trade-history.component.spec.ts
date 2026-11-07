@@ -149,6 +149,8 @@ describe('TradeHistoryComponent', () => {
 
     const pnlCell = el.querySelector('.trade-row .pnl-cell');
     expect(pnlCell?.textContent).toContain('+₹750.00');
+    expect(el.querySelector('.pnl-pct')).toBeNull();
+    expect(pnlCell?.textContent).not.toContain('%');
   });
 
   it('should allow filtering by profit or loss status', () => {

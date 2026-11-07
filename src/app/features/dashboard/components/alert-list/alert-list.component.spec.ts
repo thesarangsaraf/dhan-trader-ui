@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
+import { vi } from 'vitest';
 import { AlertListComponent } from './alert-list.component';
 import { AlertService } from '../../../../core/api/alert.service';
 import { DhanAlert } from '../../../../core/models/alert.models';
@@ -396,7 +397,7 @@ describe('AlertListComponent', () => {
     expect(items[1].querySelector('.embedded-stop-loss-section')?.textContent).toContain('51,980');
   });
 
-  it('should render orphan Stop Loss alert if parent alert was removed', () => {
+  it('should render orphan Stop Loss alert without boilerplate exit message', () => {
     const orphanAlert: DhanAlert = {
       id: 'ALT-ORPHAN-SL',
       instrument: 'NIFTY 50',
@@ -425,6 +426,156 @@ describe('AlertListComponent', () => {
     const items = compiled.querySelectorAll('.alert-item');
     expect(items.length).toBe(1);
     expect(items[0].textContent).toContain('STOP LOSS');
-    expect(items[0].textContent).toContain('Exit order for parent alert #OLD-DELETED-PARENT');
+    // Ensure "Exit order for parent alert #..." is not shown
+    expect(items[0].textContent).not.toContain('Exit order for parent alert');
+    expect(items[0].textContent).not.toContain('ACTIVE');
+    expect(items[0].textContent).not.toContain('PENDING');
+  });
+
+  it('should NOT display ACTIVE, PENDING, or Created timestamps on active alerts', () => {
+    alertService.alerts.set(mockAlerts);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    // Default ACTIVE status text should be hidden
+    const activeChips = compiled.querySelectorAll('.status-chip.active');
+    expect(activeChips.length).toBe(0);
+    // PENDING badges should be hidden
+    const pendingBadges = compiled.querySelectorAll('.ord-status-badge.pending');
+    expect(pendingBadges.length).toBe(0);
+    // "Created: ..." should be hidden
+    expect(compiled.textContent).not.toContain('Created:');
+    expect(compiled.textContent).not.toContain('Alert for');
+  });
+
+  it('should pair entry BUY and stop loss SELL alerts on same contract option without parentAlertId', () => {
+    const pairedOptionAlerts: DhanAlert[] = [
+      {
+        id: 'ALT-ENTRY-25060',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25060.0,
+        operator: 'LESS_THAN',
+        status: 'ACTIVE',
+        remarks: 'Alert for NIFTY 50 @ ₹25060',
+        createdAt: '2026-11-07T10:00:00.000Z',
+        conditionalOrders: [
+          {
+            symbol: 'NIFTY 09 NOV 25050 PUT',
+            action: 'BUY',
+            quantity: 325,
+            orderType: 'MARKET',
+            productType: 'INTRADAY',
+          },
+        ],
+      },
+      {
+        id: 'ALT-SL-25072',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25072.0,
+        operator: 'GREATER_THAN',
+        status: 'ACTIVE',
+        remarks: 'Exit order for parent alert #1106885516',
+        createdAt: '2026-11-07T10:00:01.000Z',
+        conditionalOrders: [
+          {
+            symbol: 'NIFTY 09 NOV 25050 PUT',
+            action: 'SELL',
+            quantity: 325,
+            orderType: 'MARKET',
+            productType: 'INTRADAY',
+          },
+        ],
+      },
+    ];
+
+    alertService.alerts.set(pairedOptionAlerts);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const items = compiled.querySelectorAll('.alert-item');
+
+    // Both alerts MUST collapse into 1 unified order card with stop loss
+    expect(items.length).toBe(1);
+
+    const cardText = items[0].textContent || '';
+    expect(cardText).toContain('NIFTY 50');
+    expect(cardText).toContain('BUY');
+    expect(cardText).toContain('25,060');
+    expect(cardText).toContain('NIFTY 09 NOV 25050 PUT');
+    expect(cardText).toContain('Qty: 325');
+
+    // Stop Loss embedded details
+    const embeddedSl = items[0].querySelector('.embedded-stop-loss-section');
+    expect(embeddedSl).toBeTruthy();
+    const slText = embeddedSl?.textContent || '';
+    expect(slText).toContain('25,072');
+    expect(slText).toContain('-12 pts');
+    expect(slText).toContain('SELL');
+    expect(slText).toContain('Square Off:');
+
+    // Messages that must NOT be shown
+    expect(cardText).not.toContain('Alert for NIFTY 50 @ ₹25060');
+    expect(cardText).not.toContain('Exit order for parent alert #1106885516');
+    expect(cardText).not.toContain('Created:');
+    expect(cardText).not.toContain('ACTIVE');
+    expect(cardText).not.toContain('PENDING');
+  });
+
+  it('should delete alert and linked stop loss directly without popup confirmation', () => {
+    const deleteSpy = vi.spyOn(alertService, 'deleteAlert').mockReturnValue(of({ success: true } as any));
+
+    const pairedAlerts: DhanAlert[] = [
+      {
+        id: 'ALT-ENTRY-1',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25060.0,
+        operator: 'LESS_THAN',
+        status: 'ACTIVE',
+        remarks: '',
+        createdAt: '2026-11-07T10:00:00.000Z',
+        conditionalOrders: [
+          {
+            symbol: 'NIFTY 25050 PE',
+            action: 'BUY',
+            quantity: 325,
+          },
+        ],
+      },
+      {
+        id: 'ALT-SL-1',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 25072.0,
+        operator: 'GREATER_THAN',
+        status: 'ACTIVE',
+        remarks: '',
+        createdAt: '2026-11-07T10:00:01.000Z',
+        conditionalOrders: [
+          {
+            symbol: 'NIFTY 25050 PE',
+            action: 'SELL',
+            quantity: 325,
+          },
+        ],
+      },
+    ];
+
+    alertService.alerts.set(pairedAlerts);
+    fixture.detectChanges();
+
+    const deleteBtn = fixture.nativeElement.querySelector('.action-icon-btn.delete') as HTMLButtonElement;
+    expect(deleteBtn).toBeTruthy();
+    deleteBtn.click();
+
+    // Verify deleteAlert was called for both parent and child SL immediately without popup dialog
+    expect(deleteSpy).toHaveBeenCalledWith('ALT-ENTRY-1');
+    expect(deleteSpy).toHaveBeenCalledWith('ALT-SL-1');
   });
 });
