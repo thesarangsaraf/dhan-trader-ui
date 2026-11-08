@@ -56,9 +56,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             <!-- Token Status Pill -->
             <div
               class="status-pill token-pill"
-              [class.green]="authService.statusColor() === 'green'"
-              [class.yellow]="authService.statusColor() === 'yellow'"
-              [class.red]="authService.statusColor() === 'red'"
+              [ngClass]="authService.statusColor()"
               matTooltip="Dhan HQ JWT Token Status"
             >
               <span class="material-symbols-rounded">timer</span>
@@ -68,7 +66,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             <!-- Firestore Pill -->
             <div
               class="status-pill fs-pill"
-              [class.active]="firestoreApi.status()?.configured"
+              [ngClass]="{ 'active': firestoreApi.status()?.configured }"
               matTooltip="Google Cloud Firestore Database"
             >
               <span class="material-symbols-rounded">cloud_done</span>
@@ -78,8 +76,10 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             <!-- Equities Master Pill -->
             <div
               class="status-pill master-pill"
-              [class.active]="instrumentService.syncStatus()?.storedInFirestore"
-              [class.warning-pill]="!instrumentService.syncStatus()?.storedInFirestore"
+              [ngClass]="{
+                'active': instrumentService.syncStatus()?.storedInFirestore,
+                'warning-pill': !instrumentService.syncStatus()?.storedInFirestore
+              }"
               matTooltip="NSE Cash Equities & Indices in Firestore collection sec_id_to_name_mapping"
             >
               <span class="material-symbols-rounded">{{ instrumentService.syncStatus()?.storedInFirestore ? 'database' : 'database_off' }}</span>
@@ -93,8 +93,10 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             <!-- Index Options Pill -->
             <div
               class="status-pill master-pill options-ribbon-pill"
-              [class.active]="instrumentService.optionsSyncStatus()?.storedInFirestore"
-              [class.warning-pill]="!instrumentService.optionsSyncStatus()?.storedInFirestore"
+              [ngClass]="{
+                'active': instrumentService.optionsSyncStatus()?.storedInFirestore,
+                'warning-pill': !instrumentService.optionsSyncStatus()?.storedInFirestore
+              }"
               matTooltip="Traded NSE Index Options in Firestore collection index_options"
             >
               <span class="material-symbols-rounded">{{ instrumentService.optionsSyncStatus()?.storedInFirestore ? 'stacked_line_chart' : 'database_off' }}</span>
@@ -144,14 +146,18 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
               </div>
               <div class="detail-box">
                 <div class="detail-label">Token Status</div>
-                <div class="detail-val status-val" [class.green]="token.status === 'ACTIVE'" [class.yellow]="token.status === 'EXPIRING_SOON'" [class.red]="token.status === 'EXPIRED'">
+                <div class="detail-val status-val" [ngClass]="{
+                  'green': token.status === 'ACTIVE',
+                  'yellow': token.status === 'EXPIRING_SOON',
+                  'red': token.status === 'EXPIRED'
+                }">
                   <span class="pulse-dot"></span>
                   {{ token.statusText }}
                 </div>
               </div>
               <div class="detail-box">
                 <div class="detail-label">Time Remaining</div>
-                <div class="detail-val mono-val countdown-val" [class.urgent]="authService.statusColor() === 'red'">
+                <div class="detail-val mono-val countdown-val" [ngClass]="{ 'urgent': authService.statusColor() === 'red' }">
                   ⏱ {{ authService.timeRemainingFormatted() }}
                 </div>
               </div>
@@ -249,7 +255,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             <!-- Interactive Lot Size & Quantity Inputs Grid -->
             <div class="lot-sizes-inputs-grid">
               <!-- NIFTY 50 -->
-              <div class="lot-card" [class.disabled-index]="!getIndexConfig('NIFTY 50')?.enabled">
+              <div class="lot-card" [ngClass]="{ 'disabled-index': !getIndexConfig('NIFTY 50')?.enabled }">
                 <div class="lot-card-header">
                   <div>
                     <div class="index-symbol">NIFTY 50</div>
@@ -303,14 +309,14 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 </div>
                 <!-- Quick Lot Buttons -->
                 <div class="quick-lot-pills">
-                  <button type="button" class="quick-pill" [class.active]="lotNifty50 === 5" (click)="lotNifty50 = 5; onLotsChanged('NIFTY 50', 5)">5 Lots ({{ 5 * qtyNifty50 }})</button>
-                  <button type="button" class="quick-pill" [class.active]="lotNifty50 === 10" (click)="lotNifty50 = 10; onLotsChanged('NIFTY 50', 10)">10 Lots ({{ 10 * qtyNifty50 }})</button>
-                  <button type="button" class="quick-pill" [class.active]="lotNifty50 === 15" (click)="lotNifty50 = 15; onLotsChanged('NIFTY 50', 15)">15 Lots ({{ 15 * qtyNifty50 }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotNifty50 === 5 }" (click)="lotNifty50 = 5; onLotsChanged('NIFTY 50', 5)">5 Lots ({{ 5 * qtyNifty50 }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotNifty50 === 10 }" (click)="lotNifty50 = 10; onLotsChanged('NIFTY 50', 10)">10 Lots ({{ 10 * qtyNifty50 }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotNifty50 === 15 }" (click)="lotNifty50 = 15; onLotsChanged('NIFTY 50', 15)">15 Lots ({{ 15 * qtyNifty50 }})</button>
                 </div>
               </div>
 
               <!-- BANK NIFTY -->
-              <div class="lot-card" [class.disabled-index]="!getIndexConfig('BANK NIFTY')?.enabled">
+              <div class="lot-card" [ngClass]="{ 'disabled-index': !getIndexConfig('BANK NIFTY')?.enabled }">
                 <div class="lot-card-header">
                   <div>
                     <div class="index-symbol">BANK NIFTY</div>
@@ -362,14 +368,14 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   <span class="qty-calc mono-val">({{ lotBankNifty }} lots &times; {{ qtyBankNifty }} qty/lot)</span>
                 </div>
                 <div class="quick-lot-pills">
-                  <button type="button" class="quick-pill" [class.active]="lotBankNifty === 5" (click)="lotBankNifty = 5; onLotsChanged('BANK NIFTY', 5)">5 Lots ({{ 5 * qtyBankNifty }})</button>
-                  <button type="button" class="quick-pill" [class.active]="lotBankNifty === 10" (click)="lotBankNifty = 10; onLotsChanged('BANK NIFTY', 10)">10 Lots ({{ 10 * qtyBankNifty }})</button>
-                  <button type="button" class="quick-pill" [class.active]="lotBankNifty === 15" (click)="lotBankNifty = 15; onLotsChanged('BANK NIFTY', 15)">15 Lots ({{ 15 * qtyBankNifty }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotBankNifty === 5 }" (click)="lotBankNifty = 5; onLotsChanged('BANK NIFTY', 5)">5 Lots ({{ 5 * qtyBankNifty }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotBankNifty === 10 }" (click)="lotBankNifty = 10; onLotsChanged('BANK NIFTY', 10)">10 Lots ({{ 10 * qtyBankNifty }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotBankNifty === 15 }" (click)="lotBankNifty = 15; onLotsChanged('BANK NIFTY', 15)">15 Lots ({{ 15 * qtyBankNifty }})</button>
                 </div>
               </div>
 
               <!-- MIDCAP NIFTY -->
-              <div class="lot-card" [class.disabled-index]="!getIndexConfig('MIDCAP NIFTY')?.enabled">
+              <div class="lot-card" [ngClass]="{ 'disabled-index': !getIndexConfig('MIDCAP NIFTY')?.enabled }">
                 <div class="lot-card-header">
                   <div>
                     <div class="index-symbol">MIDCAP NIFTY</div>
@@ -421,14 +427,14 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   <span class="qty-calc mono-val">({{ lotMidcapNifty }} lots &times; {{ qtyMidcapNifty }} qty/lot)</span>
                 </div>
                 <div class="quick-lot-pills">
-                  <button type="button" class="quick-pill" [class.active]="lotMidcapNifty === 5" (click)="lotMidcapNifty = 5; onLotsChanged('MIDCAP NIFTY', 5)">5 Lots ({{ 5 * qtyMidcapNifty }})</button>
-                  <button type="button" class="quick-pill" [class.active]="lotMidcapNifty === 10" (click)="lotMidcapNifty = 10; onLotsChanged('MIDCAP NIFTY', 10)">10 Lots ({{ 10 * qtyMidcapNifty }})</button>
-                  <button type="button" class="quick-pill" [class.active]="lotMidcapNifty === 15" (click)="lotMidcapNifty = 15; onLotsChanged('MIDCAP NIFTY', 15)">15 Lots ({{ 15 * qtyMidcapNifty }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotMidcapNifty === 5 }" (click)="lotMidcapNifty = 5; onLotsChanged('MIDCAP NIFTY', 5)">5 Lots ({{ 5 * qtyMidcapNifty }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotMidcapNifty === 10 }" (click)="lotMidcapNifty = 10; onLotsChanged('MIDCAP NIFTY', 10)">10 Lots ({{ 10 * qtyMidcapNifty }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotMidcapNifty === 15 }" (click)="lotMidcapNifty = 15; onLotsChanged('MIDCAP NIFTY', 15)">15 Lots ({{ 15 * qtyMidcapNifty }})</button>
                 </div>
               </div>
 
               <!-- SENSEX -->
-              <div class="lot-card" [class.disabled-index]="!getIndexConfig('SENSEX')?.enabled">
+              <div class="lot-card" [ngClass]="{ 'disabled-index': !getIndexConfig('SENSEX')?.enabled }">
                 <div class="lot-card-header">
                   <div>
                     <div class="index-symbol">SENSEX</div>
@@ -480,9 +486,9 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   <span class="qty-calc mono-val">({{ lotSensex }} lots &times; {{ qtySensex }} qty/lot)</span>
                 </div>
                 <div class="quick-lot-pills">
-                  <button type="button" class="quick-pill" [class.active]="lotSensex === 5" (click)="lotSensex = 5; onLotsChanged('SENSEX', 5)">5 Lots ({{ 5 * qtySensex }})</button>
-                  <button type="button" class="quick-pill" [class.active]="lotSensex === 10" (click)="lotSensex = 10; onLotsChanged('SENSEX', 10)">10 Lots ({{ 10 * qtySensex }})</button>
-                  <button type="button" class="quick-pill" [class.active]="lotSensex === 15" (click)="lotSensex = 15; onLotsChanged('SENSEX', 15)">15 Lots ({{ 15 * qtySensex }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotSensex === 5 }" (click)="lotSensex = 5; onLotsChanged('SENSEX', 5)">5 Lots ({{ 5 * qtySensex }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotSensex === 10 }" (click)="lotSensex = 10; onLotsChanged('SENSEX', 10)">10 Lots ({{ 10 * qtySensex }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotSensex === 15 }" (click)="lotSensex = 15; onLotsChanged('SENSEX', 15)">15 Lots ({{ 15 * qtySensex }})</button>
                 </div>
               </div>
             </div>
@@ -668,7 +674,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   <button
                     type="button"
                     class="inspector-tab"
-                    [class.active]="activeInspectorTab === 'equities'"
+                    [ngClass]="{ 'active': activeInspectorTab === 'equities' }"
                     (click)="onSelectInspectorTab('equities')"
                   >
                     <span class="material-symbols-rounded">table_chart</span>
@@ -677,7 +683,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   <button
                     type="button"
                     class="inspector-tab"
-                    [class.active]="activeInspectorTab === 'options'"
+                    [ngClass]="{ 'active': activeInspectorTab === 'options' }"
                     (click)="onSelectInspectorTab('options')"
                   >
                     <span class="material-symbols-rounded">stacked_line_chart</span>
@@ -706,19 +712,19 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                     <button
                       type="button"
                       class="filter-pill"
-                      [class.active]="equitiesSegmentFilter === ''"
+                      [ngClass]="{ 'active': equitiesSegmentFilter === '' }"
                       (click)="setEquitiesSegment('')"
                     >All</button>
                     <button
                       type="button"
                       class="filter-pill"
-                      [class.active]="equitiesSegmentFilter === 'NSE_EQ'"
+                      [ngClass]="{ 'active': equitiesSegmentFilter === 'NSE_EQ' }"
                       (click)="setEquitiesSegment('NSE_EQ')"
                     >NSE Equities (NSE_EQ)</button>
                     <button
                       type="button"
                       class="filter-pill"
-                      [class.active]="equitiesSegmentFilter === 'IDX_I'"
+                      [ngClass]="{ 'active': equitiesSegmentFilter === 'IDX_I' }"
                       (click)="setEquitiesSegment('IDX_I')"
                     >Indices (IDX_I)</button>
                   </div>
@@ -742,7 +748,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                       </tr>
                     </thead>
                     <tbody>
-                      <tr *ngFor="let item of equitiesList()">
+                      <tr *ngFor="let item of equitiesList(); let isEven = even; let isOdd = odd" [ngClass]="{ 'row-even': isEven, 'row-odd': isOdd }">
                         <td class="mono-val sec-id-cell">{{ item.securityId }}</td>
                         <td class="symbol-cell"><strong>{{ item.symbol }}</strong></td>
                         <td class="name-cell">{{ item.name }}</td>
@@ -806,14 +812,14 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                     <button
                       type="button"
                       class="filter-pill"
-                      [class.active]="optionsIndexFilter === ''"
+                      [ngClass]="{ 'active': optionsIndexFilter === '' }"
                       (click)="setOptionsIndex('')"
                     >All Traded</button>
                     <button
                       type="button"
                       class="filter-pill"
                       *ngFor="let idx of optionsTradedIndices"
-                      [class.active]="optionsIndexFilter === idx"
+                      [ngClass]="{ 'active': optionsIndexFilter === idx }"
                       (click)="setOptionsIndex(idx)"
                     >{{ idx }}</button>
                   </div>
@@ -822,19 +828,19 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                     <button
                       type="button"
                       class="filter-pill"
-                      [class.active]="optionsTypeFilter === ''"
+                      [ngClass]="{ 'active': optionsTypeFilter === '' }"
                       (click)="setOptionsType('')"
                     >All</button>
                     <button
                       type="button"
                       class="filter-pill call-pill"
-                      [class.active]="optionsTypeFilter === 'CE'"
+                      [ngClass]="{ 'active': optionsTypeFilter === 'CE' }"
                       (click)="setOptionsType('CE')"
                     >CALL (CE)</button>
                     <button
                       type="button"
                       class="filter-pill put-pill"
-                      [class.active]="optionsTypeFilter === 'PE'"
+                      [ngClass]="{ 'active': optionsTypeFilter === 'PE' }"
                       (click)="setOptionsType('PE')"
                     >PUT (PE)</button>
                   </div>
@@ -866,14 +872,14 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                       </tr>
                     </thead>
                     <tbody>
-                      <tr *ngFor="let opt of optionsList()">
+                      <tr *ngFor="let opt of optionsList(); let isEven = even; let isOdd = odd" [ngClass]="{ 'row-even': isEven, 'row-odd': isOdd }">
                         <td class="mono-val sec-id-cell">{{ opt.securityId }}</td>
                         <td><span class="badge-chip index-chip">{{ opt.symbolName }}</span></td>
                         <td class="symbol-cell"><strong>{{ opt.customSymbol || opt.tradingSymbol }}</strong></td>
                         <td class="mono-val">{{ opt.expiryDate }}</td>
                         <td class="mono-val text-right">₹{{ opt.strikePrice | number }}</td>
                         <td>
-                          <span class="badge-chip" [class.ce-chip]="opt.optionType === 'CE'" [class.pe-chip]="opt.optionType === 'PE'">
+                          <span class="badge-chip" [ngClass]="{ 'ce-chip': opt.optionType === 'CE', 'pe-chip': opt.optionType === 'PE' }">
                             {{ opt.optionType === 'CE' ? 'CALL (CE)' : 'PUT (PE)' }}
                           </span>
                         </td>
@@ -955,7 +961,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
               </div>
               <div class="fs-item">
                 <div class="fs-label">Connection State</div>
-                <div class="fs-val status-val" [class.green]="fs.configured">
+                <div class="fs-val status-val" [ngClass]="{ 'green': fs.configured }">
                   <span class="pulse-dot"></span>
                   {{ fs.configured ? 'Ready & Operational' : 'Not Configured' }}
                 </div>
@@ -967,7 +973,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             </div>
 
             <!-- Last Test Result Box -->
-            <div class="test-result-box" *ngIf="firestoreApi.lastTestResult() as t" [class.success]="t.success" [class.failure]="!t.success">
+            <div class="test-result-box" *ngIf="firestoreApi.lastTestResult() as t" [ngClass]="t.success ? 'success' : 'failure'">
               <span class="material-symbols-rounded test-icon">{{ t.success ? 'cloud_done' : 'cloud_off' }}</span>
               <div class="test-text">
                 <div class="test-title">{{ t.message }}</div>
@@ -990,7 +996,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         background-color: var(--bg-primary);
         color: var(--text-primary);
       }
-
       .page-body {
         flex: 1;
         padding: 20px 24px 60px;
@@ -999,8 +1004,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         width: 100%;
         box-sizing: border-box;
       }
-
-      /* Control Header Card */
       .control-header-card {
         background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
         border: 1px solid var(--border-subtle);
@@ -1011,7 +1014,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         flex-direction: column;
         gap: 16px;
       }
-
       .breadcrumb {
         display: flex;
         align-items: center;
@@ -1020,25 +1022,13 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--text-muted);
         margin-bottom: 6px;
       }
-
       .bc-link {
         color: var(--dhan-cyan);
         text-decoration: none;
-        transition: opacity 0.15s;
+        &:hover { text-decoration: underline; }
       }
-
-      .bc-link:hover {
-        text-decoration: underline;
-      }
-
-      .bc-sep {
-        color: var(--text-muted);
-      }
-
-      .bc-current {
-        color: var(--text-secondary);
-      }
-
+      .bc-sep { color: var(--text-muted); }
+      .bc-current { color: var(--text-secondary); }
       .page-title {
         display: flex;
         align-items: center;
@@ -1048,20 +1038,13 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--text-primary);
         letter-spacing: -0.02em;
       }
-
-      .page-icon {
-        font-size: 28px;
-        color: var(--dhan-cyan);
-      }
-
+      .page-icon { font-size: 28px; color: var(--dhan-cyan); }
       .page-subtitle {
         font-size: 0.875rem;
         color: var(--text-secondary);
         margin-top: 4px;
         line-height: 1.4;
       }
-
-      /* Quick Status Ribbon */
       .quick-status-ribbon {
         display: flex;
         flex-wrap: wrap;
@@ -1069,48 +1052,10 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         padding-top: 12px;
         border-top: 1px solid var(--border-subtle);
       }
-
-      .status-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid var(--border-subtle);
-        color: var(--text-secondary);
-      }
-
-      .status-pill.token-pill.green {
-        background: rgba(16, 185, 129, 0.12);
-        border-color: rgba(16, 185, 129, 0.3);
-        color: #10b981;
-      }
-
-      .status-pill.token-pill.yellow {
-        background: rgba(245, 158, 11, 0.12);
-        border-color: rgba(245, 158, 11, 0.3);
-        color: #f59e0b;
-      }
-
-      .status-pill.token-pill.red {
-        background: rgba(244, 63, 94, 0.12);
-        border-color: rgba(244, 63, 94, 0.3);
-        color: #f43f5e;
-      }
-
       .status-pill.active {
         background: rgba(0, 210, 196, 0.1);
         border-color: rgba(0, 210, 196, 0.3);
         color: var(--dhan-cyan);
-      }
-
-      .status-pill.warning-pill {
-        background: rgba(245, 158, 11, 0.12);
-        border-color: rgba(245, 158, 11, 0.35);
-        color: #f59e0b;
       }
       .db-not-found-banner {
         display: flex;
@@ -1130,14 +1075,14 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         height: 32px;
         border-radius: 6px;
         background: rgba(245, 158, 11, 0.15);
-        color: #f59e0b;
+        color: var(--color-pending);
         flex-shrink: 0;
+        .material-symbols-rounded { font-size: 18px; }
       }
-      .db-not-found-icon .material-symbols-rounded { font-size: 18px; }
       .db-not-found-title {
         font-size: 0.9rem;
         font-weight: 700;
-        color: #f59e0b;
+        color: var(--color-pending);
         margin: 0 0 4px;
       }
       .db-not-found-msg {
@@ -1145,22 +1090,19 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--text-secondary);
         margin: 0;
         line-height: 1.4;
+        code {
+          background: rgba(255, 255, 255, 0.08);
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 0.75rem;
+          color: var(--dhan-cyan);
+        }
       }
-      .db-not-found-msg code {
-        background: rgba(255, 255, 255, 0.08);
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        color: var(--dhan-cyan);
-      }
-
-      /* Settings Container & Section Cards */
       .settings-container {
         display: flex;
         flex-direction: column;
         gap: 24px;
       }
-
       .settings-section-card {
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
@@ -1168,7 +1110,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         padding: 24px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
       }
-
       .section-header {
         display: flex;
         justify-content: space-between;
@@ -1179,13 +1120,11 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         padding-bottom: 16px;
         border-bottom: 1px solid var(--border-subtle);
       }
-
       .section-title-wrap {
         display: flex;
         align-items: flex-start;
         gap: 14px;
       }
-
       .icon-avatar {
         width: 44px;
         height: 44px;
@@ -1194,28 +1133,11 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
+        &.token-avatar { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+        &.lots-avatar { background: rgba(0, 210, 196, 0.15); color: var(--dhan-cyan); }
+        &.master-avatar { background: rgba(16, 185, 129, 0.15); color: var(--color-profit); }
+        &.fs-avatar { background: rgba(245, 158, 11, 0.15); color: var(--color-pending); }
       }
-
-      .token-avatar {
-        background: rgba(99, 102, 241, 0.15);
-        color: #818cf8;
-      }
-
-      .lots-avatar {
-        background: rgba(0, 210, 196, 0.15);
-        color: var(--dhan-cyan);
-      }
-
-      .master-avatar {
-        background: rgba(16, 185, 129, 0.15);
-        color: #10b981;
-      }
-
-      .fs-avatar {
-        background: rgba(245, 158, 11, 0.15);
-        color: #f59e0b;
-      }
-
       .section-heading {
         font-size: 1.15rem;
         font-weight: 700;
@@ -1249,68 +1171,39 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: #0b0f19 !important;
         font-weight: 700;
       }
-      .token-details-grid {
+      .token-details-grid, .fs-status-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         gap: 14px;
         margin-bottom: 20px;
       }
-
-      .detail-box {
+      .detail-box, .fs-item {
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
         border-radius: 8px;
         padding: 12px 14px;
       }
-
-      .detail-label {
+      .detail-label, .fs-label {
         font-size: 0.72rem;
         color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.04em;
         margin-bottom: 4px;
       }
-
-      .detail-val {
+      .detail-val, .fs-val {
         font-size: 0.875rem;
         font-weight: 600;
         color: var(--text-primary);
       }
-
       .status-val {
         display: inline-flex;
         align-items: center;
         gap: 6px;
       }
-
-      .status-val.green {
-        color: #10b981;
-      }
-
-      .status-val.yellow {
-        color: #f59e0b;
-      }
-
-      .status-val.red {
-        color: #f43f5e;
-      }
-
-      .pulse-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background-color: currentColor;
-        box-shadow: 0 0 8px currentColor;
-      }
-
       .countdown-val {
         color: var(--dhan-cyan);
+        &.urgent { color: var(--color-loss); }
       }
-
-      .countdown-val.urgent {
-        color: #f43f5e;
-      }
-
       .token-mask {
         font-size: 0.75rem;
         color: var(--text-secondary);
@@ -1318,16 +1211,14 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-
-      /* Inner Form Box */
-      .inner-form-box {
+      .inner-form-box, .documents-breakdown-box, .sub-master-card {
         background: rgba(0, 0, 0, 0.2);
         border: 1px solid var(--border-subtle);
         border-radius: 8px;
         padding: 18px 20px;
         margin-top: 16px;
       }
-
+      .documents-breakdown-box { margin-bottom: 20px; padding: 14px; }
       .inner-form-title {
         font-size: 0.95rem;
         font-weight: 700;
@@ -1337,51 +1228,37 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         gap: 8px;
         margin: 0 0 6px 0;
       }
-
       .inner-form-desc {
         font-size: 0.8rem;
         color: var(--text-secondary);
         margin: 0 0 16px 0;
         line-height: 1.4;
+        code {
+          background: rgba(255, 255, 255, 0.06);
+          padding: 2px 6px;
+          border-radius: 4px;
+          color: var(--dhan-cyan);
+          font-family: var(--font-mono);
+        }
       }
-
-      .inner-form-desc code {
-        background: rgba(255, 255, 255, 0.06);
-        padding: 2px 6px;
-        border-radius: 4px;
-        color: var(--dhan-cyan);
-        font-family: var(--font-mono);
-      }
-
-      .form-row {
-        margin-bottom: 12px;
-      }
-
-      .full-width {
-        width: 100%;
-      }
-
+      .form-row { margin-bottom: 12px; }
       .form-actions-row {
         display: flex;
         align-items: center;
         gap: 12px;
         margin-top: 8px;
       }
-
-      /* Lot Sizes Grid */
       .lot-sizes-inputs-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         gap: 16px;
         margin-bottom: 16px;
       }
-
       .lot-inputs-dual-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 10px;
       }
-
       .lot-card {
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
@@ -1391,24 +1268,19 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         flex-direction: column;
         gap: 12px;
         transition: border-color 0.15s;
+        &:focus-within { border-color: var(--dhan-cyan); }
+        &.disabled-index { opacity: 0.65; border-style: dashed; }
       }
-
-      .lot-card:focus-within {
-        border-color: var(--dhan-cyan);
-      }
-
       .lot-card-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
       }
-
       .index-symbol {
         font-weight: 700;
         font-size: 0.95rem;
         color: var(--text-primary);
       }
-
       .index-badge {
         font-size: 0.68rem;
         padding: 2px 8px;
@@ -1418,20 +1290,17 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
-
       .lot-input-wrapper {
         display: flex;
         flex-direction: column;
         gap: 6px;
       }
-
       .lot-label {
         font-size: 0.72rem;
         color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
-
       .styled-number-input {
         background: var(--bg-surface);
         border: 1px solid var(--border-medium);
@@ -1445,23 +1314,17 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         width: 100%;
         box-sizing: border-box;
         transition: border-color 0.15s, box-shadow 0.15s;
+        &:focus {
+          border-color: var(--dhan-cyan);
+          box-shadow: 0 0 0 2px rgba(0, 210, 196, 0.2);
+        }
       }
-
-      .styled-number-input:focus {
-        border-color: var(--dhan-cyan);
-        box-shadow: 0 0 0 2px rgba(0, 210, 196, 0.2);
-      }
-
       .input-with-suffix {
         position: relative;
         display: flex;
         align-items: center;
+        .styled-number-input { padding-right: 50px; }
       }
-
-      .input-with-suffix .styled-number-input {
-        padding-right: 50px;
-      }
-
       .input-suffix {
         position: absolute;
         right: 12px;
@@ -1472,7 +1335,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         letter-spacing: 0.04em;
         pointer-events: none;
       }
-
       .dropdown-toggle {
         display: inline-flex;
         align-items: center;
@@ -1482,18 +1344,11 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--dhan-cyan);
         cursor: pointer;
         user-select: none;
+        input[type="checkbox"] {
+          accent-color: var(--dhan-cyan);
+          cursor: pointer;
+        }
       }
-
-      .dropdown-toggle input[type="checkbox"] {
-        accent-color: var(--dhan-cyan);
-        cursor: pointer;
-      }
-
-      .disabled-index {
-        opacity: 0.65;
-        border-style: dashed;
-      }
-
       .configured-qty-box {
         background: rgba(0, 210, 196, 0.08);
         border: 1px solid rgba(0, 210, 196, 0.25);
@@ -1504,30 +1359,25 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         gap: 3px;
         text-align: center;
       }
-
       .qty-sub {
         font-size: 0.68rem;
         text-transform: uppercase;
         letter-spacing: 0.04em;
         color: var(--text-muted);
       }
-
       .qty-main {
         font-size: 1.15rem;
         font-weight: 800;
         color: var(--dhan-cyan);
       }
-
       .qty-calc {
         font-size: 0.7rem;
         color: var(--text-secondary);
       }
-
       .quick-lot-pills {
         display: flex;
         gap: 6px;
       }
-
       .quick-pill {
         flex: 1;
         background: var(--bg-surface);
@@ -1540,19 +1390,16 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         cursor: pointer;
         transition: all 0.15s ease;
         text-align: center;
+        &:hover {
+          border-color: var(--dhan-cyan);
+          color: var(--dhan-cyan);
+        }
+        &.active {
+          background: rgba(0, 210, 196, 0.15);
+          border-color: var(--dhan-cyan);
+          color: var(--dhan-cyan);
+        }
       }
-
-      .quick-pill:hover {
-        border-color: var(--dhan-cyan);
-        color: var(--dhan-cyan);
-      }
-
-      .quick-pill.active {
-        background: rgba(0, 210, 196, 0.15);
-        border-color: var(--dhan-cyan);
-        color: var(--dhan-cyan);
-      }
-
       .lot-footer-note {
         display: flex;
         align-items: center;
@@ -1586,14 +1433,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
-      .documents-breakdown-box {
-        background: rgba(0, 0, 0, 0.2);
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        padding: 14px;
-        margin-bottom: 20px;
-      }
-
       .breakdown-title {
         font-size: 0.75rem;
         color: var(--text-muted);
@@ -1601,14 +1440,12 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         letter-spacing: 0.04em;
         margin-bottom: 8px;
       }
-
       .doc-chips {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
         margin-bottom: 8px;
       }
-
       .doc-chip {
         display: inline-flex;
         align-items: center;
@@ -1621,19 +1458,15 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         font-family: var(--font-mono);
         color: var(--text-secondary);
       }
-
       .sync-timestamp {
         font-size: 0.72rem;
         color: var(--text-muted);
       }
-
-      /* Dual Sync Actions & Cards */
       .dual-sync-actions {
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
       }
-
       .action-btn-accent {
         background: #9333ea !important;
         color: #fff !important;
@@ -1645,33 +1478,22 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         padding: 0 16px;
         height: 38px;
       }
-
       .options-ribbon-pill.active {
         background: rgba(168, 85, 247, 0.15) !important;
         border-color: rgba(168, 85, 247, 0.4) !important;
         color: #c084fc !important;
       }
-
       .dual-master-grid {
         display: flex;
         flex-direction: column;
         gap: 20px;
       }
-
-      .sub-master-card {
-        background: rgba(0, 0, 0, 0.2);
-        border: 1px solid var(--border-subtle);
-        border-radius: 10px;
-        padding: 18px 20px;
-      }
-
       .sub-master-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 16px;
       }
-
       .sub-master-title {
         display: flex;
         align-items: center;
@@ -1680,16 +1502,11 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         font-weight: 700;
         color: var(--text-primary);
       }
-
       .sub-icon {
         color: var(--dhan-cyan);
         font-size: 20px;
+        &.options-icon { color: #c084fc; }
       }
-
-      .sub-icon.options-icon {
-        color: #c084fc;
-      }
-
       .collection-badge {
         font-family: var(--font-mono);
         font-size: 0.72rem;
@@ -1698,14 +1515,12 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         background: rgba(0, 210, 196, 0.12);
         color: var(--dhan-cyan);
         border: 1px solid rgba(0, 210, 196, 0.3);
+        &.options-badge {
+          background: rgba(168, 85, 247, 0.12);
+          color: #c084fc;
+          border-color: rgba(168, 85, 247, 0.3);
+        }
       }
-
-      .collection-badge.options-badge {
-        background: rgba(168, 85, 247, 0.12);
-        color: #c084fc;
-        border-color: rgba(168, 85, 247, 0.3);
-      }
-
       .traded-index-pill {
         display: inline-flex;
         align-items: center;
@@ -1717,14 +1532,8 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         font-size: 0.75rem;
         font-weight: 700;
         color: #e9d5ff;
+        .material-symbols-rounded { font-size: 14px; color: #c084fc; }
       }
-
-      .traded-index-pill .material-symbols-rounded {
-        font-size: 14px;
-        color: #c084fc;
-      }
-
-      /* Master Data Inspector Card */
       .master-inspector-card {
         margin-top: 24px;
         background: rgba(15, 23, 42, 0.4);
@@ -1732,7 +1541,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         border-radius: 12px;
         overflow: hidden;
       }
-
       .inspector-header {
         display: flex;
         justify-content: space-between;
@@ -1743,66 +1551,58 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         flex-wrap: wrap;
         gap: 12px;
       }
-
       .inspector-title-group {
         display: flex;
         align-items: center;
         gap: 10px;
       }
-
-      .inspector-icon {
-        font-size: 24px;
-        color: var(--dhan-cyan);
-      }
-
+      .inspector-icon { font-size: 24px; color: var(--dhan-cyan); }
       .inspector-heading {
         margin: 0;
         font-size: 1rem;
         font-weight: 700;
         color: var(--text-primary);
       }
-
       .inspector-subheading {
         margin: 2px 0 0;
         font-size: 0.75rem;
         color: var(--text-muted);
       }
-
-      .inspector-tabs {
-        display: flex;
-        gap: 8px;
-      }
-
-      .inspector-tab {
+      .inspector-tabs, .filter-pills { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .inspector-tab, .filter-pill {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 6px 14px;
+        padding: 5px 12px;
         border-radius: 8px;
         border: 1px solid var(--border-subtle);
         background: var(--bg-card);
         color: var(--text-secondary);
-        font-size: 0.8125rem;
+        font-size: 0.75rem;
         font-weight: 600;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.15s ease;
+        &:hover {
+          background: var(--bg-card-hover);
+          color: var(--text-primary);
+        }
+        &.active {
+          background: rgba(0, 210, 196, 0.15);
+          border-color: var(--dhan-cyan);
+          color: var(--dhan-cyan);
+        }
+        &.call-pill.active {
+          background: rgba(16, 185, 129, 0.15);
+          border-color: #10b981;
+          color: #10b981;
+        }
+        &.put-pill.active {
+          background: rgba(244, 63, 94, 0.15);
+          border-color: #f43f5e;
+          color: #f43f5e;
+        }
       }
-
-      .inspector-tab:hover {
-        background: var(--bg-card-hover);
-        color: var(--text-primary);
-      }
-
-      .inspector-tab.active {
-        background: rgba(0, 210, 196, 0.15);
-        border-color: var(--dhan-cyan);
-        color: var(--dhan-cyan);
-      }
-
-      .inspector-tab-content {
-        padding: 16px 20px;
-      }
-
+      .inspector-tab-content { padding: 16px 20px; }
       .inspector-controls-bar {
         display: flex;
         gap: 12px;
@@ -1810,7 +1610,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         flex-wrap: wrap;
         margin-bottom: 16px;
       }
-
       .search-box {
         display: flex;
         align-items: center;
@@ -1821,22 +1620,16 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         padding: 6px 12px;
         flex: 1;
         min-width: 240px;
+        .material-symbols-rounded { font-size: 18px; color: var(--text-muted); }
+        input {
+          border: none;
+          background: transparent;
+          outline: none;
+          color: var(--text-primary);
+          font-size: 0.8125rem;
+          width: 100%;
+        }
       }
-
-      .search-box .material-symbols-rounded {
-        font-size: 18px;
-        color: var(--text-muted);
-      }
-
-      .search-box input {
-        border: none;
-        background: transparent;
-        outline: none;
-        color: var(--text-primary);
-        font-size: 0.8125rem;
-        width: 100%;
-      }
-
       .clear-btn {
         background: transparent;
         border: none;
@@ -1845,67 +1638,19 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         padding: 0;
         display: flex;
         align-items: center;
+        .material-symbols-rounded { font-size: 16px; }
       }
-
-      .clear-btn .material-symbols-rounded {
-        font-size: 16px;
-      }
-
-      .filter-pills {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
-
       .filter-label {
         font-size: 0.75rem;
         font-weight: 600;
         color: var(--text-muted);
         margin-right: 2px;
       }
-
-      .filter-pill {
-        padding: 4px 10px;
-        border-radius: 6px;
-        border: 1px solid var(--border-subtle);
-        background: var(--bg-card);
-        color: var(--text-secondary);
-        font-size: 0.75rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.15s ease;
-      }
-
-      .filter-pill:hover {
-        background: var(--bg-card-hover);
-        color: var(--text-primary);
-      }
-
-      .filter-pill.active {
-        background: rgba(0, 210, 196, 0.15);
-        border-color: var(--dhan-cyan);
-        color: var(--dhan-cyan);
-      }
-
-      .filter-pill.call-pill.active {
-        background: rgba(16, 185, 129, 0.15);
-        border-color: #10b981;
-        color: #10b981;
-      }
-
-      .filter-pill.put-pill.active {
-        background: rgba(244, 63, 94, 0.15);
-        border-color: #f43f5e;
-        color: #f43f5e;
-      }
-
       .expiry-select-wrap {
         display: flex;
         align-items: center;
         gap: 6px;
       }
-
       .expiry-select {
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
@@ -1915,7 +1660,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         padding: 4px 8px;
         outline: none;
       }
-
       .table-container {
         border: 1px solid var(--border-subtle);
         border-radius: 8px;
@@ -1925,55 +1669,45 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         max-height: 480px;
         overflow-y: auto;
       }
-
       .inspector-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 0.8125rem;
+        th {
+          background: rgba(0, 0, 0, 0.3);
+          padding: 10px 14px;
+          text-align: left;
+          font-size: 0.72rem;
+          font-weight: 700;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          border-bottom: 1px solid var(--border-subtle);
+          position: sticky;
+          top: 0;
+          z-index: 1;
+        }
+        td {
+          padding: 9px 14px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+          color: var(--text-secondary);
+        }
+        tr:hover td {
+          background: var(--bg-card-hover);
+          color: var(--text-primary);
+        }
       }
-
-      .inspector-table th {
-        background: rgba(0, 0, 0, 0.3);
-        padding: 10px 14px;
-        text-align: left;
-        font-size: 0.72rem;
-        font-weight: 700;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        border-bottom: 1px solid var(--border-subtle);
-        position: sticky;
-        top: 0;
-        z-index: 1;
-      }
-
-      .inspector-table td {
-        padding: 9px 14px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-        color: var(--text-secondary);
-      }
-
-      .inspector-table tr:hover td {
-        background: var(--bg-card-hover);
-        color: var(--text-primary);
-      }
-
       .sec-id-cell {
         color: var(--dhan-cyan);
         font-weight: 600;
       }
-
-      .symbol-cell {
-        color: var(--text-primary);
-      }
-
+      .symbol-cell { color: var(--text-primary); }
       .name-cell {
         max-width: 280px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-
       .badge-chip {
         font-size: 0.6875rem;
         font-weight: 700;
@@ -1981,42 +1715,29 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         border-radius: 4px;
         background: rgba(255, 255, 255, 0.06);
         color: var(--text-secondary);
+        &.seg-chip {
+          background: rgba(59, 130, 246, 0.12);
+          color: #60a5fa;
+          border: 1px solid rgba(59, 130, 246, 0.25);
+        }
+        &.type-chip {
+          background: rgba(234, 179, 8, 0.12);
+          color: #facc15;
+        }
+        &.index-chip {
+          background: rgba(168, 85, 247, 0.15);
+          color: #c084fc;
+        }
+        &.ce-chip {
+          background: rgba(16, 185, 129, 0.15);
+          color: #10b981;
+        }
+        &.pe-chip {
+          background: rgba(244, 63, 94, 0.15);
+          color: #f43f5e;
+        }
       }
-
-      .seg-chip {
-        background: rgba(59, 130, 246, 0.12);
-        color: #60a5fa;
-        border: 1px solid rgba(59, 130, 246, 0.25);
-      }
-
-      .type-chip {
-        background: rgba(234, 179, 8, 0.12);
-        color: #facc15;
-      }
-
-      .index-chip {
-        background: rgba(168, 85, 247, 0.15);
-        color: #c084fc;
-        font-weight: 700;
-      }
-
-      .ce-chip {
-        background: rgba(16, 185, 129, 0.15);
-        color: #10b981;
-        font-weight: 700;
-      }
-
-      .pe-chip {
-        background: rgba(244, 63, 94, 0.15);
-        color: #f43f5e;
-        font-weight: 700;
-      }
-
-      .text-right {
-        text-align: right;
-      }
-
-      .loading-state, .empty-results {
+      .empty-results {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -2026,7 +1747,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--text-muted);
         font-size: 0.875rem;
       }
-
       .inspector-pagination {
         display: flex;
         justify-content: space-between;
@@ -2035,12 +1755,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         font-size: 0.75rem;
         color: var(--text-muted);
       }
-
-      .page-buttons {
-        display: flex;
-        gap: 8px;
-      }
-
+      .page-buttons { display: flex; gap: 8px; }
       .page-btn {
         display: inline-flex;
         align-items: center;
@@ -2053,101 +1768,39 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         font-size: 0.75rem;
         cursor: pointer;
         transition: all 0.15s ease;
+        &:hover:not(:disabled) {
+          background: var(--bg-card-hover);
+          border-color: var(--dhan-cyan);
+        }
+        &:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+        .material-symbols-rounded { font-size: 16px; }
       }
-
-      .page-btn:hover:not(:disabled) {
-        background: var(--bg-card-hover);
-        border-color: var(--dhan-cyan);
-      }
-
-      .page-btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-
-      .page-btn .material-symbols-rounded {
-        font-size: 16px;
-      }
-
-      /* Firestore Grid */
-      .fs-status-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: 14px;
-        margin-bottom: 16px;
-      }
-
-      .fs-item {
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        padding: 12px 14px;
-      }
-
-      .fs-label {
-        font-size: 0.72rem;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        margin-bottom: 4px;
-      }
-
-      .fs-val {
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: var(--text-primary);
-      }
-
-      .truncate {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
       .test-result-box {
         display: flex;
         align-items: center;
         gap: 12px;
         padding: 12px 16px;
         border-radius: 8px;
+        &.success {
+          background: rgba(16, 185, 129, 0.1);
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          color: #10b981;
+        }
+        &.failure {
+          background: rgba(244, 63, 94, 0.1);
+          border: 1px solid rgba(244, 63, 94, 0.3);
+          color: #f43f5e;
+        }
       }
-
-      .test-result-box.success {
-        background: rgba(16, 185, 129, 0.1);
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        color: #10b981;
-      }
-
-      .test-result-box.failure {
-        background: rgba(244, 63, 94, 0.1);
-        border: 1px solid rgba(244, 63, 94, 0.3);
-        color: #f43f5e;
-      }
-
-      .test-icon {
-        font-size: 24px;
-        flex-shrink: 0;
-      }
-
-      .test-title {
-        font-weight: 700;
-        font-size: 0.875rem;
-      }
-
+      .test-icon { font-size: 24px; flex-shrink: 0; }
+      .test-title { font-weight: 700; font-size: 0.875rem; }
       .test-meta {
         font-size: 0.75rem;
         color: var(--text-secondary);
         margin-top: 2px;
-      }
-
-      .spinning {
-        animation: spin 1s linear infinite;
-      }
-
-      @keyframes spin {
-        100% {
-          transform: rotate(360deg);
-        }
       }
     `,
   ],

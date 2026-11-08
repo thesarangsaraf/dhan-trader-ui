@@ -51,11 +51,17 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
           <p>No orders found in Dhan order book.</p>
         </div>
 
-        <div *ngFor="let order of orderService.orders()" class="order-card" [class.complete]="order.status === 'COMPLETE'" [class.pending]="order.status === 'PENDING'" [class.rejected]="order.status === 'REJECTED'">
+        <div *ngFor="let order of orderService.orders(); let isEven = even; let isOdd = odd" class="order-card" [ngClass]="{
+          'complete': order.status === 'COMPLETE',
+          'pending': order.status === 'PENDING',
+          'rejected': order.status === 'REJECTED',
+          'row-even': isEven,
+          'row-odd': isOdd
+        }">
           <div class="order-top">
             <div class="symbol-col">
               <div class="main-line">
-                <span class="action-tag" [class.buy]="order.transactionType === 'BUY'" [class.sell]="order.transactionType === 'SELL'">
+                <span class="action-tag" [ngClass]="order.transactionType === 'BUY' ? 'buy' : 'sell'">
                   {{ order.transactionType }}
                 </span>
                 <span class="symbol-name">{{ order.symbol }}</span>
@@ -64,7 +70,12 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
             </div>
 
             <div class="status-col">
-              <span class="status-badge" [class.complete]="order.status === 'COMPLETE'" [class.pending]="order.status === 'PENDING'" [class.rejected]="order.status === 'REJECTED'" [class.cancelled]="order.status === 'CANCELLED'">
+              <span class="status-badge" [ngClass]="{
+                'complete': order.status === 'COMPLETE',
+                'pending': order.status === 'PENDING',
+                'rejected': order.status === 'REJECTED',
+                'cancelled': order.status === 'CANCELLED'
+              }">
                 {{ order.status }}
               </span>
               <button
@@ -118,17 +129,6 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
         flex-direction: column;
         gap: 8px;
       }
-      .empty-state {
-        text-align: center;
-        padding: 28px;
-        color: var(--text-muted);
-        font-size: 0.8125rem;
-      }
-      .empty-icon {
-        font-size: 32px;
-        opacity: 0.5;
-        margin-bottom: 6px;
-      }
       .order-card {
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
@@ -165,14 +165,6 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
         padding: 1px 6px;
         border-radius: 3px;
       }
-      .action-tag.buy {
-        color: var(--color-buy);
-        background: var(--color-buy-bg);
-      }
-      .action-tag.sell {
-        color: var(--color-sell);
-        background: var(--color-sell-bg);
-      }
       .symbol-name {
         font-weight: 700;
         font-size: 0.875rem;
@@ -187,29 +179,6 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
         display: flex;
         align-items: center;
         gap: 6px;
-      }
-      .status-badge {
-        font-size: 0.625rem;
-        font-weight: 700;
-        padding: 2px 6px;
-        border-radius: 4px;
-        text-transform: uppercase;
-      }
-      .status-badge.complete {
-        color: var(--color-profit);
-        background: var(--color-profit-bg);
-      }
-      .status-badge.pending {
-        color: var(--color-pending);
-        background: var(--color-pending-bg);
-      }
-      .status-badge.rejected {
-        color: var(--color-loss);
-        background: var(--color-loss-bg);
-      }
-      .status-badge.cancelled {
-        color: var(--text-muted);
-        background: rgba(255, 255, 255, 0.08);
       }
       .cancel-btn {
         background: transparent;

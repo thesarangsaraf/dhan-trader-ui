@@ -110,8 +110,7 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
           <!-- Net Realized P&L Card -->
           <div
             class="kpi-card pnl-kpi"
-            [class.profit]="(sum.netRealizedPnL ?? sum.totalRealizedPnL ?? 0) >= 0"
-            [class.loss]="(sum.netRealizedPnL ?? sum.totalRealizedPnL ?? 0) < 0"
+            [ngClass]="(sum.netRealizedPnL ?? sum.totalRealizedPnL ?? 0) >= 0 ? 'profit' : 'loss'"
           >
             <div class="kpi-icon-wrap">
               <span class="material-symbols-rounded">{{ (sum.netRealizedPnL ?? sum.totalRealizedPnL ?? 0) >= 0 ? 'trending_up' : 'trending_down' }}</span>
@@ -199,21 +198,21 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
             <div class="status-filter-pills">
               <button
                 class="pill-btn"
-                [class.active]="tradeService.selectedStatus() === 'ALL'"
+                [ngClass]="{ 'active': tradeService.selectedStatus() === 'ALL' }"
                 (click)="tradeService.setStatusFilter('ALL')"
               >
                 All Trades
               </button>
               <button
                 class="pill-btn profit-pill"
-                [class.active]="tradeService.selectedStatus() === 'PROFIT'"
+                [ngClass]="{ 'active': tradeService.selectedStatus() === 'PROFIT' }"
                 (click)="tradeService.setStatusFilter('PROFIT')"
               >
                 Profitable
               </button>
               <button
                 class="pill-btn loss-pill"
-                [class.active]="tradeService.selectedStatus() === 'LOSS'"
+                [ngClass]="{ 'active': tradeService.selectedStatus() === 'LOSS' }"
                 (click)="tradeService.setStatusFilter('LOSS')"
               >
                 Loss-making
@@ -241,7 +240,7 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let t of tradeService.filteredTrades()" class="trade-row">
+                <tr *ngFor="let t of tradeService.filteredTrades(); let isEven = even; let isOdd = odd; let isFirst = first; let isLast = last" class="trade-row" [ngClass]="{ 'row-even': isEven, 'row-odd': isOdd, 'row-first': isFirst, 'row-last': isLast }">
                   <!-- Execution Time -->
                   <td class="time-cell mono-val">
                     {{ t.executionTime | istDate }}
@@ -270,7 +269,7 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
                   </td>
 
                   <!-- Realized P&L -->
-                  <td class="num-col pnl-cell mono-val" [class.profit-text]="(t.pnl || 0) > 0" [class.loss-text]="(t.pnl || 0) < 0">
+                  <td class="num-col pnl-cell mono-val" [ngClass]="{ 'profit-text': (t.pnl || 0) > 0, 'loss-text': (t.pnl || 0) < 0 }">
                     <div *ngIf="t.pnl !== null && t.pnl !== undefined" class="pnl-val-wrap">
                       <span class="pnl-amount">{{ t.pnl | currencyInr : true }}</span>
                       <div *ngIf="t.totalCharges" class="charges-subtext" [matTooltip]="'Dhan Brokerage & Statutory Taxes: ₹' + t.totalCharges">
@@ -284,9 +283,11 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
                   <td class="center-col status-cell">
                     <span
                       class="status-pill"
-                      [class.closed-profit]="(t.status === 'CLOSED' || !t.status) && (t.pnl || 0) >= 0"
-                      [class.closed-loss]="(t.status === 'CLOSED' || !t.status) && (t.pnl || 0) < 0"
-                      [class.open-pill]="!!t.status?.startsWith('OPEN')"
+                      [ngClass]="{
+                        'closed-profit': (t.status === 'CLOSED' || !t.status) && (t.pnl || 0) >= 0,
+                        'closed-loss': (t.status === 'CLOSED' || !t.status) && (t.pnl || 0) < 0,
+                        'open-pill': !!t.status?.startsWith('OPEN')
+                      }"
                     >
                       {{ t.status === 'CLOSED' || !t.status ? ((t.pnl || 0) >= 0 ? 'PROFIT' : 'LOSS') : t.status }}
                     </span>
@@ -918,24 +919,6 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         font-size: 18px;
         flex-shrink: 0;
         margin-top: 1px;
-      }
-
-      .spinning {
-        animation: spin 1s linear infinite;
-      }
-
-      @keyframes spin {
-        100% {
-          transform: rotate(360deg);
-        }
-      }
-
-      .mono-val {
-        font-family: 'JetBrains Mono', monospace;
-      }
-
-      .muted {
-        color: rgba(255, 255, 255, 0.4);
       }
     `
   ],

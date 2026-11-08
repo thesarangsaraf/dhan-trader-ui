@@ -48,9 +48,9 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         </div>
 
         <div
-          *ngFor="let item of results(); let i = index"
+          *ngFor="let item of results(); let i = index; let isEven = even; let isOdd = odd"
           class="result-row"
-          [class.selected]="i === selectedIndex()"
+          [ngClass]="{ 'selected': i === selectedIndex(), 'row-even': isEven, 'row-odd': isOdd }"
           (click)="selectInstrument(item)"
           (mouseenter)="selectedIndex.set(i)"
         >
@@ -254,14 +254,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
       }
       .icon-sync {
         font-size: 16px;
-      }
-      .spinning {
-        animation: spin 1s linear infinite;
-      }
-      @keyframes spin {
-        100% {
-          transform: rotate(360deg);
-        }
       }
       kbd {
         background: var(--bg-card);

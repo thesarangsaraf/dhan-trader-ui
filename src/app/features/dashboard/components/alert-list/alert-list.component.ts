@@ -132,12 +132,16 @@ export function isClaimedByAnother(
         </div>
 
         <div
-          *ngFor="let alert of displayAlerts()"
+          *ngFor="let alert of displayAlerts(); let isEven = even; let isOdd = odd"
           class="alert-item"
-          [class.triggered]="alert.status === 'TRIGGERED'"
-          [class.cancelled]="alert.status === 'CANCELLED'"
-          [class.has-stop-loss]="getLinkedStopLoss(alert) !== null"
-          [class.is-sl-alert]="alert.isStopLossAlert || (alert.remarks && alert.remarks.includes('[STOP LOSS]'))"
+          [ngClass]="{
+            'triggered': alert.status === 'TRIGGERED',
+            'cancelled': alert.status === 'CANCELLED',
+            'has-stop-loss': getLinkedStopLoss(alert) !== null,
+            'is-sl-alert': alert.isStopLossAlert || (alert.remarks && alert.remarks.includes('[STOP LOSS]')),
+            'row-even': isEven,
+            'row-odd': isOdd
+          }"
         >
           <!-- Main Row: Instrument, Target Price, Delete Action -->
           <div class="item-main">
@@ -149,8 +153,10 @@ export function isClaimedByAnother(
                 <span
                   class="status-chip"
                   *ngIf="alert.status !== 'ACTIVE'"
-                  [class.triggered]="alert.status === 'TRIGGERED'"
-                  [class.cancelled]="alert.status === 'CANCELLED'"
+                  [ngClass]="{
+                    'triggered': alert.status === 'TRIGGERED',
+                    'cancelled': alert.status === 'CANCELLED'
+                  }"
                 >
                   {{ alert.status }}
                 </span>
@@ -216,8 +222,7 @@ export function isClaimedByAnother(
                   <div class="ord-left-group">
                     <span
                       class="ord-side-chip"
-                      [class.buy]="isBuy(ord)"
-                      [class.sell]="!isBuy(ord)"
+                      [ngClass]="isBuy(ord) ? 'buy' : 'sell'"
                     >
                       {{ (ord.action || ord.transactionType || 'BUY').toUpperCase() }}
                     </span>
@@ -250,8 +255,10 @@ export function isClaimedByAnother(
                   <div class="ord-status-wrap" *ngIf="!isPending(ord)">
                     <span
                       class="ord-status-badge"
-                      [class.placed]="isPlaced(ord)"
-                      [class.failed]="isFailed(ord)"
+                      [ngClass]="{
+                        'placed': isPlaced(ord),
+                        'failed': isFailed(ord)
+                      }"
                     >
                       {{ getOrderStatus(ord, alert) }}
                     </span>
@@ -367,16 +374,6 @@ export function isClaimedByAnother(
       .alerts-scroll-area::-webkit-scrollbar-thumb:hover {
         background: rgba(255, 255, 255, 0.35);
       }
-      .empty-state {
-        text-align: center;
-        padding: 24px 16px;
-        color: var(--text-muted);
-      }
-      .empty-icon {
-        font-size: 32px;
-        margin-bottom: 4px;
-        opacity: 0.6;
-      }
       .alert-item {
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
@@ -432,14 +429,6 @@ export function isClaimedByAnother(
         padding: 1px 5px;
         border-radius: 4px;
         text-transform: uppercase;
-      }
-      .status-chip.triggered {
-        color: var(--color-profit);
-        background: var(--color-profit-bg);
-      }
-      .status-chip.cancelled {
-        color: var(--text-muted);
-        background: rgba(255, 255, 255, 0.06);
       }
       .sl-guard-badge {
         font-size: 0.625rem;
@@ -540,14 +529,6 @@ export function isClaimedByAnother(
         border-radius: 3px;
         text-transform: uppercase;
       }
-      .ord-side-chip.buy {
-        color: var(--color-profit);
-        background: var(--color-profit-bg);
-      }
-      .ord-side-chip.sell {
-        color: var(--color-loss);
-        background: var(--color-loss-bg);
-      }
       .ord-symbol {
         font-weight: 600;
         font-size: 0.8125rem;
@@ -583,14 +564,6 @@ export function isClaimedByAnother(
         padding: 1px 5px;
         border-radius: 3px;
         text-transform: uppercase;
-      }
-      .ord-status-badge.placed {
-        color: var(--color-profit);
-        background: var(--color-profit-bg);
-      }
-      .ord-status-badge.failed {
-        color: var(--color-loss);
-        background: var(--color-loss-bg);
       }
 
       /* Compact Stop Loss Section */

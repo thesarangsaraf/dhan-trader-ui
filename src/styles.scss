@@ -86,6 +86,28 @@ app-root {
   width: 100%;
 }
 
+/* Native Angular / AngularJS visibility utility */
+.ng-hide,
+[hidden] {
+  display: none !important;
+}
+
+/* Native Angular Form Validation Styles */
+input.ng-invalid.ng-touched,
+select.ng-invalid.ng-touched,
+textarea.ng-invalid.ng-touched,
+.styled-number-input.ng-invalid.ng-touched,
+.styled-date-input.ng-invalid.ng-touched {
+  border-color: var(--color-loss) !important;
+  box-shadow: 0 0 0 1px var(--color-loss);
+}
+
+input.ng-valid.ng-dirty,
+select.ng-valid.ng-dirty,
+textarea.ng-valid.ng-dirty {
+  border-color: var(--color-profit);
+}
+
 /* Material Symbols Rounded font helper */
 .material-symbols-rounded {
   font-family: 'Material Symbols Rounded';
@@ -111,20 +133,274 @@ app-root {
   letter-spacing: -0.02em;
 }
 
-/* Semantic Badges */
-.badge-profit {
+/* Global Spin Animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+/* Global Pulse Dot Animation */
+@keyframes pulseDot {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  display: inline-block;
+}
+
+/* Shared Status Badges & Semantic Chips */
+.status-chip,
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-profit,
+.green,
+.status-chip.green,
+.status-chip.triggered,
+.status-chip.placed,
+.status-badge.green,
+.status-badge.triggered,
+.status-badge.placed,
+.status-badge.complete,
+.status-badge.buy,
+.buy {
   color: var(--color-profit);
   background-color: var(--color-profit-bg);
 }
 
-.badge-loss {
+.badge-pending,
+.yellow,
+.status-chip.yellow,
+.status-chip.pending,
+.status-badge.yellow,
+.status-badge.pending,
+.pending {
+  color: var(--color-pending);
+  background-color: var(--color-pending-bg);
+}
+
+.badge-loss,
+.red,
+.status-chip.red,
+.status-chip.cancelled,
+.status-chip.failed,
+.status-badge.red,
+.status-badge.cancelled,
+.status-badge.failed,
+.status-badge.rejected,
+.status-badge.sell,
+.sell {
   color: var(--color-loss);
   background-color: var(--color-loss-bg);
 }
 
-.badge-pending {
-  color: var(--color-pending);
-  background-color: var(--color-pending-bg);
+/* Shared Modal & Dialog Typography & Actions */
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.dialog-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.subtitle,
+.dialog-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 2px 0 0 0;
+}
+
+.close-btn {
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
+.dialog-body {
+  overflow-y: auto;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Shared Empty & Loading States */
+.empty-state {
+  text-align: center;
+  padding: 28px 16px;
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  font-size: 32px;
+  opacity: 0.5;
+  margin-bottom: 6px;
+  display: inline-block;
+}
+
+.empty-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.empty-desc {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 36px 20px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* Row position-specific classes for Angular loops ($even, $odd, $first, $last) */
+.row-even {
+  background-color: transparent;
+}
+
+.row-odd {
+  background-color: rgba(255, 255, 255, 0.015);
+}
+
+.row-first td {
+  border-top: none;
+}
+
+.row-last td {
+  border-bottom: none;
+}
+
+/* Shared Layout and Form Utilities */
+.full-width {
+  width: 100%;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 16px 0;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--text-primary);
+}
+
+.section-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
+.text-cyan { color: var(--dhan-cyan); }
+.text-emerald { color: var(--color-profit); }
+.text-amber { color: var(--color-pending); }
+.text-rose { color: var(--color-loss); }
+.text-muted { color: var(--text-muted); }
+.text-right { text-align: right; }
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+
+  &.green {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--color-profit);
+  }
+  &.yellow, &.warning-pill {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: var(--color-pending);
+  }
+  &.red {
+    background: rgba(244, 63, 94, 0.12);
+    border-color: rgba(244, 63, 94, 0.3);
+    color: var(--color-loss);
+  }
 }
 
 /* Rounded Card & Dialog overrides */

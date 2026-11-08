@@ -177,14 +177,7 @@ import { CurrencyInrPipe } from '../../../shared/pipes/currency-inr.pipe';
         margin: 0;
         line-height: 1.2;
       }
-      .subtitle {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        margin: 2px 0 0 0;
-      }
-      .close-btn {
-        color: var(--text-muted);
-      }
+
       .dialog-body {
         padding: 20px;
         display: flex;
@@ -223,12 +216,7 @@ import { CurrencyInrPipe } from '../../../shared/pipes/currency-inr.pipe';
         color: var(--color-profit);
         border: 1px solid rgba(16, 185, 129, 0.3);
       }
-      .pulse-dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background-color: var(--color-profit);
-      }
+
       .pulse-dot-inline {
         width: 6px;
         height: 6px;
@@ -410,17 +398,6 @@ import { CurrencyInrPipe } from '../../../shared/pipes/currency-inr.pipe';
       }
       .cancel-btn {
         color: var(--text-muted);
-      }
-      .mono-val {
-        font-family: var(--font-mono);
-      }
-      @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      .spinning {
-        animation: spin 1s linear infinite;
-        display: inline-block;
       }
     `,
   ],

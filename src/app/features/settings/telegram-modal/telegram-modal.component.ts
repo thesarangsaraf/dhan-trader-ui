@@ -38,7 +38,7 @@ import { TelegramApiService } from '../../../core/api/telegram.service';
         <div class="tg-status-card m3-card" *ngIf="telegramService.status() as st">
           <div class="status-row">
             <span class="label">Bridge Status:</span>
-            <div class="status-chip" [class.online]="st.configured" [class.offline]="!st.configured">
+            <div class="status-chip" [ngClass]="st.configured ? 'online' : 'offline'">
               <span class="pulse-dot"></span>
               {{ st.configured ? 'Connected & Active' : 'Not Configured' }}
             </div>
@@ -117,36 +117,9 @@ import { TelegramApiService } from '../../../core/api/telegram.service';
         min-width: 460px;
         max-width: 540px;
       }
-      .dialog-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 12px;
-      }
-      .title-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
       .tg-icon {
         font-size: 30px;
         color: #229ED9; /* Telegram blue */
-      }
-      .dialog-title {
-        margin: 0;
-        font-size: 1.25rem;
-        font-weight: 600;
-      }
-      .subtitle {
-        margin: 2px 0 0 0;
-        font-size: 0.8125rem;
-        color: var(--text-muted);
-      }
-      .close-btn {
-        color: var(--text-secondary);
-        background: none;
-        border: none;
-        cursor: pointer;
       }
       .tg-status-card {
         padding: 16px;
@@ -168,15 +141,6 @@ import { TelegramApiService } from '../../../core/api/telegram.service';
         color: var(--text-primary);
         font-weight: 500;
       }
-      .status-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 3px 10px;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-      }
       .status-chip.online {
         color: var(--color-profit);
         background: var(--color-profit-bg);
@@ -185,46 +149,12 @@ import { TelegramApiService } from '../../../core/api/telegram.service';
         color: var(--color-loss);
         background: var(--color-loss-bg);
       }
-      .pulse-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background-color: currentColor;
-      }
       .test-row {
         margin-top: 6px;
         display: flex;
         justify-content: flex-end;
       }
-      .test-row button {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .divider {
-        height: 1px;
-        background: var(--border-subtle);
-        margin: 16px 0;
-      }
-      .section-title {
-        font-size: 0.9375rem;
-        font-weight: 600;
-        margin-bottom: 4px;
-      }
-      .section-desc {
-        font-size: 0.8125rem;
-        color: var(--text-secondary);
-        margin-bottom: 12px;
-        line-height: 1.4;
-      }
-      .full-width {
-        width: 100%;
-        margin-bottom: 8px;
-      }
-      .form-actions {
-        display: flex;
-        justify-content: flex-end;
-      }
+      .test-row button,
       .form-actions button {
         display: inline-flex;
         align-items: center;

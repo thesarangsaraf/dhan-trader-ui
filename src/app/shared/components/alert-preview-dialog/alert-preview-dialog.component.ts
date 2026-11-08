@@ -408,42 +408,13 @@ export interface AlertPreviewData {
       }
 
       .dialog-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
         padding: 16px 20px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      }
-
-      .title-wrap {
-        display: flex;
-        align-items: center;
-        gap: 12px;
       }
 
       .header-icon {
         font-size: 28px;
         color: var(--dhan-cyan, #00d2c4);
-      }
-
-      .dialog-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        margin: 0;
-      }
-
-      .dialog-subtitle {
-        font-size: 0.75rem;
-        color: var(--text-muted, #94a3b8);
-      }
-
-      .close-btn {
-        color: var(--text-muted, #94a3b8);
-      }
-
-      .dialog-body {
-        overflow-y: auto;
-        padding: 0;
       }
 
       .tab-label-wrap {
@@ -711,16 +682,6 @@ export interface AlertPreviewData {
         font-weight: 600;
       }
 
-      .mono-val {
-        font-family: 'JetBrains Mono', monospace;
-      }
-      .text-cyan { color: var(--dhan-cyan, #00d2c4); }
-      .text-emerald { color: #10b981; }
-      .text-amber { color: #f59e0b; }
-      .text-rose { color: #f43f5e; }
-      .text-muted { color: #94a3b8; }
-      .font-semibold { font-weight: 600; }
-      .font-bold { font-weight: 700; }
       .sl-card {
         border-color: rgba(244, 63, 94, 0.25) !important;
         background: rgba(244, 63, 94, 0.04) !important;

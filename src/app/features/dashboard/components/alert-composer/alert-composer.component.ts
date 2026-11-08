@@ -118,7 +118,7 @@ import {
         </div>
 
         <!-- 3. Conditional Execution Toggle ("Attach Order with Alert") -->
-        <div class="action-box" [class.enabled]="executeOrderOnTrigger">
+        <div class="action-box" [ngClass]="{ 'enabled': executeOrderOnTrigger }">
           <div class="action-toggle-row">
             <mat-checkbox [(ngModel)]="executeOrderOnTrigger" name="executeOrderOnTrigger" color="primary">
               <span class="toggle-text">Attach Order with Alert</span>
@@ -172,9 +172,9 @@ import {
                 </div>
                 <div class="strike-chips">
                   <div
-                    *ngFor="let strike of strikePairs()"
+                    *ngFor="let strike of strikePairs(); let isFirst = first; let isLast = last"
                     class="strike-chip"
-                    [class.selected]="selectedStrikePrice === strike.strikePrice"
+                    [ngClass]="{ 'selected': selectedStrikePrice === strike.strikePrice, 'row-first': isFirst, 'row-last': isLast }"
                     (click)="selectStrike(strike.strikePrice)"
                   >
                     <span class="strike-val">{{ strike.strikePrice }} {{ orderAction === 'BUY' ? 'CE' : 'PE' }}</span>
@@ -217,7 +217,7 @@ import {
                   <button
                     type="button"
                     class="lot-select-btn"
-                    [class.active-qty]="orderLots === 5"
+                    [ngClass]="{ 'active-qty': orderLots === 5 }"
                     (click)="setLots(5)"
                   >
                     5 Lots
@@ -225,7 +225,7 @@ import {
                   <button
                     type="button"
                     class="lot-select-btn"
-                    [class.active-qty]="orderLots === 10"
+                    [ngClass]="{ 'active-qty': orderLots === 10 }"
                     (click)="setLots(10)"
                   >
                     10 Lots
@@ -233,7 +233,7 @@ import {
                   <button
                     type="button"
                     class="lot-select-btn"
-                    [class.active-qty]="orderLots === 15"
+                    [ngClass]="{ 'active-qty': orderLots === 15 }"
                     (click)="setLots(15)"
                   >
                     15 Lots
@@ -333,9 +333,6 @@ import {
       .subtitle {
         font-size: 0.6875rem;
         color: var(--text-muted);
-      }
-      .full-width {
-        width: 100%;
       }
       .instrument-select-row {
         display: flex;

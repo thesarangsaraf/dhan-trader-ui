@@ -83,12 +83,12 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
             <p>No open or closed positions found on your Dhan account.</p>
           </div>
 
-          <div *ngFor="let pos of orderService.positions()" class="position-row" [class.closed]="pos.netQty === 0">
+          <div *ngFor="let pos of orderService.positions(); let isEven = even; let isOdd = odd" class="position-row" [ngClass]="{ 'closed': pos.netQty === 0, 'row-even': isEven, 'row-odd': isOdd }">
             <div class="pos-info">
               <div class="sym-row">
                 <span class="sym-name">{{ pos.symbol }}</span>
                 <span class="prod-tag">{{ pos.productType }}</span>
-                <span class="qty-pill mono-val" [class.long]="pos.netQty > 0" [class.short]="pos.netQty < 0">
+                <span class="qty-pill mono-val" [ngClass]="pos.netQty > 0 ? 'long' : (pos.netQty < 0 ? 'short' : '')">
                   {{ pos.netQty > 0 ? '+' : '' }}{{ pos.netQty }} Qty
                 </span>
               </div>
@@ -157,17 +157,6 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
         gap: 8px;
         max-height: 400px;
         overflow-y: auto;
-      }
-      .empty-state {
-        padding: 28px 12px;
-        text-align: center;
-        color: var(--text-muted);
-        font-size: 0.8125rem;
-      }
-      .empty-icon {
-        font-size: 32px;
-        opacity: 0.5;
-        margin-bottom: 6px;
       }
       .position-row {
         display: flex;

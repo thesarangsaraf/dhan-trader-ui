@@ -45,11 +45,15 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         <!-- Token Inspection Card -->
         <div class="token-status-card m3-card" *ngIf="authService.tokenStatus() as token">
           <div class="status-top">
-            <div class="status-chip" [class.active]="token.status === 'ACTIVE'" [class.expiring]="token.status === 'EXPIRING_SOON'" [class.expired]="token.status === 'EXPIRED'">
+            <div class="status-chip" [ngClass]="{
+              'active': token.status === 'ACTIVE',
+              'expiring': token.status === 'EXPIRING_SOON',
+              'expired': token.status === 'EXPIRED'
+            }">
               <span class="pulse-dot"></span>
               {{ token.statusText }}
             </div>
-            <span class="countdown mono-val" [class.urgent]="authService.statusColor() === 'red'">
+            <span class="countdown mono-val" [ngClass]="{ 'urgent': authService.statusColor() === 'red' }">
               ⏱ {{ authService.timeRemainingFormatted() }}
             </span>
           </div>
@@ -199,44 +203,9 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         border-radius: 8px;
         border: 1px solid var(--border-subtle);
       }
-      .spinning {
-        animation: spin 1s linear infinite;
-      }
-      @keyframes spin {
-        100% {
-          transform: rotate(360deg);
-        }
-      }
-      .dialog-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 12px;
-      }
-      .title-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
       .key-icon {
         font-size: 32px;
         color: var(--dhan-cyan);
-      }
-      .dialog-title {
-        margin: 0;
-        font-size: 1.25rem;
-        font-weight: 600;
-      }
-      .subtitle {
-        margin: 2px 0 0 0;
-        font-size: 0.8125rem;
-        color: var(--text-muted);
-      }
-      .close-btn {
-        color: var(--text-secondary);
-        background: none;
-        border: none;
-        cursor: pointer;
       }
       .token-status-card {
         padding: 16px;
@@ -249,20 +218,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         align-items: center;
         margin-bottom: 14px;
       }
-      .status-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        background: rgba(255, 255, 255, 0.08);
-      }
-      .status-chip.active {
-        color: var(--color-profit);
-        background: var(--color-profit-bg);
-      }
       .status-chip.expiring {
         color: var(--color-pending);
         background: var(--color-pending-bg);
@@ -270,12 +225,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
       .status-chip.expired {
         color: var(--color-loss);
         background: var(--color-loss-bg);
-      }
-      .pulse-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background-color: currentColor;
       }
       .countdown {
         font-size: 0.875rem;
@@ -306,52 +255,19 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--text-primary);
         font-weight: 500;
       }
-      @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      .spinning {
-        animation: spin 1s linear infinite;
-        display: inline-block;
-      }
       .quick-actions {
         display: flex;
         gap: 8px;
       }
-      .quick-actions button {
-        flex: 1;
+      .quick-actions button,
+      .form-actions button {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 6px;
       }
-      .divider {
-        height: 1px;
-        background: var(--border-subtle);
-        margin: 16px 0;
-      }
-      .section-title {
-        font-size: 0.9375rem;
-        font-weight: 600;
-        margin-bottom: 4px;
-      }
-      .section-desc {
-        font-size: 0.8125rem;
-        color: var(--text-secondary);
-        margin-bottom: 12px;
-      }
-      .full-width {
-        width: 100%;
-        margin-bottom: 8px;
-      }
-      .form-actions {
-        display: flex;
-        justify-content: flex-end;
-      }
-      .form-actions button {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
+      .quick-actions button {
+        flex: 1;
       }
       .detail-row.warning-text {
         display: flex;

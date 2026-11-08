@@ -63,9 +63,7 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         <!-- Token Expiry Countdown Pill -->
         <div
           class="token-expiry-chip"
-          [class.green]="authService.statusColor() === 'green'"
-          [class.yellow]="authService.statusColor() === 'yellow'"
-          [class.red]="authService.statusColor() === 'red'"
+          [ngClass]="authService.statusColor()"
           (click)="openAuthModal()"
           matTooltip="Click to inspect JWT token, expiry, or manual renewal"
         >
@@ -85,7 +83,7 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         <!-- Telegram Bot Status Pill -->
         <div
           class="telegram-chip"
-          [class.configured]="telegramService.status().configured"
+          [ngClass]="{ 'configured': telegramService.status().configured }"
           (click)="openTelegramModal()"
           matTooltip="Click to manage Telegram Bot alerts & test connection"
         >
@@ -131,7 +129,7 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         <!-- Sync Scrip Master & Options to Firestore -->
         <button
           class="action-btn"
-          [class.active]="instrumentService.isSyncing()"
+          [ngClass]="{ 'active': instrumentService.isSyncing() }"
           (click)="instrumentService.syncMaster().subscribe()"
           [disabled]="instrumentService.isSyncing()"
           matTooltip="Sync NSE Scrip Master & Options into Firestore (sec_id_to_name_mapping)"
@@ -280,20 +278,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         font-size: 16px;
       }
 
-      @keyframes spin {
-        from {
-          transform: rotate(0deg);
-        }
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      .spinning {
-        animation: spin 1s linear infinite;
-        display: inline-block;
-      }
-
       .mini-renew-btn {
         background: transparent;
         border: none;
@@ -376,10 +360,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
       .mini-funds-btn span {
         font-size: 15px;
-      }
-
-      .muted {
-        color: var(--text-muted);
       }
 
       .header-quick-actions {
