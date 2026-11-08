@@ -66,6 +66,45 @@ export interface SecIdMappingMetadata {
   updatedAt: string;
 }
 
+export interface IndexOptionsMetadata {
+  totalItems: number;
+  totalChunks: number;
+  chunkSize: number;
+  documentsCount?: number;
+  documentIds?: string[];
+  tradedIndices?: string[];
+  maxExpiriesPerIndex?: number;
+  updatedAt: string;
+}
+
+export interface IndexOptionsStatusResult {
+  storedInFirestore: boolean;
+  metadata: IndexOptionsMetadata | null;
+  inMemoryCount: number;
+  tradedIndices: string[];
+}
+
+export interface SyncOptionsResult {
+  success: boolean;
+  collection: string;
+  totalItems: number;
+  totalChunks: number;
+  writeTime: string;
+  tradedIndices: string[];
+  message?: string;
+}
+
+export interface SyncEquitiesResult {
+  success: boolean;
+  collection: string;
+  totalInstruments: number;
+  totalEquities: number;
+  totalIndices: number;
+  documents: string[];
+  syncedAt: string;
+  message?: string;
+}
+
 export interface SyncMasterResult {
   success: boolean;
   collection: string;
@@ -103,6 +142,34 @@ export interface IndexConfigItem {
   lotSize?: number;
   defaultLots?: number;
   defaultQuantity?: number;
+}
+
+export interface CachedIndexOption {
+  symbolName: string;
+  exchange: string;
+  securityId: string;
+  tradingSymbol: string;
+  customSymbol: string;
+  expiryDate: string;
+  strikePrice: number;
+  optionType: string;
+  lotSize: number;
+}
+
+export interface EquitiesQueryResult {
+  total: number;
+  items: Instrument[];
+  limit: number;
+  offset: number;
+}
+
+export interface OptionsQueryResult {
+  total: number;
+  items: CachedIndexOption[];
+  limit: number;
+  offset: number;
+  expiries: string[];
+  tradedIndices: string[];
 }
 
 export interface IndexLotSizesConfig {

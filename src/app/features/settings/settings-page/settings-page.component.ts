@@ -13,7 +13,7 @@ import { InstrumentService } from '../../../core/api/instrument.service';
 import { FirestoreApiService } from '../../../core/api/firestore.service';
 import { AlertService } from '../../../core/api/alert.service';
 import { OrderService } from '../../../core/api/order.service';
-import { IndexConfigItem } from '../../../core/models/instrument.models';
+import { CachedIndexOption, IndexConfigItem, Instrument } from '../../../core/models/instrument.models';
 import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 
 @Component({
@@ -75,15 +75,33 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
               <span class="pill-text">Firestore: {{ firestoreApi.status()?.configured ? 'Connected' : 'Offline' }}</span>
             </div>
 
-            <!-- Scrip Master Pill -->
+            <!-- Equities Master Pill -->
             <div
               class="status-pill master-pill"
               [class.active]="instrumentService.syncStatus()?.storedInFirestore"
-              matTooltip="NSE Security Master & Options in Firestore"
+              [class.warning-pill]="!instrumentService.syncStatus()?.storedInFirestore"
+              matTooltip="NSE Cash Equities & Indices in Firestore collection sec_id_to_name_mapping"
             >
-              <span class="material-symbols-rounded">database</span>
+              <span class="material-symbols-rounded">{{ instrumentService.syncStatus()?.storedInFirestore ? 'database' : 'database_off' }}</span>
               <span class="pill-text">
-                Master: {{ instrumentService.syncStatus()?.metadata?.totalInstruments || 19390 }} NSE Instruments
+                {{ instrumentService.syncStatus()?.storedInFirestore
+                  ? 'Equities: ' + (instrumentService.syncStatus()?.metadata?.totalInstruments | number) + ' Items'
+                  : 'Equities: Data not found in database' }}
+              </span>
+            </div>
+
+            <!-- Index Options Pill -->
+            <div
+              class="status-pill master-pill options-ribbon-pill"
+              [class.active]="instrumentService.optionsSyncStatus()?.storedInFirestore"
+              [class.warning-pill]="!instrumentService.optionsSyncStatus()?.storedInFirestore"
+              matTooltip="Traded NSE Index Options in Firestore collection index_options"
+            >
+              <span class="material-symbols-rounded">{{ instrumentService.optionsSyncStatus()?.storedInFirestore ? 'stacked_line_chart' : 'database_off' }}</span>
+              <span class="pill-text">
+                {{ instrumentService.optionsSyncStatus()?.storedInFirestore
+                  ? 'Options: ' + (instrumentService.optionsSyncStatus()?.metadata?.totalItems | number) + ' Contracts'
+                  : 'Options: Data not found in database' }}
               </span>
             </div>
           </div>
@@ -475,7 +493,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             </div>
           </section>
 
-          <!-- SECTION 3: NSE SECURITY MASTER & FIRESTORE SYNC -->
+          <!-- SECTION 3: NSE SECURITY MASTERS & FIRESTORE SYNC -->
           <section class="settings-section-card" id="scrip-section">
             <div class="section-header">
               <div class="section-title-wrap">
@@ -483,62 +501,418 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   <span class="material-symbols-rounded">sync_alt</span>
                 </div>
                 <div>
-                  <h2 class="section-heading">NSE Security Master & Firestore Sync</h2>
+                  <h2 class="section-heading">NSE Security Masters & Firestore Sync</h2>
                   <p class="section-subheading">
-                    Collection <code>sec_id_to_name_mapping</code> stored across modular documents by instrument with strictly zero BSE clutter
+                    Cash equities in <code>sec_id_to_name_mapping</code> and traded index options in dedicated collection <code>index_options</code>
                   </p>
                 </div>
               </div>
-              <div class="section-actions">
+              <div class="section-actions dual-sync-actions">
                 <button
                   mat-flat-button
                   color="primary"
-                  class="action-btn-primary"
-                  (click)="instrumentService.syncMaster().subscribe()"
-                  [disabled]="instrumentService.isSyncing()"
-                  matTooltip="Synchronize security master & options into Firestore collection sec_id_to_name_mapping"
+                  class="action-btn-primary sync-equities-btn"
+                  (click)="onSyncEquities()"
+                  [disabled]="instrumentService.isSyncingEquities()"
+                  matTooltip="Synchronize cash equities & indices to Firestore collection sec_id_to_name_mapping"
                 >
-                  <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncing()">cloud_sync</span>
-                  {{ instrumentService.isSyncing() ? 'Syncing...' : 'Sync Master to Firestore' }}
+                  <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncingEquities()">cloud_sync</span>
+                  {{ instrumentService.isSyncingEquities() ? 'Syncing Equities...' : 'Sync Equities to Firestore' }}
+                </button>
+                <button
+                  mat-flat-button
+                  color="accent"
+                  class="action-btn-accent sync-options-btn"
+                  (click)="onSyncOptions()"
+                  [disabled]="instrumentService.isSyncingOptions()"
+                  matTooltip="Synchronize traded index options (NIFTY, BANKNIFTY, MIDCPNIFTY, SENSEX) to Firestore collection index_options"
+                >
+                  <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncingOptions()">tune</span>
+                  {{ instrumentService.isSyncingOptions() ? 'Syncing Options...' : 'Sync Options to Firestore' }}
                 </button>
               </div>
             </div>
 
-            <!-- Master Stats Grid -->
-            <div class="master-stats-grid" *ngIf="instrumentService.syncStatus()?.metadata as meta">
-              <div class="stat-card">
-                <div class="stat-val mono-val">{{ meta.totalInstruments | number }}</div>
-                <div class="stat-lbl">Total NSE Instruments</div>
+            <!-- DUAL MASTER SUBSECTIONS -->
+            <div class="dual-master-grid">
+              <!-- SUBSECTION A: CASH EQUITIES & BENCHMARK INDICES -->
+              <div class="sub-master-card">
+                <div class="sub-master-header">
+                  <div class="sub-master-title">
+                    <span class="material-symbols-rounded sub-icon">table_chart</span>
+                    <span>Cash Equities & Benchmark Indices</span>
+                  </div>
+                  <span class="collection-badge">sec_id_to_name_mapping</span>
+                </div>
+
+                <!-- Equities Not Found in Database Banner -->
+                <div class="db-not-found-banner" *ngIf="!instrumentService.syncStatus()?.storedInFirestore">
+                  <div class="db-not-found-icon">
+                    <span class="material-symbols-rounded">database_off</span>
+                  </div>
+                  <div class="db-not-found-content">
+                    <h4 class="db-not-found-title">Data is not found in database</h4>
+                    <p class="db-not-found-msg">
+                      Firestore collection <code>sec_id_to_name_mapping</code> contains no cash equities or indices.
+                      Click <strong>Sync Equities to Firestore</strong> above to download the official Dhan scrip master and populate equities.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Equities Stats Grid -->
+                <div class="master-stats-grid" *ngIf="instrumentService.syncStatus()?.metadata as meta">
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ meta.totalInstruments | number }}</div>
+                    <div class="stat-lbl">Total Instruments</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ meta.totalEquities | number }}</div>
+                    <div class="stat-lbl">Cash Equities (NSE_EQ)</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ meta.totalIndices | number }}</div>
+                    <div class="stat-lbl">Benchmark Indices (IDX_I)</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ meta.documentsCount || 7 }}</div>
+                    <div class="stat-lbl">Modular Documents</div>
+                  </div>
+                </div>
+
+                <!-- Document Breakdown Chips -->
+                <div class="documents-breakdown-box" *ngIf="instrumentService.syncStatus()?.metadata as meta">
+                  <div class="breakdown-title">Firestore Chunk Documents:</div>
+                  <div class="doc-chips">
+                    <span class="doc-chip" *ngFor="let docId of meta.documentIds">
+                      <span class="material-symbols-rounded">article</span>
+                      {{ docId }}
+                    </span>
+                  </div>
+                  <div class="sync-timestamp" *ngIf="meta.updatedAt">
+                    Last synchronized: {{ meta.updatedAt | istDate : 'full' }}
+                  </div>
+                </div>
               </div>
-              <div class="stat-card">
-                <div class="stat-val mono-val">{{ meta.totalOptions | number }}</div>
-                <div class="stat-lbl">Index Options (NSE_FNO)</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-val mono-val">{{ meta.totalIndices | number }}</div>
-                <div class="stat-lbl">Benchmark Indices (IDX_I)</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-val mono-val">{{ meta.totalEquities | number }}</div>
-                <div class="stat-lbl">Cash Equities (NSE_EQ)</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-val mono-val">{{ meta.documentsCount || 12 }}</div>
-                <div class="stat-lbl">Modular Documents</div>
+
+              <!-- SUBSECTION B: TRADED INDEX OPTIONS -->
+              <div class="sub-master-card">
+                <div class="sub-master-header">
+                  <div class="sub-master-title">
+                    <span class="material-symbols-rounded sub-icon options-icon">stacked_line_chart</span>
+                    <span>Traded Index Options</span>
+                  </div>
+                  <span class="collection-badge options-badge">index_options</span>
+                </div>
+
+                <!-- Options Not Found in Database Banner -->
+                <div class="db-not-found-banner" *ngIf="!instrumentService.optionsSyncStatus()?.storedInFirestore">
+                  <div class="db-not-found-icon">
+                    <span class="material-symbols-rounded">database_off</span>
+                  </div>
+                  <div class="db-not-found-content">
+                    <h4 class="db-not-found-title">Data is not found in database</h4>
+                    <p class="db-not-found-msg">
+                      Firestore collection <code>index_options</code> contains no option contracts.
+                      Click <strong>Sync Options to Firestore</strong> above to download live option contracts for your traded indices.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Options Stats Grid -->
+                <div class="master-stats-grid" *ngIf="instrumentService.optionsSyncStatus()?.metadata as optMeta">
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ optMeta.totalItems | number }}</div>
+                    <div class="stat-lbl">Total Option Contracts</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ (optMeta.documentIds?.length || optMeta.totalChunks || 4) | number }}</div>
+                    <div class="stat-lbl">Index Documents</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ (optMeta.maxExpiriesPerIndex || 2) | number }}</div>
+                    <div class="stat-lbl">Max Expiries / Index</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ (instrumentService.optionsSyncStatus()?.tradedIndices?.length || 4) }}</div>
+                    <div class="stat-lbl">Traded Indices</div>
+                  </div>
+                </div>
+
+                <!-- Dedicated Index Documents Badges Box -->
+                <div class="documents-breakdown-box" *ngIf="instrumentService.optionsSyncStatus()?.metadata as optMeta">
+                  <div class="breakdown-title">Dedicated Index Documents in Firestore:</div>
+                  <div class="doc-chips">
+                    <span class="traded-index-pill" *ngFor="let idx of (optMeta.documentIds || instrumentService.optionsSyncStatus()?.tradedIndices || ['NIFTY', 'BANKNIFTY', 'MIDCPNIFTY', 'SENSEX'])">
+                      <span class="material-symbols-rounded">description</span>
+                      {{ idx }} (Current & Next Expiry)
+                    </span>
+                  </div>
+                  <div class="sync-timestamp" *ngIf="optMeta.updatedAt">
+                    Last synchronized: {{ optMeta.updatedAt | istDate : 'full' }}
+                  </div>
+                </div>
               </div>
             </div>
 
-            <!-- Document Breakdown Chips -->
-            <div class="documents-breakdown-box" *ngIf="instrumentService.syncStatus()?.metadata as meta">
-              <div class="breakdown-title">Modular Firestore Documents:</div>
-              <div class="doc-chips">
-                <span class="doc-chip" *ngFor="let docId of meta.documentIds">
-                  <span class="material-symbols-rounded">article</span>
-                  {{ docId }}
-                </span>
+            <!-- MASTER DATA INSPECTOR & EXPLORER -->
+            <div class="master-inspector-card">
+              <div class="inspector-header">
+                <div class="inspector-title-group">
+                  <span class="material-symbols-rounded inspector-icon">manage_search</span>
+                  <div>
+                    <h3 class="inspector-heading">Master Data Inspector & Explorer</h3>
+                    <p class="inspector-subheading">Inspect and search real instruments stored in Firestore</p>
+                  </div>
+                </div>
+                <div class="inspector-tabs">
+                  <button
+                    type="button"
+                    class="inspector-tab"
+                    [class.active]="activeInspectorTab === 'equities'"
+                    (click)="onSelectInspectorTab('equities')"
+                  >
+                    <span class="material-symbols-rounded">table_chart</span>
+                    <span>Cash Equities & Indices ({{ (instrumentService.syncStatus()?.metadata?.totalInstruments || 0) | number }})</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="inspector-tab"
+                    [class.active]="activeInspectorTab === 'options'"
+                    (click)="onSelectInspectorTab('options')"
+                  >
+                    <span class="material-symbols-rounded">stacked_line_chart</span>
+                    <span>Traded Index Options ({{ (instrumentService.optionsSyncStatus()?.metadata?.totalItems || 0) | number }})</span>
+                  </button>
+                </div>
               </div>
-              <div class="sync-timestamp" *ngIf="meta.updatedAt">
-                Last synchronized: {{ meta.updatedAt | istDate : 'full' }}
+
+              <!-- TAB 1: CASH EQUITIES EXPLORER -->
+              <div class="inspector-tab-content" *ngIf="activeInspectorTab === 'equities'">
+                <div class="inspector-controls-bar">
+                  <div class="search-box">
+                    <span class="material-symbols-rounded">search</span>
+                    <input
+                      type="text"
+                      placeholder="Search symbol, company name, or security ID (e.g. RELIANCE, TCS, INFY)..."
+                      [(ngModel)]="equitiesSearchTerm"
+                      (input)="onEquitiesSearchChange()"
+                    />
+                    <button *ngIf="equitiesSearchTerm" class="clear-btn" (click)="equitiesSearchTerm = ''; onEquitiesSearchChange()">
+                      <span class="material-symbols-rounded">close</span>
+                    </button>
+                  </div>
+                  <div class="filter-pills">
+                    <span class="filter-label">Segment:</span>
+                    <button
+                      type="button"
+                      class="filter-pill"
+                      [class.active]="equitiesSegmentFilter === ''"
+                      (click)="setEquitiesSegment('')"
+                    >All</button>
+                    <button
+                      type="button"
+                      class="filter-pill"
+                      [class.active]="equitiesSegmentFilter === 'NSE_EQ'"
+                      (click)="setEquitiesSegment('NSE_EQ')"
+                    >NSE Equities (NSE_EQ)</button>
+                    <button
+                      type="button"
+                      class="filter-pill"
+                      [class.active]="equitiesSegmentFilter === 'IDX_I'"
+                      (click)="setEquitiesSegment('IDX_I')"
+                    >Indices (IDX_I)</button>
+                  </div>
+                </div>
+
+                <!-- Equities Table -->
+                <div class="table-container">
+                  <div class="loading-state" *ngIf="isLoadingEquities()">
+                    <span class="material-symbols-rounded spinning">sync</span>
+                    <span>Loading equities from Firestore...</span>
+                  </div>
+                  <table class="inspector-table" *ngIf="!isLoadingEquities() && equitiesList().length > 0">
+                    <thead>
+                      <tr>
+                        <th>Security ID</th>
+                        <th>Symbol</th>
+                        <th>Instrument / Company Name</th>
+                        <th>Segment</th>
+                        <th>Type</th>
+                        <th class="text-right">Lot Size</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let item of equitiesList()">
+                        <td class="mono-val sec-id-cell">{{ item.securityId }}</td>
+                        <td class="symbol-cell"><strong>{{ item.symbol }}</strong></td>
+                        <td class="name-cell">{{ item.name }}</td>
+                        <td><span class="badge-chip seg-chip">{{ item.exchangeSegment }}</span></td>
+                        <td><span class="badge-chip type-chip">{{ item.instrumentType }}</span></td>
+                        <td class="mono-val text-right">{{ item.lotSize || 1 }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div class="empty-results" *ngIf="!isLoadingEquities() && equitiesList().length === 0">
+                    <span class="material-symbols-rounded">search_off</span>
+                    <span>No instruments found matching criteria in database.</span>
+                  </div>
+                </div>
+
+                <!-- Equities Pagination -->
+                <div class="inspector-pagination">
+                  <span class="page-summary">
+                    Showing {{ totalEquitiesCount > 0 ? equitiesOffset + 1 : 0 }} - {{ getMin(equitiesOffset + equitiesLimit, totalEquitiesCount) }} of {{ totalEquitiesCount | number }} instruments
+                  </span>
+                  <div class="page-buttons">
+                    <button
+                      type="button"
+                      class="page-btn"
+                      [disabled]="equitiesOffset === 0"
+                      (click)="changeEquitiesPage(-1)"
+                    >
+                      <span class="material-symbols-rounded">chevron_left</span>
+                      <span>Previous</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="page-btn"
+                      [disabled]="equitiesOffset + equitiesLimit >= totalEquitiesCount"
+                      (click)="changeEquitiesPage(1)"
+                    >
+                      <span>Next</span>
+                      <span class="material-symbols-rounded">chevron_right</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TAB 2: OPTIONS EXPLORER -->
+              <div class="inspector-tab-content" *ngIf="activeInspectorTab === 'options'">
+                <div class="inspector-controls-bar">
+                  <div class="search-box">
+                    <span class="material-symbols-rounded">search</span>
+                    <input
+                      type="text"
+                      placeholder="Search strike, option symbol, or security ID (e.g. 24000, NIFTY 09 NOV)..."
+                      [(ngModel)]="optionsSearchTerm"
+                      (input)="onOptionsSearchChange()"
+                    />
+                    <button *ngIf="optionsSearchTerm" class="clear-btn" (click)="optionsSearchTerm = ''; onOptionsSearchChange()">
+                      <span class="material-symbols-rounded">close</span>
+                    </button>
+                  </div>
+                  <div class="filter-pills">
+                    <span class="filter-label">Index:</span>
+                    <button
+                      type="button"
+                      class="filter-pill"
+                      [class.active]="optionsIndexFilter === ''"
+                      (click)="setOptionsIndex('')"
+                    >All Traded</button>
+                    <button
+                      type="button"
+                      class="filter-pill"
+                      *ngFor="let idx of optionsTradedIndices"
+                      [class.active]="optionsIndexFilter === idx"
+                      (click)="setOptionsIndex(idx)"
+                    >{{ idx }}</button>
+                  </div>
+                  <div class="filter-pills">
+                    <span class="filter-label">Type:</span>
+                    <button
+                      type="button"
+                      class="filter-pill"
+                      [class.active]="optionsTypeFilter === ''"
+                      (click)="setOptionsType('')"
+                    >All</button>
+                    <button
+                      type="button"
+                      class="filter-pill call-pill"
+                      [class.active]="optionsTypeFilter === 'CE'"
+                      (click)="setOptionsType('CE')"
+                    >CALL (CE)</button>
+                    <button
+                      type="button"
+                      class="filter-pill put-pill"
+                      [class.active]="optionsTypeFilter === 'PE'"
+                      (click)="setOptionsType('PE')"
+                    >PUT (PE)</button>
+                  </div>
+                  <div class="expiry-select-wrap" *ngIf="optionsAvailableExpiries.length > 0">
+                    <span class="filter-label">Expiry:</span>
+                    <select class="expiry-select" [(ngModel)]="optionsExpiryFilter" (change)="loadOptions()">
+                      <option value="">All Expiries</option>
+                      <option *ngFor="let exp of optionsAvailableExpiries" [value]="exp">{{ exp }}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Options Table -->
+                <div class="table-container">
+                  <div class="loading-state" *ngIf="isLoadingOptions()">
+                    <span class="material-symbols-rounded spinning">sync</span>
+                    <span>Loading options contracts from Firestore...</span>
+                  </div>
+                  <table class="inspector-table" *ngIf="!isLoadingOptions() && optionsList().length > 0">
+                    <thead>
+                      <tr>
+                        <th>Security ID</th>
+                        <th>Underlying</th>
+                        <th>Trading / Custom Symbol</th>
+                        <th>Expiry Date</th>
+                        <th class="text-right">Strike Price</th>
+                        <th>Type</th>
+                        <th class="text-right">Lot Size</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let opt of optionsList()">
+                        <td class="mono-val sec-id-cell">{{ opt.securityId }}</td>
+                        <td><span class="badge-chip index-chip">{{ opt.symbolName }}</span></td>
+                        <td class="symbol-cell"><strong>{{ opt.customSymbol || opt.tradingSymbol }}</strong></td>
+                        <td class="mono-val">{{ opt.expiryDate }}</td>
+                        <td class="mono-val text-right">₹{{ opt.strikePrice | number }}</td>
+                        <td>
+                          <span class="badge-chip" [class.ce-chip]="opt.optionType === 'CE'" [class.pe-chip]="opt.optionType === 'PE'">
+                            {{ opt.optionType === 'CE' ? 'CALL (CE)' : 'PUT (PE)' }}
+                          </span>
+                        </td>
+                        <td class="mono-val text-right">{{ opt.lotSize }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div class="empty-results" *ngIf="!isLoadingOptions() && optionsList().length === 0">
+                    <span class="material-symbols-rounded">search_off</span>
+                    <span>No option contracts found matching criteria in database.</span>
+                  </div>
+                </div>
+
+                <!-- Options Pagination -->
+                <div class="inspector-pagination">
+                  <span class="page-summary">
+                    Showing {{ totalOptionsCount > 0 ? optionsOffset + 1 : 0 }} - {{ getMin(optionsOffset + optionsLimit, totalOptionsCount) }} of {{ totalOptionsCount | number }} contracts
+                  </span>
+                  <div class="page-buttons">
+                    <button
+                      type="button"
+                      class="page-btn"
+                      [disabled]="optionsOffset === 0"
+                      (click)="changeOptionsPage(-1)"
+                    >
+                      <span class="material-symbols-rounded">chevron_left</span>
+                      <span>Previous</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="page-btn"
+                      [disabled]="optionsOffset + optionsLimit >= totalOptionsCount"
+                      (click)="changeOptionsPage(1)"
+                    >
+                      <span>Next</span>
+                      <span class="material-symbols-rounded">chevron_right</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -733,6 +1107,53 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--dhan-cyan);
       }
 
+      .status-pill.warning-pill {
+        background: rgba(245, 158, 11, 0.12);
+        border-color: rgba(245, 158, 11, 0.35);
+        color: #f59e0b;
+      }
+      .db-not-found-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 18px;
+        background: rgba(245, 158, 11, 0.08);
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        border-radius: 8px;
+        margin-bottom: 18px;
+      }
+      .db-not-found-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        flex-shrink: 0;
+      }
+      .db-not-found-icon .material-symbols-rounded { font-size: 18px; }
+      .db-not-found-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #f59e0b;
+        margin: 0 0 4px;
+      }
+      .db-not-found-msg {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin: 0;
+        line-height: 1.4;
+      }
+      .db-not-found-msg code {
+        background: rgba(255, 255, 255, 0.08);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        color: var(--dhan-cyan);
+      }
+
       /* Settings Container & Section Cards */
       .settings-container {
         display: flex;
@@ -801,28 +1222,24 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--text-primary);
         margin: 0 0 4px 0;
       }
-
       .section-subheading {
         font-size: 0.8rem;
         color: var(--text-secondary);
         margin: 0;
         line-height: 1.4;
       }
-
       .section-actions {
         display: flex;
         align-items: center;
         gap: 10px;
         flex-wrap: wrap;
       }
-
       .action-btn {
         display: inline-flex;
         align-items: center;
         gap: 6px;
         font-size: 0.8rem;
       }
-
       .action-btn-primary {
         display: inline-flex;
         align-items: center;
@@ -832,8 +1249,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: #0b0f19 !important;
         font-weight: 700;
       }
-
-      /* Token Details Grid */
       .token-details-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1146,15 +1561,12 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--text-muted);
         margin-top: 8px;
       }
-
-      /* Master Stats Grid */
       .master-stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
         gap: 14px;
         margin-bottom: 16px;
       }
-
       .stat-card {
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
@@ -1162,21 +1574,18 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         padding: 14px;
         text-align: center;
       }
-
       .stat-val {
         font-size: 1.35rem;
         font-weight: 700;
         color: var(--dhan-cyan);
         margin-bottom: 4px;
       }
-
       .stat-lbl {
         font-size: 0.72rem;
         color: var(--text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
-
       .documents-breakdown-box {
         background: rgba(0, 0, 0, 0.2);
         border: 1px solid var(--border-subtle);
@@ -1216,6 +1625,448 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
       .sync-timestamp {
         font-size: 0.72rem;
         color: var(--text-muted);
+      }
+
+      /* Dual Sync Actions & Cards */
+      .dual-sync-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .action-btn-accent {
+        background: #9333ea !important;
+        color: #fff !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+        border-radius: 8px;
+        padding: 0 16px;
+        height: 38px;
+      }
+
+      .options-ribbon-pill.active {
+        background: rgba(168, 85, 247, 0.15) !important;
+        border-color: rgba(168, 85, 247, 0.4) !important;
+        color: #c084fc !important;
+      }
+
+      .dual-master-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .sub-master-card {
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 18px 20px;
+      }
+
+      .sub-master-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      .sub-master-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+
+      .sub-icon {
+        color: var(--dhan-cyan);
+        font-size: 20px;
+      }
+
+      .sub-icon.options-icon {
+        color: #c084fc;
+      }
+
+      .collection-badge {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: rgba(0, 210, 196, 0.12);
+        color: var(--dhan-cyan);
+        border: 1px solid rgba(0, 210, 196, 0.3);
+      }
+
+      .collection-badge.options-badge {
+        background: rgba(168, 85, 247, 0.12);
+        color: #c084fc;
+        border-color: rgba(168, 85, 247, 0.3);
+      }
+
+      .traded-index-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(168, 85, 247, 0.15);
+        border: 1px solid rgba(168, 85, 247, 0.4);
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #e9d5ff;
+      }
+
+      .traded-index-pill .material-symbols-rounded {
+        font-size: 14px;
+        color: #c084fc;
+      }
+
+      /* Master Data Inspector Card */
+      .master-inspector-card {
+        margin-top: 24px;
+        background: rgba(15, 23, 42, 0.4);
+        border: 1px solid var(--border-medium);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .inspector-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-subtle);
+        background: rgba(0, 0, 0, 0.2);
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .inspector-title-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .inspector-icon {
+        font-size: 24px;
+        color: var(--dhan-cyan);
+      }
+
+      .inspector-heading {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+
+      .inspector-subheading {
+        margin: 2px 0 0;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .inspector-tabs {
+        display: flex;
+        gap: 8px;
+      }
+
+      .inspector-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--border-subtle);
+        background: var(--bg-card);
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .inspector-tab:hover {
+        background: var(--bg-card-hover);
+        color: var(--text-primary);
+      }
+
+      .inspector-tab.active {
+        background: rgba(0, 210, 196, 0.15);
+        border-color: var(--dhan-cyan);
+        color: var(--dhan-cyan);
+      }
+
+      .inspector-tab-content {
+        padding: 16px 20px;
+      }
+
+      .inspector-controls-bar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+
+      .search-box {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 6px 12px;
+        flex: 1;
+        min-width: 240px;
+      }
+
+      .search-box .material-symbols-rounded {
+        font-size: 18px;
+        color: var(--text-muted);
+      }
+
+      .search-box input {
+        border: none;
+        background: transparent;
+        outline: none;
+        color: var(--text-primary);
+        font-size: 0.8125rem;
+        width: 100%;
+      }
+
+      .clear-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+        display: flex;
+        align-items: center;
+      }
+
+      .clear-btn .material-symbols-rounded {
+        font-size: 16px;
+      }
+
+      .filter-pills {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .filter-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-right: 2px;
+      }
+
+      .filter-pill {
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border-subtle);
+        background: var(--bg-card);
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .filter-pill:hover {
+        background: var(--bg-card-hover);
+        color: var(--text-primary);
+      }
+
+      .filter-pill.active {
+        background: rgba(0, 210, 196, 0.15);
+        border-color: var(--dhan-cyan);
+        color: var(--dhan-cyan);
+      }
+
+      .filter-pill.call-pill.active {
+        background: rgba(16, 185, 129, 0.15);
+        border-color: #10b981;
+        color: #10b981;
+      }
+
+      .filter-pill.put-pill.active {
+        background: rgba(244, 63, 94, 0.15);
+        border-color: #f43f5e;
+        color: #f43f5e;
+      }
+
+      .expiry-select-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .expiry-select {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-size: 0.75rem;
+        padding: 4px 8px;
+        outline: none;
+      }
+
+      .table-container {
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        overflow-x: auto;
+        background: var(--bg-surface);
+        min-height: 200px;
+        max-height: 480px;
+        overflow-y: auto;
+      }
+
+      .inspector-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8125rem;
+      }
+
+      .inspector-table th {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 1px solid var(--border-subtle);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+
+      .inspector-table td {
+        padding: 9px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        color: var(--text-secondary);
+      }
+
+      .inspector-table tr:hover td {
+        background: var(--bg-card-hover);
+        color: var(--text-primary);
+      }
+
+      .sec-id-cell {
+        color: var(--dhan-cyan);
+        font-weight: 600;
+      }
+
+      .symbol-cell {
+        color: var(--text-primary);
+      }
+
+      .name-cell {
+        max-width: 280px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .badge-chip {
+        font-size: 0.6875rem;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text-secondary);
+      }
+
+      .seg-chip {
+        background: rgba(59, 130, 246, 0.12);
+        color: #60a5fa;
+        border: 1px solid rgba(59, 130, 246, 0.25);
+      }
+
+      .type-chip {
+        background: rgba(234, 179, 8, 0.12);
+        color: #facc15;
+      }
+
+      .index-chip {
+        background: rgba(168, 85, 247, 0.15);
+        color: #c084fc;
+        font-weight: 700;
+      }
+
+      .ce-chip {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        font-weight: 700;
+      }
+
+      .pe-chip {
+        background: rgba(244, 63, 94, 0.15);
+        color: #f43f5e;
+        font-weight: 700;
+      }
+
+      .text-right {
+        text-align: right;
+      }
+
+      .loading-state, .empty-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 36px 20px;
+        color: var(--text-muted);
+        font-size: 0.875rem;
+      }
+
+      .inspector-pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 12px;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .page-buttons {
+        display: flex;
+        gap: 8px;
+      }
+
+      .page-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border-subtle);
+        background: var(--bg-card);
+        color: var(--text-primary);
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .page-btn:hover:not(:disabled) {
+        background: var(--bg-card-hover);
+        border-color: var(--dhan-cyan);
+      }
+
+      .page-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .page-btn .material-symbols-rounded {
+        font-size: 16px;
       }
 
       /* Firestore Grid */
@@ -1326,6 +2177,31 @@ export class SettingsPageComponent implements OnInit {
   lotSensex = 0;
   indicesList: IndexConfigItem[] = [];
 
+  // MASTER DATA INSPECTOR & EXPLORER STATE
+  activeInspectorTab: 'equities' | 'options' = 'equities';
+
+  // Equities Inspector state
+  equitiesSearchTerm = '';
+  equitiesSegmentFilter = '';
+  equitiesOffset = 0;
+  equitiesLimit = 20;
+  totalEquitiesCount = 0;
+  readonly equitiesList = signal<Instrument[]>([]);
+  readonly isLoadingEquities = signal<boolean>(false);
+
+  // Options Inspector state
+  optionsSearchTerm = '';
+  optionsIndexFilter = '';
+  optionsExpiryFilter = '';
+  optionsTypeFilter = '';
+  optionsOffset = 0;
+  optionsLimit = 20;
+  totalOptionsCount = 0;
+  optionsAvailableExpiries: string[] = [];
+  optionsTradedIndices: string[] = ['NIFTY', 'BANKNIFTY', 'MIDCPNIFTY', 'SENSEX'];
+  readonly optionsList = signal<CachedIndexOption[]>([]);
+  readonly isLoadingOptions = signal<boolean>(false);
+
   constructor() {
     // Synchronize inputs when lot sizes signal changes
     effect(() => {
@@ -1351,6 +2227,109 @@ export class SettingsPageComponent implements OnInit {
         }
       }
     });
+  }
+
+  getMin(a: number, b: number): number {
+    return Math.min(a, b);
+  }
+
+  onSelectInspectorTab(tab: 'equities' | 'options'): void {
+    this.activeInspectorTab = tab;
+    if (tab === 'equities' && this.equitiesList().length === 0) {
+      this.loadEquities();
+    } else if (tab === 'options' && this.optionsList().length === 0) {
+      this.loadOptions();
+    }
+  }
+
+  loadEquities(): void {
+    this.isLoadingEquities.set(true);
+    this.instrumentService
+      .queryEquities(this.equitiesSearchTerm, this.equitiesSegmentFilter, this.equitiesLimit, this.equitiesOffset)
+      .subscribe({
+        next: (res) => {
+          this.isLoadingEquities.set(false);
+          if (res) {
+            this.totalEquitiesCount = res.total;
+            this.equitiesList.set(res.items);
+          }
+        },
+        error: () => this.isLoadingEquities.set(false),
+      });
+  }
+
+  onEquitiesSearchChange(): void {
+    this.equitiesOffset = 0;
+    this.loadEquities();
+  }
+
+  setEquitiesSegment(seg: string): void {
+    this.equitiesSegmentFilter = seg;
+    this.equitiesOffset = 0;
+    this.loadEquities();
+  }
+
+  changeEquitiesPage(dir: number): void {
+    const next = this.equitiesOffset + dir * this.equitiesLimit;
+    if (next >= 0 && next < this.totalEquitiesCount) {
+      this.equitiesOffset = next;
+      this.loadEquities();
+    }
+  }
+
+  loadOptions(): void {
+    this.isLoadingOptions.set(true);
+    this.instrumentService
+      .queryOptions(
+        this.optionsIndexFilter,
+        this.optionsExpiryFilter,
+        null,
+        this.optionsTypeFilter,
+        this.optionsSearchTerm,
+        this.optionsLimit,
+        this.optionsOffset,
+      )
+      .subscribe({
+        next: (res) => {
+          this.isLoadingOptions.set(false);
+          if (res) {
+            this.totalOptionsCount = res.total;
+            this.optionsList.set(res.items);
+            if (res.expiries && res.expiries.length > 0) {
+              this.optionsAvailableExpiries = res.expiries;
+            }
+            if (res.tradedIndices && res.tradedIndices.length > 0) {
+              this.optionsTradedIndices = res.tradedIndices;
+            }
+          }
+        },
+        error: () => this.isLoadingOptions.set(false),
+      });
+  }
+
+  onOptionsSearchChange(): void {
+    this.optionsOffset = 0;
+    this.loadOptions();
+  }
+
+  setOptionsIndex(idx: string): void {
+    this.optionsIndexFilter = idx;
+    this.optionsOffset = 0;
+    this.loadOptions();
+  }
+
+  setOptionsType(type: string): void {
+    this.optionsTypeFilter = type;
+    this.optionsOffset = 0;
+    this.loadOptions();
+  }
+
+  changeOptionsPage(dir: number): void {
+    const next = this.optionsOffset + dir * this.optionsLimit;
+    if (next >= 0 && next < this.totalOptionsCount) {
+      this.optionsOffset = next;
+      this.loadOptions();
+    }
   }
 
   getIndexConfig(symbol: string): IndexConfigItem | undefined {
@@ -1389,9 +2368,24 @@ export class SettingsPageComponent implements OnInit {
   ngOnInit(): void {
     this.authService.refreshStatus();
     this.instrumentService.fetchSyncStatus().subscribe();
+    this.instrumentService.fetchOptionsSyncStatus().subscribe();
     this.instrumentService.fetchLotSizes().subscribe();
     this.instrumentService.fetchConfiguredIndices().subscribe();
     this.firestoreApi.refreshStatus().subscribe();
+    this.loadEquities();
+    this.loadOptions();
+  }
+
+  onSyncEquities(): void {
+    this.instrumentService.syncEquities().subscribe(() => {
+      this.loadEquities();
+    });
+  }
+
+  onSyncOptions(): void {
+    this.instrumentService.syncOptions().subscribe(() => {
+      this.loadOptions();
+    });
   }
 
   submitTokenUpdate(): void {
@@ -1428,34 +2422,36 @@ export class SettingsPageComponent implements OnInit {
     const midcapNiftyQty = Number(this.qtyMidcapNifty) || 0;
     const sensexQty = Number(this.qtySensex) || 0;
 
-    const updatedIndices: IndexConfigItem[] = this.indicesList.map((idx) => {
-      const sym = idx.symbol.toUpperCase();
-      let lots = idx.defaultLotSize ?? idx.defaultLots ?? 0;
-      let qtyInOneLot = idx.defaultQuantityInOneLot ?? idx.lotSize ?? 0;
+    const updatedIndices: IndexConfigItem[] = this.indicesList
+      .filter((idx) => !idx.symbol.toUpperCase().includes('FIN'))
+      .map((idx) => {
+        const sym = idx.symbol.toUpperCase();
+        let lots = idx.defaultLotSize ?? idx.defaultLots ?? 0;
+        let qtyInOneLot = idx.defaultQuantityInOneLot ?? idx.lotSize ?? 0;
 
-      if (sym.includes('BANK')) {
-        lots = bankNiftyLots;
-        qtyInOneLot = bankNiftyQty;
-      } else if (sym.includes('MIDCAP') || sym.includes('MIDCP')) {
-        lots = midcapNiftyLots;
-        qtyInOneLot = midcapNiftyQty;
-      } else if (sym.includes('SENSEX')) {
-        lots = sensexLots;
-        qtyInOneLot = sensexQty;
-      } else if (sym.includes('NIFTY')) {
-        lots = nifty50Lots;
-        qtyInOneLot = nifty50Qty;
-      }
+        if (sym.includes('BANK')) {
+          lots = bankNiftyLots;
+          qtyInOneLot = bankNiftyQty;
+        } else if (sym.includes('MIDCAP') || sym.includes('MIDCP')) {
+          lots = midcapNiftyLots;
+          qtyInOneLot = midcapNiftyQty;
+        } else if (sym.includes('SENSEX')) {
+          lots = sensexLots;
+          qtyInOneLot = sensexQty;
+        } else if (sym.includes('NIFTY')) {
+          lots = nifty50Lots;
+          qtyInOneLot = nifty50Qty;
+        }
 
-      return {
-        ...idx,
-        defaultLotSize: lots,
-        defaultQuantityInOneLot: qtyInOneLot,
-        lotSize: qtyInOneLot,
-        defaultLots: lots,
-        defaultQuantity: lots * qtyInOneLot,
-      };
-    });
+        return {
+          ...idx,
+          defaultLotSize: lots,
+          defaultQuantityInOneLot: qtyInOneLot,
+          lotSize: qtyInOneLot,
+          defaultLots: lots,
+          defaultQuantity: lots * qtyInOneLot,
+        };
+      });
 
     this.instrumentService
       .updateLotSizes({

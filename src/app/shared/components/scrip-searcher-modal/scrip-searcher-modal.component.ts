@@ -34,7 +34,17 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         </div>
 
         <div *ngIf="!isLoading() && results().length === 0" class="empty-state">
-          No matching instruments found for "{{ searchTerm }}".
+          <div *ngIf="!instrumentService.syncStatus()?.storedInFirestore" class="db-not-found-state">
+            <span class="material-symbols-rounded empty-icon">database_off</span>
+            <div class="empty-title">Data is not found in database</div>
+            <p class="empty-desc">
+              NSE security master is not available in Firestore.
+              Click <strong>Sync Master</strong> below to download and sync data into the database.
+            </p>
+          </div>
+          <div *ngIf="instrumentService.syncStatus()?.storedInFirestore">
+            No matching instruments found for "{{ searchTerm }}".
+          </div>
         </div>
 
         <div
@@ -68,7 +78,7 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         <span class="hint">Use <kbd>↑</kbd> <kbd>↓</kbd> to navigate, <kbd>Enter</kbd> to select</span>
         <button
           class="sync-scrip-btn"
-          (click)="instrumentService.syncMaster().subscribe()"
+          (click)="onSyncMaster()"
           [disabled]="instrumentService.isSyncing()"
           title="Sync latest NSE Security Master & Options into Firestore"
         >
@@ -126,6 +136,29 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         text-align: center;
         color: var(--text-muted);
         font-size: 0.875rem;
+      }
+      .db-not-found-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 0;
+      }
+      .db-not-found-state .empty-icon {
+        font-size: 36px;
+        color: #f59e0b;
+      }
+      .db-not-found-state .empty-title {
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: #f59e0b;
+      }
+      .db-not-found-state .empty-desc {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        max-width: 380px;
+        line-height: 1.4;
+        margin: 0;
       }
       .result-row {
         display: flex;
@@ -250,7 +283,14 @@ export class ScripSearcherModalComponent implements OnInit {
   readonly selectedIndex = signal<number>(0);
 
   ngOnInit(): void {
+    this.instrumentService.fetchSyncStatus().subscribe();
     this.executeSearch('');
+  }
+
+  onSyncMaster(): void {
+    this.instrumentService.syncMaster().subscribe(() => {
+      this.executeSearch(this.searchTerm);
+    });
   }
 
   onSearchChange(): void {

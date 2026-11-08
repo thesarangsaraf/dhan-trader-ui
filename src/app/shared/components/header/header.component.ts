@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,6 +13,7 @@ import { InstrumentService } from '../../../core/api/instrument.service';
 import { AuthModalComponent } from '../../../features/settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../../../features/settings/telegram-modal/telegram-modal.component';
 import { FundsModalComponent } from '../../../features/settings/funds-modal/funds-modal.component';
+import { ScripSearcherModalComponent } from '../scrip-searcher-modal/scrip-searcher-modal.component';
 import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
 @Component({
@@ -118,6 +119,15 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
       <!-- Right: Quick Actions -->
       <div class="header-quick-actions">
+        <!-- Search Spotlight Scrip & Options (Ctrl+K) -->
+        <button
+          class="action-btn search-spotlight-btn"
+          (click)="openScripSearcher()"
+          matTooltip="Search Equities, Indices & Options (Ctrl+K)"
+        >
+          <span class="material-symbols-rounded">search</span>
+        </button>
+
         <!-- Sync Scrip Master & Options to Firestore -->
         <button
           class="action-btn"
@@ -450,6 +460,21 @@ export class HeaderComponent implements OnInit, OnDestroy {
   openFundsModal(): void {
     this.dialog.open(FundsModalComponent, {
       width: '520px',
+    });
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleGlobalShortcuts(event: KeyboardEvent): void {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      this.openScripSearcher();
+    }
+  }
+
+  openScripSearcher(): void {
+    this.dialog.open(ScripSearcherModalComponent, {
+      width: '640px',
+      panelClass: 'dhan-spotlight-dialog',
     });
   }
 }

@@ -1,11 +1,14 @@
-import { Component, inject } from '@angular/core';
+import { Component, HostListener, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatDialog } from '@angular/material/dialog';
 import { OrderService } from '../../core/api/order.service';
+import { Instrument } from '../../core/models/instrument.models';
 import { AlertComposerComponent } from './components/alert-composer/alert-composer.component';
 import { AlertListComponent } from './components/alert-list/alert-list.component';
 import { OrderBookComponent } from './components/order-book/order-book.component';
 import { PositionsSummaryComponent } from './components/positions-summary/positions-summary.component';
+import { ScripSearcherModalComponent } from '../../shared/components/scrip-searcher-modal/scrip-searcher-modal.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -25,7 +28,7 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
         <!-- ZONE 1: LEFT PANEL (35%) -->
         <aside class="panel left-panel">
           <!-- Alert Composer & Conditional Order Creator -->
-          <app-alert-composer></app-alert-composer>
+          <app-alert-composer #composer></app-alert-composer>
         </aside>
 
         <!-- ZONE 2: CENTER PANEL (40%) -->
@@ -156,5 +159,27 @@ import { PositionsSummaryComponent } from './components/positions-summary/positi
   ],
 })
 export class DashboardComponent {
+  @ViewChild('composer') composer!: AlertComposerComponent;
   readonly orderService = inject(OrderService);
+  private readonly dialog = inject(MatDialog);
+
+  @HostListener('window:keydown', ['$event'])
+  handleGlobalShortcuts(event: KeyboardEvent): void {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      this.openScripSearcher();
+    }
+  }
+
+  openScripSearcher(): void {
+    const dialogRef = this.dialog.open(ScripSearcherModalComponent, {
+      width: '640px',
+      panelClass: 'dhan-spotlight-dialog',
+    });
+    dialogRef.afterClosed().subscribe((item?: Instrument) => {
+      if (item && this.composer) {
+        this.composer.onInstrumentSelected(item);
+      }
+    });
+  }
 }

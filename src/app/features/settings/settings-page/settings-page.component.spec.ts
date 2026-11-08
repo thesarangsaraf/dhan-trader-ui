@@ -71,13 +71,31 @@ describe('SettingsPageComponent', () => {
       updatedAt: '2026-11-08T03:00:00.000Z',
     }),
     isSyncing: vi.fn().mockReturnValue(false),
+    isSyncingEquities: vi.fn().mockReturnValue(false),
+    isSyncingOptions: vi.fn().mockReturnValue(false),
+    optionsSyncStatus: vi.fn().mockReturnValue({
+      storedInFirestore: true,
+      metadata: {
+        totalItems: 9809,
+        totalChunks: 20,
+        chunkSize: 500,
+        updatedAt: '2026-11-08T03:00:00.000Z',
+      },
+      inMemoryCount: 9809,
+      tradedIndices: ['NIFTY', 'BANKNIFTY', 'MIDCPNIFTY', 'SENSEX'],
+    }),
     isSavingLotSizes: vi.fn().mockReturnValue(false),
     fetchSyncStatus: vi.fn().mockReturnValue(of(null)),
+    fetchOptionsSyncStatus: vi.fn().mockReturnValue(of(null)),
     fetchLotSizes: vi.fn().mockReturnValue(of(null)),
     fetchConfiguredIndices: vi.fn().mockReturnValue(of([])),
     updateLotSizes: vi.fn().mockReturnValue(of({ success: true })),
     syncMaster: vi.fn().mockReturnValue(of({ success: true })),
+    syncEquities: vi.fn().mockReturnValue(of({ success: true })),
+    syncOptions: vi.fn().mockReturnValue(of({ success: true })),
     syncCsv: vi.fn().mockReturnValue(of({ success: true })),
+    queryEquities: vi.fn().mockReturnValue(of({ total: 10193, items: [], limit: 20, offset: 0 })),
+    queryOptions: vi.fn().mockReturnValue(of({ total: 9809, items: [], limit: 20, offset: 0, expiries: [], tradedIndices: ['NIFTY', 'BANKNIFTY', 'MIDCPNIFTY', 'SENSEX'] })),
   };
 
   const mockFirestoreApi = {
@@ -167,11 +185,19 @@ describe('SettingsPageComponent', () => {
     expect(el.querySelector('#scrip-section')?.textContent).not.toContain('Upload & Sync');
   });
 
-  it('should call syncMaster when clicking Sync Master button', () => {
+  it('should call syncEquities when clicking Sync Equities button', () => {
     const el = fixture.nativeElement as HTMLElement;
-    const syncBtn = el.querySelector('#scrip-section .action-btn-primary') as HTMLButtonElement;
-    expect(syncBtn).toBeTruthy();
-    syncBtn.click();
-    expect(mockInstrumentService.syncMaster).toHaveBeenCalled();
+    const syncEqBtn = el.querySelector('#scrip-section .sync-equities-btn') as HTMLButtonElement;
+    expect(syncEqBtn).toBeTruthy();
+    syncEqBtn.click();
+    expect(mockInstrumentService.syncEquities).toHaveBeenCalled();
+  });
+
+  it('should call syncOptions when clicking Sync Options button', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const syncOptBtn = el.querySelector('#scrip-section .sync-options-btn') as HTMLButtonElement;
+    expect(syncOptBtn).toBeTruthy();
+    syncOptBtn.click();
+    expect(mockInstrumentService.syncOptions).toHaveBeenCalled();
   });
 });

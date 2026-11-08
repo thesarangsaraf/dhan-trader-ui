@@ -9,6 +9,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { AlertService } from '../../../../core/api/alert.service';
 import { AuthService } from '../../../../core/api/auth.service';
 import { InstrumentService } from '../../../../core/api/instrument.service';
@@ -19,6 +20,7 @@ import {
   StrikeOptionPair,
 } from '../../../../core/models/instrument.models';
 import { SectionErrorComponent } from '../../../../shared/components/section-error/section-error.component';
+import { ScripSearcherModalComponent } from '../../../../shared/components/scrip-searcher-modal/scrip-searcher-modal.component';
 import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
 import {
   AlertPreviewData,
@@ -63,9 +65,18 @@ import {
       ></app-section-error>
 
       <form (ngSubmit)="submitAlert()" class="composer-form">
-        <!-- 1. Instrument Dropdown Selector (Fetched from backend; shows only instrument name) -->
-        <div class="form-row">
-          <mat-form-field appearance="outline" class="full-width">
+        <!-- Warning when no indices are available in Firestore -->
+        <div class="db-not-found-warning mb-12" *ngIf="instruments().length === 0">
+          <span class="material-symbols-rounded warn-icon">database_off</span>
+          <div class="warn-content">
+            <span class="warn-title">Data is not found in database</span>
+            <span class="warn-msg">No indices available in Firestore. Please sync security master from Settings.</span>
+          </div>
+        </div>
+
+        <!-- 1. Instrument Dropdown Selector & Scrip Search Modal Trigger -->
+        <div class="form-row instrument-select-row">
+          <mat-form-field appearance="outline" class="instrument-select-field">
             <mat-label>Select Instrument</mat-label>
             <mat-select
               [(ngModel)]="selectedInstrumentSymbol"
@@ -79,6 +90,14 @@ import {
               </mat-option>
             </mat-select>
           </mat-form-field>
+          <button
+            type="button"
+            class="scrip-search-btn"
+            (click)="openScripSearchModal()"
+            matTooltip="Search across all 10,193 Equities & 9,809 Option Contracts (Ctrl+K)"
+          >
+            <span class="material-symbols-rounded">search</span>
+          </button>
         </div>
 
         <!-- 2. Target Trigger Price (Exact price directly, operator decided automatically by backend) -->
@@ -166,6 +185,15 @@ import {
                       LTP: {{ strike.put.ltp | currencyInr : false }}
                     </span>
                   </div>
+                </div>
+              </div>
+
+              <!-- Warning when Option chain data is not found in database -->
+              <div class="grid-col col-span-2 db-not-found-warning" *ngIf="strikePairs().length === 0 && !isLoadingOptions()">
+                <span class="material-symbols-rounded warn-icon">database_off</span>
+                <div class="warn-content">
+                  <span class="warn-title">Data is not found in database</span>
+                  <span class="warn-msg">Option contracts for {{ selectedInstrumentSymbol }} are not found in Firestore. Please sync security master from Settings.</span>
                 </div>
               </div>
 
@@ -268,7 +296,7 @@ import {
             color="primary"
             type="submit"
             class="submit-btn"
-            [disabled]="isSubmitting() || !selectedInstrumentSymbol || !targetPrice || !authService.isBackendOnline()"
+            [disabled]="isSubmitting() || !selectedInstrumentSymbol || !targetPrice || !authService.isBackendOnline() || (executeOrderOnTrigger && !orderSecurityId)"
           >
             <span class="material-symbols-rounded">notifications_active</span>
             Create Conditional Alert
@@ -308,6 +336,34 @@ import {
       }
       .full-width {
         width: 100%;
+      }
+      .instrument-select-row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      .instrument-select-field {
+        flex: 1;
+      }
+      .scrip-search-btn {
+        height: 54px;
+        width: 54px;
+        border-radius: 8px;
+        border: 1px solid var(--border-medium);
+        background: var(--bg-surface);
+        color: var(--dhan-cyan);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .scrip-search-btn:hover {
+        background: var(--bg-card-hover);
+        border-color: var(--dhan-cyan);
+      }
+      .scrip-search-btn .material-symbols-rounded {
+        font-size: 22px;
       }
       .condition-box {
         background: var(--bg-surface);
@@ -599,6 +655,39 @@ import {
       .composer-submit-row {
         margin-top: 8px;
       }
+      .db-not-found-warning {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 14px;
+        background: rgba(245, 158, 11, 0.08);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        border-radius: 8px;
+        color: var(--text-primary);
+      }
+      .db-not-found-warning .warn-icon {
+        font-size: 20px;
+        color: #f59e0b;
+        margin-top: 1px;
+      }
+      .db-not-found-warning .warn-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .db-not-found-warning .warn-title {
+        font-size: 0.8125rem;
+        font-weight: 700;
+        color: #f59e0b;
+      }
+      .db-not-found-warning .warn-msg {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        line-height: 1.35;
+      }
+      .mb-12 {
+        margin-bottom: 12px;
+      }
       .submit-btn {
         width: 100%;
         padding: 10px;
@@ -616,6 +705,7 @@ export class AlertComposerComponent implements OnInit {
   readonly authService = inject(AuthService);
   private readonly instrumentService = inject(InstrumentService);
   private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
 
   readonly isSubmitting = signal<boolean>(false);
   readonly instruments = signal<Instrument[]>([]);
@@ -653,8 +743,8 @@ export class AlertComposerComponent implements OnInit {
 
   selectedExpiry = '';
   selectedStrikePrice: number | null = null;
-  orderSymbol = 'NIFTY 24500 CE';
-  orderSecurityId = '45021';
+  orderSymbol = '';
+  orderSecurityId = '';
   orderExchangeSegment = 'NSE_FNO';
   productType: 'INTRADAY' | 'CNC' | 'MARGIN' = 'INTRADAY';
   orderType: 'MARKET' | 'LIMIT' = 'MARKET';
@@ -725,19 +815,22 @@ export class AlertComposerComponent implements OnInit {
         }
       }
 
-      if (activeIndices.length === 0) {
-        activeIndices = [
-          { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, ltp: 0 },
-          { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 30, ltp: 0 },
-          { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 120, ltp: 0 },
-          { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, ltp: 0 },
-        ];
-      }
-
       this.instruments.set(activeIndices);
-      const nifty = activeIndices.find((i) => i.symbol === 'NIFTY 50') || activeIndices[0];
-      if (nifty) {
-        this.onInstrumentChange(nifty.symbol);
+      if (activeIndices.length > 0) {
+        const nifty = activeIndices.find((i) => i.symbol === 'NIFTY 50') || activeIndices[0];
+        if (nifty) {
+          this.onInstrumentChange(nifty.symbol);
+        }
+      } else {
+        this.selectedInstrumentSymbol = '';
+        this.selectedInstrument = null;
+        this.currentLtp = null;
+        this.targetPrice = null;
+        this.expiries.set([]);
+        this.strikePairs.set([]);
+        this.selectedStrikePrice = null;
+        this.orderSymbol = '';
+        this.orderSecurityId = '';
       }
     });
   }
@@ -828,30 +921,76 @@ export class AlertComposerComponent implements OnInit {
     this.loadExpiries(symbol);
   }
 
+  openScripSearchModal(): void {
+    const dialogRef = this.dialog.open(ScripSearcherModalComponent, {
+      width: '640px',
+      panelClass: 'dhan-spotlight-dialog',
+    });
+    dialogRef.afterClosed().subscribe((item?: Instrument) => {
+      if (item) {
+        this.onInstrumentSelected(item);
+      }
+    });
+  }
+
   onInstrumentSelected(item: Instrument): void {
     if (!item) return;
-    const sym = (item.symbol || '').toUpperCase();
-    if (
-      sym !== 'NIFTY 50' &&
-      !sym.includes('BANK') &&
-      !sym.includes('SENSEX') &&
-      !sym.includes('MIDCAP') &&
-      !sym.includes('MIDCP')
-    ) {
+
+    // If directly selected an option contract (OPTIDX / NSE_FNO)
+    if (item.instrumentType === 'OPTIDX' || item.exchangeSegment === 'NSE_FNO') {
+      this.executeOrderOnTrigger = true;
+      this.orderSymbol = item.symbol;
+      this.orderSecurityId = item.securityId;
+      this.orderExchangeSegment = item.exchangeSegment;
+      this.orderLots = 1;
+      this.currentLtp = item.ltp;
+      this.targetPrice = item.ltp ? Math.round(item.ltp * 1.02 * 100) / 100 : null;
+
+      const symUpper = item.symbol.toUpperCase();
+      let parentSym = 'NIFTY 50';
+      if (symUpper.includes('BANK')) parentSym = 'BANK NIFTY';
+      else if (symUpper.includes('SENSEX')) parentSym = 'SENSEX';
+      else if (symUpper.includes('MIDCAP') || symUpper.includes('MIDCP')) parentSym = 'MIDCAP NIFTY';
+      this.selectedInstrumentSymbol = parentSym;
       return;
     }
-    const normSymbol = sym.includes('BANK')
-      ? 'BANK NIFTY'
-      : sym.includes('SENSEX')
-      ? 'SENSEX'
-      : sym.includes('MIDCAP') || sym.includes('MIDCP')
-      ? 'MIDCAP NIFTY'
-      : 'NIFTY 50';
-    const exists = this.instruments().some((i) => i.symbol.toUpperCase() === normSymbol);
-    if (!exists) {
-      this.instruments.set([...this.instruments(), { ...item, symbol: normSymbol }]);
+
+    const sym = (item.symbol || '').toUpperCase();
+    const isIndex =
+      sym === 'NIFTY 50' ||
+      sym.includes('BANK') ||
+      sym.includes('SENSEX') ||
+      sym.includes('MIDCAP') ||
+      sym.includes('MIDCP');
+
+    if (isIndex) {
+      const normSymbol = sym.includes('BANK')
+        ? 'BANK NIFTY'
+        : sym.includes('SENSEX')
+        ? 'SENSEX'
+        : sym.includes('MIDCAP') || sym.includes('MIDCP')
+        ? 'MIDCAP NIFTY'
+        : 'NIFTY 50';
+      const exists = this.instruments().some((i) => i.symbol.toUpperCase() === normSymbol);
+      if (!exists) {
+        this.instruments.set([...this.instruments(), { ...item, symbol: normSymbol }]);
+      }
+      this.onInstrumentChange(normSymbol);
+    } else {
+      // Cash equity (e.g. RELIANCE, TCS, INFY)
+      const exists = this.instruments().some((i) => i.symbol.toUpperCase() === sym);
+      if (!exists) {
+        this.instruments.set([...this.instruments(), item]);
+      }
+      this.selectedInstrument = item;
+      this.selectedInstrumentSymbol = item.symbol;
+      this.currentLtp = item.ltp;
+      this.targetPrice = item.ltp ? Math.round(item.ltp * 1.01 * 100) / 100 : null;
+      this.orderLots = 1;
+      this.orderSymbol = item.symbol;
+      this.orderSecurityId = item.securityId;
+      this.orderExchangeSegment = item.exchangeSegment;
     }
-    this.onInstrumentChange(normSymbol);
   }
 
   loadExpiries(symbol: string): void {
@@ -860,6 +999,13 @@ export class AlertComposerComponent implements OnInit {
         this.expiries.set(list);
         this.selectedExpiry = list[0].expiryDate;
         this.loadOptionContracts();
+      } else {
+        this.expiries.set([]);
+        this.selectedExpiry = '';
+        this.strikePairs.set([]);
+        this.selectedStrikePrice = null;
+        this.orderSymbol = '';
+        this.orderSecurityId = '';
       }
     });
   }
@@ -885,22 +1031,36 @@ export class AlertComposerComponent implements OnInit {
     const price = this.targetPrice || this.currentLtp || undefined;
     this.instrumentService
       .getOptionContracts(this.selectedInstrumentSymbol, price, this.selectedExpiry || undefined)
-      .subscribe((res) => {
-        this.isLoadingOptions.set(false);
-        if (res && res.currentExpiry && Array.isArray(res.currentExpiry.strikes)) {
-          // Show maximum 3 strikes around the selected price
-          const strikes = res.currentExpiry.strikes.slice(0, 3);
-          this.strikePairs.set(strikes);
+      .subscribe({
+        next: (res) => {
+          this.isLoadingOptions.set(false);
+          if (res && res.currentExpiry && Array.isArray(res.currentExpiry.strikes) && res.currentExpiry.strikes.length > 0) {
+            // Show maximum 3 strikes around the selected price
+            const strikes = res.currentExpiry.strikes.slice(0, 3);
+            this.strikePairs.set(strikes);
 
-          // Select ATM or middle strike by default if not set
-          const atm =
-            strikes.find((s) => s.relativeStrike === 'ATM') ||
-            strikes[Math.floor(strikes.length / 2)] ||
-            strikes[0];
-          if (atm) {
-            this.selectStrike(atm.strikePrice);
+            // Select ATM or middle strike by default if not set
+            const atm =
+              strikes.find((s) => s.relativeStrike === 'ATM') ||
+              strikes[Math.floor(strikes.length / 2)] ||
+              strikes[0];
+            if (atm) {
+              this.selectStrike(atm.strikePrice);
+            }
+          } else {
+            this.strikePairs.set([]);
+            this.selectedStrikePrice = null;
+            this.orderSymbol = '';
+            this.orderSecurityId = '';
           }
-        }
+        },
+        error: () => {
+          this.isLoadingOptions.set(false);
+          this.strikePairs.set([]);
+          this.selectedStrikePrice = null;
+          this.orderSymbol = '';
+          this.orderSecurityId = '';
+        },
       });
   }
 
@@ -975,6 +1135,15 @@ export class AlertComposerComponent implements OnInit {
 
   submitAlert(): void {
     if (!this.selectedInstrumentSymbol || !this.targetPrice) return;
+
+    if (this.executeOrderOnTrigger && (!this.orderSecurityId || !this.orderSymbol)) {
+      this.snackBar.open(
+        'Cannot place alert: Option contract data is not found in database. Please sync master data from Settings.',
+        'Dismiss',
+        { duration: 6000 }
+      );
+      return;
+    }
 
     const secId = this.selectedInstrument?.securityId || '13';
     const exSeg = this.selectedInstrument?.exchangeSegment || 'IDX_I';
@@ -1130,6 +1299,15 @@ export class AlertComposerComponent implements OnInit {
   }
 
   private executeCreateAlert(operator: AlertOperator): void {
+    if (this.executeOrderOnTrigger && (!this.orderSecurityId || !this.orderSymbol)) {
+      this.snackBar.open(
+        'Cannot place alert: Option contract data is not found in database. Please sync master data from Settings.',
+        'Dismiss',
+        { duration: 6000 }
+      );
+      return;
+    }
+
     this.isSubmitting.set(true);
 
     const secId = this.selectedInstrument?.securityId || '13';

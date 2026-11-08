@@ -143,26 +143,34 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
           </div>
 
           <div class="grid-details mini" *ngIf="instrumentService.syncStatus() as sync">
-            <div class="detail-row">
-              <span class="label">Firestore Collection:</span>
-              <span class="val mono-val">{{ sync.metadata?.collection || 'sec_id_to_name_mapping' }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Total Instruments:</span>
-              <span class="val mono-val">{{ sync.metadata?.totalInstruments || sync.inMemoryCounts?.total || '19,390' }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Options / Indices / Equities:</span>
-              <span class="val mono-val">{{ sync.metadata?.totalOptions || '9,201' }} / {{ sync.metadata?.totalIndices || '119' }} / {{ sync.metadata?.totalEquities || '10,070' }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Firestore Documents:</span>
-              <span class="val mono-val">{{ sync.metadata?.documentsCount || '12' }} modular docs</span>
-            </div>
-            <div class="detail-row" *ngIf="sync.metadata?.updatedAt">
-              <span class="label">Last Synced:</span>
-              <span class="val mono-val">{{ sync.metadata?.updatedAt | istDate }}</span>
-            </div>
+            <ng-container *ngIf="sync.storedInFirestore && sync.metadata; else noDbScrip">
+              <div class="detail-row">
+                <span class="label">Firestore Collection:</span>
+                <span class="val mono-val">{{ sync.metadata.collection || 'sec_id_to_name_mapping' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Total Instruments:</span>
+                <span class="val mono-val">{{ sync.metadata.totalInstruments | number }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Options / Indices / Equities:</span>
+                <span class="val mono-val">{{ sync.metadata.totalOptions | number }} / {{ sync.metadata.totalIndices | number }} / {{ sync.metadata.totalEquities | number }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Firestore Documents:</span>
+                <span class="val mono-val">{{ sync.metadata.documentsCount }} modular docs</span>
+              </div>
+              <div class="detail-row" *ngIf="sync.metadata.updatedAt">
+                <span class="label">Last Synced:</span>
+                <span class="val mono-val">{{ sync.metadata.updatedAt | istDate }}</span>
+              </div>
+            </ng-container>
+            <ng-template #noDbScrip>
+              <div class="detail-row warning-text">
+                <span class="material-symbols-rounded">database_off</span>
+                <span>Data is not found in database</span>
+              </div>
+            </ng-template>
           </div>
         </div>
       </mat-dialog-content>
@@ -344,6 +352,17 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         display: inline-flex;
         align-items: center;
         gap: 6px;
+      }
+      .detail-row.warning-text {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #f59e0b;
+        font-weight: 600;
+        font-size: 0.8125rem;
+      }
+      .detail-row.warning-text .material-symbols-rounded {
+        font-size: 18px;
       }
     `,
   ],

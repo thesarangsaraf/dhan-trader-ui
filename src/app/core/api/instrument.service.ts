@@ -1,14 +1,20 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Observable, catchError, finalize, of, shareReplay, tap } from 'rxjs';
+import { Observable, catchError, finalize, of, tap } from 'rxjs';
 import {
+  CachedIndexOption,
+  EquitiesQueryResult,
   IndexConfigItem,
   IndexLotSizesConfig,
+  IndexOptionsStatusResult,
   Instrument,
   OptionContractsResult,
   OptionExpiryItem,
+  OptionsQueryResult,
+  SyncEquitiesResult,
   SyncMasterResult,
+  SyncOptionsResult,
   SyncStatusResult,
   UpdateLotSizesDto,
 } from '../models/instrument.models';
@@ -32,7 +38,10 @@ export class InstrumentService {
   private readonly snackBar = inject(MatSnackBar);
 
   readonly isSyncing = signal<boolean>(false);
+  readonly isSyncingEquities = signal<boolean>(false);
+  readonly isSyncingOptions = signal<boolean>(false);
   readonly syncStatus = signal<SyncStatusResult | null>(null);
+  readonly optionsSyncStatus = signal<IndexOptionsStatusResult | null>(null);
   readonly configuredIndices = signal<Instrument[]>([]);
   readonly lotSizes = signal<IndexLotSizesConfig>({
     nifty50: 0,
@@ -60,8 +69,7 @@ export class InstrumentService {
       catchError((err) => {
         console.warn('Backend /api/instruments/indices unavailable:', err);
         return of([]);
-      }),
-      shareReplay(1)
+      })
     );
   }
 
@@ -161,9 +169,79 @@ export class InstrumentService {
   }
 
   /**
+   * Synchronize NSE cash equities & benchmark indices into Firestore collection sec_id_to_name_mapping.
+   */
+  syncEquities(force = true): Observable<SyncEquitiesResult | null> {
+    this.isSyncingEquities.set(true);
+    return this.http.post<SyncEquitiesResult>('/api/instruments/sync/equities', { force }).pipe(
+      tap((res) => {
+        if (res?.success) {
+          this.snackBar.open(
+            `✅ Synced ${res.totalInstruments} NSE cash equities & indices into sec_id_to_name_mapping!`,
+            'OK',
+            { duration: 5000 }
+          );
+          this.fetchSyncStatus().subscribe();
+        }
+      }),
+      catchError((err) => {
+        console.error('Failed to sync equities to Firestore:', err);
+        const errMsg = err?.error?.message || err?.message || 'Equities sync failed. Check backend connection.';
+        this.snackBar.open(`❌ Equities sync failed: ${errMsg}`, 'Dismiss', { duration: 6000 });
+        return of(null);
+      }),
+      finalize(() => this.isSyncingEquities.set(false))
+    );
+  }
+
+  /**
+   * Synchronize traded index options (NIFTY, BANKNIFTY, MIDCPNIFTY, SENSEX) into Firestore collection index_options.
+   */
+  syncOptions(force = true): Observable<SyncOptionsResult | null> {
+    this.isSyncingOptions.set(true);
+    return this.http.post<SyncOptionsResult>('/api/instruments/sync/options', { force }).pipe(
+      tap((res) => {
+        if (res?.success) {
+          this.snackBar.open(
+            `✅ Synced ${res.totalItems} traded index options (${res.tradedIndices?.join(', ')}) into index_options!`,
+            'OK',
+            { duration: 5000 }
+          );
+          this.fetchOptionsSyncStatus().subscribe();
+        }
+      }),
+      catchError((err) => {
+        console.error('Failed to sync index options to Firestore:', err);
+        const errMsg = err?.error?.message || err?.message || 'Options sync failed. Check backend connection.';
+        this.snackBar.open(`❌ Options sync failed: ${errMsg}`, 'Dismiss', { duration: 6000 });
+        return of(null);
+      }),
+      finalize(() => this.isSyncingOptions.set(false))
+    );
+  }
+
+  /**
+   * Fetch current status and metadata of collection index_options from Firestore.
+   */
+  fetchOptionsSyncStatus(): Observable<IndexOptionsStatusResult | null> {
+    return this.http.get<IndexOptionsStatusResult>('/api/instruments/sync/options/status').pipe(
+      tap((res) => {
+        if (res) {
+          this.optionsSyncStatus.set(res);
+        }
+      }),
+      catchError((err) => {
+        console.warn('Backend /api/instruments/sync/options/status unavailable:', err);
+        return of(null);
+      })
+    );
+  }
+
+  /**
    * Fetch current status and document counts for sec_id_to_name_mapping from Firestore.
    */
   fetchSyncStatus(): Observable<SyncStatusResult | null> {
+    this.fetchOptionsSyncStatus().subscribe();
     return this.http.get<SyncStatusResult>('/api/instruments/sync/status').pipe(
       tap((res) => {
         if (res) {
@@ -184,8 +262,7 @@ export class InstrumentService {
         catchError((err) => {
           console.warn('Backend /api/instruments unavailable:', err);
           return of([]);
-        }),
-        shareReplay(1)
+        })
       );
   }
 
@@ -197,8 +274,7 @@ export class InstrumentService {
         catchError((err) => {
           console.warn(`Backend /api/instruments/expiries unavailable for ${clean}:`, err);
           return of([]);
-        }),
-        shareReplay(1)
+        })
       );
   }
 
@@ -220,8 +296,7 @@ export class InstrumentService {
       catchError((err) => {
         console.warn(`Backend /api/instruments/option-contracts unavailable for ${clean}:`, err);
         return of(null);
-      }),
-      shareReplay(1)
+      })
     );
   }
 
@@ -233,8 +308,7 @@ export class InstrumentService {
         catchError((err) => {
           console.warn('Backend /api/instruments unavailable:', err);
           return of([]);
-        }),
-        shareReplay(1)
+        })
       );
   }
 
@@ -249,8 +323,7 @@ export class InstrumentService {
         catchError((err) => {
           console.warn(`Backend /api/instruments/by-security-id unavailable for ${clean}:`, err);
           return of(null);
-        }),
-        shareReplay(1)
+        })
       );
   }
 
@@ -265,8 +338,47 @@ export class InstrumentService {
         catchError((err) => {
           console.warn(`Backend /api/instruments/ltp unavailable for ${clean}:`, err);
           return of({ symbol: clean, ltp: null });
-        }),
-        shareReplay(1)
+        })
       );
+  }
+
+  queryEquities(
+    q = '',
+    segment = '',
+    limit = 50,
+    offset = 0
+  ): Observable<EquitiesQueryResult> {
+    let url = `/api/instruments/equities?limit=${limit}&offset=${offset}`;
+    if (q) url += `&q=${encodeURIComponent(q.trim())}`;
+    if (segment) url += `&segment=${encodeURIComponent(segment.trim())}`;
+    return this.http.get<EquitiesQueryResult>(url).pipe(
+      catchError((err) => {
+        console.warn('Backend /api/instruments/equities unavailable:', err);
+        return of({ total: 0, items: [], limit, offset });
+      })
+    );
+  }
+
+  queryOptions(
+    index = '',
+    expiry = '',
+    strike?: number | null,
+    optionType = '',
+    q = '',
+    limit = 50,
+    offset = 0
+  ): Observable<OptionsQueryResult> {
+    let url = `/api/instruments/options?limit=${limit}&offset=${offset}`;
+    if (index) url += `&index=${encodeURIComponent(index.trim())}`;
+    if (expiry) url += `&expiry=${encodeURIComponent(expiry.trim())}`;
+    if (strike !== undefined && strike !== null) url += `&strike=${strike}`;
+    if (optionType) url += `&optionType=${encodeURIComponent(optionType.trim())}`;
+    if (q) url += `&q=${encodeURIComponent(q.trim())}`;
+    return this.http.get<OptionsQueryResult>(url).pipe(
+      catchError((err) => {
+        console.warn('Backend /api/instruments/options unavailable:', err);
+        return of({ total: 0, items: [], limit, offset, expiries: [], tradedIndices: [] });
+      })
+    );
   }
 }
