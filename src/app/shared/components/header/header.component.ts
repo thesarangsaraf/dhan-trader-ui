@@ -9,6 +9,7 @@ import { AuthService } from '../../../core/api/auth.service';
 import { AlertService } from '../../../core/api/alert.service';
 import { OrderService } from '../../../core/api/order.service';
 import { TelegramApiService } from '../../../core/api/telegram.service';
+import { InstrumentService } from '../../../core/api/instrument.service';
 import { AudioChimeService } from '../../../core/services/audio-chime.service';
 import { AuthModalComponent } from '../../../features/settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../../../features/settings/telegram-modal/telegram-modal.component';
@@ -50,6 +51,10 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         <a routerLink="/trades" class="nav-tab" routerLinkActive="active">
           <span class="material-symbols-rounded">history</span>
           <span>Trade History</span>
+        </a>
+        <a routerLink="/settings" class="nav-tab" routerLinkActive="active">
+          <span class="material-symbols-rounded">settings</span>
+          <span>Settings</span>
         </a>
       </nav>
 
@@ -135,15 +140,25 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
           <span class="material-symbols-rounded">notifications_active</span>
         </button>
 
-
-        <!-- Settings / Auth Modal Trigger -->
+        <!-- Sync Scrip Master & Options to Firestore -->
         <button
+          class="action-btn"
+          [class.active]="instrumentService.isSyncing()"
+          (click)="instrumentService.syncMaster().subscribe()"
+          [disabled]="instrumentService.isSyncing()"
+          matTooltip="Sync NSE Scrip Master & Options into Firestore (sec_id_to_name_mapping)"
+        >
+          <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncing()">cloud_sync</span>
+        </button>
+
+        <!-- Settings Page Link -->
+        <a
+          routerLink="/settings"
           class="action-btn settings"
-          (click)="openAuthModal()"
-          matTooltip="API Token & Settings"
+          matTooltip="System & Trading Settings"
         >
           <span class="material-symbols-rounded">settings</span>
-        </button>
+        </a>
       </div>
     </header>
   `,
@@ -397,6 +412,8 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         justify-content: center;
         cursor: pointer;
         transition: all 0.15s ease;
+        text-decoration: none;
+        box-sizing: border-box;
       }
 
       .action-btn:hover {
@@ -419,6 +436,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   readonly alertService = inject(AlertService);
   readonly orderService = inject(OrderService);
   readonly telegramService = inject(TelegramApiService);
+  readonly instrumentService = inject(InstrumentService);
   readonly audioChime = inject(AudioChimeService);
   private readonly dialog = inject(MatDialog);
 

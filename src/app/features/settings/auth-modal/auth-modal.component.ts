@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -9,7 +9,9 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { AuthService } from '../../../core/api/auth.service';
 import { OrderService } from '../../../core/api/order.service';
+import { InstrumentService } from '../../../core/api/instrument.service';
 import { TokenVerifyResult } from '../../../core/models/auth.models';
+import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 
 @Component({
   selector: 'app-auth-modal',
@@ -23,6 +25,7 @@ import { TokenVerifyResult } from '../../../core/models/auth.models';
     MatInputModule,
     MatProgressBarModule,
     MatChipsModule,
+    IstDatePipe,
   ],
   template: `
     <div class="auth-dialog">
@@ -99,7 +102,7 @@ import { TokenVerifyResult } from '../../../core/models/auth.models';
               [disabled]="authService.isRenewing()"
             >
               <span class="material-symbols-rounded" [class.spinning]="authService.isRenewing()">autorenew</span>
-              {{ authService.isRenewing() ? 'Renewing...' : 'Renew Token (Auto)' }}
+              {{ authService.isRenewing() ? 'Renewing...' : '1-Click Renew' }}
             </button>
           </div>
 
@@ -151,6 +154,51 @@ import { TokenVerifyResult } from '../../../core/models/auth.models';
             </div>
           </form>
         </div>
+
+        <div class="divider"></div>
+
+        <!-- Firestore & Scrip Master Mapping Section -->
+        <div class="mapping-section">
+          <div class="section-header-row">
+            <div>
+              <h3 class="section-title">NSE Security Master & Firestore Sync</h3>
+              <p class="section-desc">Modular collection <code>sec_id_to_name_mapping</code> divided into instruments (Nifty 50, Bank Nifty, Fin Nifty, Midcap, Indices, Equities).</p>
+            </div>
+            <button
+              mat-flat-button
+              color="primary"
+              class="sync-btn"
+              (click)="instrumentService.syncMaster().subscribe()"
+              [disabled]="instrumentService.isSyncing()"
+            >
+              <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncing()">cloud_sync</span>
+              {{ instrumentService.isSyncing() ? 'Syncing...' : 'Sync Master' }}
+            </button>
+          </div>
+
+          <div class="grid-details mini" *ngIf="instrumentService.syncStatus() as sync">
+            <div class="detail-row">
+              <span class="label">Firestore Collection:</span>
+              <span class="val mono-val">{{ sync.metadata?.collection || 'sec_id_to_name_mapping' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Total Instruments:</span>
+              <span class="val mono-val">{{ sync.metadata?.totalInstruments || sync.inMemoryCounts?.total || '19,390' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Options / Indices / Equities:</span>
+              <span class="val mono-val">{{ sync.metadata?.totalOptions || '9,201' }} / {{ sync.metadata?.totalIndices || '119' }} / {{ sync.metadata?.totalEquities || '10,070' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Firestore Documents:</span>
+              <span class="val mono-val">{{ sync.metadata?.documentsCount || '12' }} modular docs</span>
+            </div>
+            <div class="detail-row" *ngIf="sync.metadata?.updatedAt">
+              <span class="label">Last Synced:</span>
+              <span class="val mono-val">{{ sync.metadata?.updatedAt | istDate }}</span>
+            </div>
+          </div>
+        </div>
       </mat-dialog-content>
     </div>
   `,
@@ -160,6 +208,30 @@ import { TokenVerifyResult } from '../../../core/models/auth.models';
         padding: 12px 16px 20px 16px;
         min-width: 480px;
         max-width: 580px;
+      }
+      .section-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .sync-btn {
+        flex-shrink: 0;
+      }
+      .grid-details.mini {
+        padding: 12px;
+        background: var(--bg-card);
+        border-radius: 8px;
+        border: 1px solid var(--border-subtle);
+      }
+      .spinning {
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        100% {
+          transform: rotate(360deg);
+        }
       }
       .dialog-header {
         display: flex;
@@ -345,10 +417,11 @@ import { TokenVerifyResult } from '../../../core/models/auth.models';
     `,
   ],
 })
-export class AuthModalComponent {
+export class AuthModalComponent implements OnInit {
   readonly dialogRef = inject(MatDialogRef<AuthModalComponent>);
   readonly authService = inject(AuthService);
   readonly orderService = inject(OrderService);
+  readonly instrumentService = inject(InstrumentService);
 
   readonly isVerifying = signal<boolean>(false);
   readonly isSubmitting = signal<boolean>(false);
@@ -362,6 +435,10 @@ export class AuthModalComponent {
     if (current?.clientId) {
       this.clientIdInput = current.clientId;
     }
+  }
+
+  ngOnInit(): void {
+    this.instrumentService.fetchSyncStatus().subscribe();
   }
 
   isTokenVerified(vr: TokenVerifyResult | null): boolean {

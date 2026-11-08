@@ -698,71 +698,56 @@ export class AlertComposerComponent implements OnInit {
 
   retryConnection(): void {
     this.authService.refreshStatus();
+    this.instrumentService.fetchLotSizes().subscribe();
     this.loadInstruments();
   }
 
   loadInstruments(): void {
-    this.instrumentService.getInstruments(50).subscribe((list) => {
-      let filtered: Instrument[] = [];
-      if (list && list.length > 0) {
-        // Filter strictly to NIFTY 50, BANK NIFTY, SENSEX, and MIDCAP NIFTY
-        const matched = list.filter((item) => {
-          const sym = (item.symbol || '').toUpperCase();
-          return (
-            sym === 'NIFTY 50' ||
-            sym.includes('BANK') ||
-            sym.includes('SENSEX') ||
-            sym.includes('MIDCAP') ||
-            sym.includes('MIDCP')
-          );
-        });
-
-        // Normalize display symbols so only user-traded indices are presented
-        const seen = new Set<string>();
-        for (const item of matched) {
-          const sym = item.symbol.toUpperCase();
-          const isBank = sym.includes('BANK');
-          const isSensex = sym.includes('SENSEX');
-          const isMidcap = sym.includes('MIDCAP') || sym.includes('MIDCP');
-          const normSymbol = isBank
-            ? 'BANK NIFTY'
-            : isSensex
-            ? 'SENSEX'
-            : isMidcap
-            ? 'MIDCAP NIFTY'
-            : 'NIFTY 50';
-
-          if (!seen.has(normSymbol)) {
-            seen.add(normSymbol);
-            filtered.push({
-              ...item,
-              symbol: normSymbol,
-            });
-          }
+    // 1. Fetch configured tradeable indices dynamically from Firestore
+    this.instrumentService.fetchConfiguredIndices().subscribe((indicesList) => {
+      let activeIndices: Instrument[] = [];
+      if (indicesList && indicesList.length > 0) {
+        activeIndices = indicesList;
+      } else {
+        const cfg = this.instrumentService.lotSizes();
+        if (cfg?.indices && cfg.indices.length > 0) {
+          activeIndices = cfg.indices
+            .filter((i) => i.enabled !== false)
+            .map((i) => ({
+              symbol: i.symbol,
+              name: i.name,
+              securityId: i.securityId,
+              exchangeSegment: i.exchangeSegment,
+              instrumentType: 'INDEX',
+              lotSize: i.lotSize,
+              ltp: 0,
+            }));
         }
-
-        // Sort in order: NIFTY 50, BANK NIFTY, SENSEX, MIDCAP NIFTY
-        const order = ['NIFTY 50', 'BANK NIFTY', 'SENSEX', 'MIDCAP NIFTY'];
-        filtered.sort((a, b) => order.indexOf(a.symbol) - order.indexOf(b.symbol));
       }
 
-      if (filtered.length === 0) {
-        filtered = [
+      if (activeIndices.length === 0) {
+        activeIndices = [
           { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, ltp: 24500 },
           { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 30, ltp: 52000 },
-          { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, ltp: 80000 },
+          { symbol: 'FINNIFTY', name: 'Nifty Financial Services', securityId: '27', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, ltp: 23500 },
           { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 120, ltp: 12500 },
+          { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, ltp: 80000 },
         ];
       }
 
-      this.instruments.set(filtered);
-      const nifty = filtered.find((i) => i.symbol === 'NIFTY 50') || filtered[0];
-      this.onInstrumentChange(nifty.symbol);
+      this.instruments.set(activeIndices);
+      const nifty = activeIndices.find((i) => i.symbol === 'NIFTY 50') || activeIndices[0];
+      if (nifty) {
+        this.onInstrumentChange(nifty.symbol);
+      }
     });
   }
 
   getDefinedSlPoints(symbol: string): number {
     const upperSym = (symbol || '').toUpperCase();
+    const cfg = this.instrumentService.lotSizes();
+    const matched = cfg.indices?.find((i) => i.symbol.toUpperCase() === upperSym);
+    if (matched && matched.stopLossPoints) return matched.stopLossPoints;
     if (upperSym.includes('BANK')) return 20;
     if (upperSym.includes('MIDCAP') || upperSym.includes('MIDCP')) return 15;
     if (upperSym.includes('SENSEX')) return 30;
@@ -777,12 +762,14 @@ export class AlertComposerComponent implements OnInit {
       (i) =>
         i.symbol.toUpperCase() === upper ||
         (upper.includes('BANK') && i.symbol.toUpperCase().includes('BANK')) ||
+        (upper.includes('FIN') && i.symbol.toUpperCase().includes('FIN')) ||
         (upper.includes('SENSEX') && i.symbol.toUpperCase().includes('SENSEX')) ||
         ((upper.includes('MIDCAP') || upper.includes('MIDCP')) &&
           (i.symbol.toUpperCase().includes('MIDCAP') || i.symbol.toUpperCase().includes('MIDCP'))) ||
         (upper.includes('NIFTY') &&
           !upper.includes('BANK') &&
           !upper.includes('MID') &&
+          !upper.includes('FIN') &&
           i.symbol === 'NIFTY 50')
     );
     if (!found) return;
@@ -790,10 +777,19 @@ export class AlertComposerComponent implements OnInit {
     this.selectedInstrument = found;
     this.selectedInstrumentSymbol = found.symbol;
 
-    // User uses fixed lot sizes: 5, 10, or 15 lots (default 5)
-    if (![5, 10, 15].includes(this.orderLots)) {
-      this.orderLots = 5;
-    }
+    // Resolve configured default lots from Firestore config
+    const cfg = this.instrumentService.lotSizes();
+    const matchedIdx = cfg.indices?.find((i) => i.symbol.toUpperCase() === upper);
+    let configuredLots = 5;
+    if (matchedIdx) {
+      configuredLots = matchedIdx.defaultLotSize || matchedIdx.defaultLots || 5;
+    } else if (upper.includes('BANK')) configuredLots = cfg.bankNiftyLots || 5;
+    else if (upper.includes('FIN')) configuredLots = cfg.finNiftyLots || 5;
+    else if (upper.includes('MIDCAP') || upper.includes('MIDCP')) configuredLots = cfg.midcapNiftyLots || 5;
+    else if (upper.includes('SENSEX')) configuredLots = cfg.sensexLots || 5;
+    else if (upper.includes('NIFTY')) configuredLots = cfg.nifty50Lots || 5;
+
+    this.orderLots = configuredLots;
 
     // Set defined Stop Loss points based on instrument
     this.stopLossPoints.set(this.getDefinedSlPoints(symbol));
@@ -938,7 +934,14 @@ export class AlertComposerComponent implements OnInit {
         return contract.lotSize;
       }
     }
-    return this.selectedInstrument?.lotSize || (this.isNifty50() ? 65 : 1);
+    const sizes = this.instrumentService.lotSizes();
+    const sym = (this.selectedInstrumentSymbol || this.selectedInstrument?.symbol || '').toUpperCase();
+    if (sym.includes('BANK')) return sizes.bankNifty;
+    if (sym.includes('FIN')) return sizes.finNifty;
+    if (sym.includes('MIDCAP') || sym.includes('MIDCP')) return sizes.midcapNifty;
+    if (sym.includes('SENSEX')) return sizes.sensex;
+    if (sym.includes('NIFTY')) return sizes.nifty50;
+    return this.selectedInstrument?.lotSize || 1;
   }
 
   totalOrderQuantity(): number {

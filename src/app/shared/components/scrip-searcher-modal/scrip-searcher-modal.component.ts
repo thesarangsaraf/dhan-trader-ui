@@ -66,7 +66,15 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
       <div class="searcher-footer">
         <span class="hint">Use <kbd>↑</kbd> <kbd>↓</kbd> to navigate, <kbd>Enter</kbd> to select</span>
-        <span class="tag">Scrip Master</span>
+        <button
+          class="sync-scrip-btn"
+          (click)="instrumentService.syncMaster().subscribe()"
+          [disabled]="instrumentService.isSyncing()"
+          title="Sync latest NSE Security Master & Options into Firestore"
+        >
+          <span class="material-symbols-rounded icon-sync" [class.spinning]="instrumentService.isSyncing()">cloud_sync</span>
+          <span>{{ instrumentService.isSyncing() ? 'Syncing...' : 'Sync Master' }}</span>
+        </button>
       </div>
     </div>
   `,
@@ -189,6 +197,39 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         font-size: 0.75rem;
         color: var(--text-muted);
       }
+      .sync-scrip-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--bg-card);
+        color: var(--dhan-cyan, #00d2c4);
+        border: 1px solid var(--border-medium);
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .sync-scrip-btn:hover:not(:disabled) {
+        background: var(--bg-hover);
+        border-color: var(--dhan-cyan, #00d2c4);
+      }
+      .sync-scrip-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .icon-sync {
+        font-size: 16px;
+      }
+      .spinning {
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        100% {
+          transform: rotate(360deg);
+        }
+      }
       kbd {
         background: var(--bg-card);
         padding: 1px 4px;
@@ -201,7 +242,7 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 export class ScripSearcherModalComponent implements OnInit {
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
   readonly dialogRef = inject(MatDialogRef<ScripSearcherModalComponent>);
-  private readonly instrumentService = inject(InstrumentService);
+  readonly instrumentService = inject(InstrumentService);
 
   searchTerm = '';
   readonly results = signal<Instrument[]>([]);

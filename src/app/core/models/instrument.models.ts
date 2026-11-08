@@ -54,3 +54,83 @@ export interface OptionContractsResult {
   contracts: OptionContractDetails[];
   expiries?: OptionExpiryItem[];
 }
+
+export interface SecIdMappingMetadata {
+  collection: string;
+  totalInstruments: number;
+  totalOptions: number;
+  totalIndices: number;
+  totalEquities: number;
+  documentsCount: number;
+  documentIds: string[];
+  updatedAt: string;
+}
+
+export interface SyncMasterResult {
+  success: boolean;
+  collection: string;
+  totalInstruments: number;
+  totalOptions: number;
+  totalIndices: number;
+  totalEquities: number;
+  documents: string[];
+  syncedAt: string;
+  message?: string;
+}
+
+export interface SyncStatusResult {
+  storedInFirestore: boolean;
+  metadata: SecIdMappingMetadata | null;
+  inMemoryCounts?: {
+    indexOptions: number;
+    scripMaster: number;
+    total: number;
+  };
+}
+
+export interface IndexConfigItem {
+  symbol: string;
+  name: string;
+  securityId: string;
+  exchangeSegment: string;
+  defaultLotSize?: number;           // 1. Default lot size preferred for this index (e.g. 5 lots)
+  defaultQuantityInOneLot?: number;  // 2. Default quantity in 1 lot size (e.g. 65 shares/lot)
+  stopLossPoints?: number;
+  enabled: boolean;
+  order?: number;
+
+  // Compatibility aliases
+  lotSize?: number;
+  defaultLots?: number;
+  defaultQuantity?: number;
+}
+
+export interface IndexLotSizesConfig {
+  nifty50: number;
+  bankNifty: number;
+  finNifty: number;
+  midcapNifty: number;
+  sensex: number;
+  nifty50Lots?: number;
+  bankNiftyLots?: number;
+  finNiftyLots?: number;
+  midcapNiftyLots?: number;
+  sensexLots?: number;
+  indices?: IndexConfigItem[];
+  updatedAt?: string;
+}
+
+export interface UpdateLotSizesDto {
+  nifty50?: number;
+  bankNifty?: number;
+  finNifty?: number;
+  midcapNifty?: number;
+  sensex?: number;
+  nifty50Lots?: number;
+  bankNiftyLots?: number;
+  finNiftyLots?: number;
+  midcapNiftyLots?: number;
+  sensexLots?: number;
+  indices?: IndexConfigItem[];
+}
+

@@ -86,6 +86,50 @@ describe('AlertComposerComponent', () => {
         },
       }),
     ),
+    fetchLotSizes: vi.fn().mockReturnValue(
+      of({
+        success: true,
+        data: { nifty50: 65, bankNifty: 30, finNifty: 65, midcapNifty: 120, sensex: 20 },
+      }),
+    ),
+    fetchConfiguredIndices: vi.fn().mockReturnValue(
+      of([
+        {
+          symbol: 'NIFTY 50',
+          name: 'Nifty 50 Index',
+          securityId: '13',
+          exchangeSegment: 'IDX_I',
+          instrumentType: 'INDEX',
+          lotSize: 65,
+          defaultLots: 5,
+          defaultQuantity: 325,
+          ltp: 25030.0,
+        },
+        {
+          symbol: 'BANK NIFTY',
+          name: 'Bank Nifty Index',
+          securityId: '25',
+          exchangeSegment: 'IDX_I',
+          instrumentType: 'INDEX',
+          lotSize: 30,
+          defaultLots: 5,
+          defaultQuantity: 150,
+          ltp: 52000.0,
+        },
+      ]),
+    ),
+    lotSizes: vi.fn().mockReturnValue({
+      nifty50: 65,
+      bankNifty: 30,
+      finNifty: 65,
+      midcapNifty: 120,
+      sensex: 20,
+      nifty50Lots: 5,
+      bankNiftyLots: 5,
+      finNiftyLots: 5,
+      midcapNiftyLots: 5,
+      sensexLots: 5,
+    }),
   };
 
   beforeEach(async () => {
@@ -249,17 +293,13 @@ describe('AlertComposerComponent', () => {
     expect(definedSlTag?.textContent).toContain('12 Points');
   });
 
-  it('should only keep NIFTY 50, BANK NIFTY, SENSEX, and MIDCAP NIFTY in instruments and filter out other instruments', () => {
-    mockInstService.getInstruments.mockReturnValueOnce(
+  it('should load configured indices from instrument service into dropdown', () => {
+    mockInstService.fetchConfiguredIndices.mockReturnValue(
       of([
-        { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, ltp: 24500 },
-        { symbol: 'NIFTY BANK', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 30, ltp: 52000 },
-        { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, ltp: 80000 },
-        { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', securityId: '2885', exchangeSegment: 'NSE_EQ', instrumentType: 'EQUITY', lotSize: 1, ltp: 2500 },
-        { symbol: 'HDFCBANK', name: 'HDFC Bank Ltd', securityId: '1333', exchangeSegment: 'NSE_EQ', instrumentType: 'EQUITY', lotSize: 1, ltp: 1700 },
-        { symbol: 'MIDCP NIFTY', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 120, ltp: 12000 },
-        { symbol: 'NIFTY FIN SERVICE', name: 'Nifty Fin Service', securityId: '27', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 60, ltp: 23000 },
-        { symbol: 'INDIA VIX', name: 'India VIX', securityId: '21', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', ltp: 14 },
+        { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, defaultLots: 5, defaultQuantity: 325, ltp: 24500 },
+        { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 30, defaultLots: 5, defaultQuantity: 150, ltp: 52000 },
+        { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, defaultLots: 5, defaultQuantity: 100, ltp: 80000 },
+        { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 120, defaultLots: 5, defaultQuantity: 600, ltp: 12000 },
       ])
     );
 

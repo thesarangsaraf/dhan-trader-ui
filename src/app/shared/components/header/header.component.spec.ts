@@ -93,9 +93,10 @@ describe('HeaderComponent', () => {
 
     expect(compiled.querySelector('.brand-name')?.textContent).toContain('DHAN TRADER PRO');
     const tabs = compiled.querySelectorAll('.nav-tab');
-    expect(tabs.length).toBe(2);
+    expect(tabs.length).toBe(3);
     expect(tabs[0].textContent).toContain('Live Monitor');
     expect(tabs[1].textContent).toContain('Trade History');
+    expect(tabs[2].textContent).toContain('Settings');
   });
 
   it('should render Available Balance placeholder when funds are not loaded', () => {
@@ -160,7 +161,7 @@ describe('HeaderComponent', () => {
     expect(mockOrderService.refreshFunds).toHaveBeenCalled();
   });
 
-  it('should open AuthModalComponent when clicking on token expiry chip or settings button', () => {
+  it('should open AuthModalComponent when clicking on token expiry chip', () => {
     fixture.detectChanges();
 
     const tokenChip = fixture.nativeElement.querySelector('.token-expiry-chip') as HTMLElement;
@@ -168,12 +169,14 @@ describe('HeaderComponent', () => {
     expect(mockDialog.open).toHaveBeenCalledWith(AuthModalComponent, {
       width: '560px',
     });
+  });
 
-    const settingsBtn = fixture.nativeElement.querySelector('.action-btn.settings') as HTMLButtonElement;
-    settingsBtn.click();
-    expect(mockDialog.open).toHaveBeenCalledWith(AuthModalComponent, {
-      width: '560px',
-    });
+  it('should link to /settings for the settings quick action button', () => {
+    fixture.detectChanges();
+
+    const settingsLink = fixture.nativeElement.querySelector('.action-btn.settings') as HTMLAnchorElement;
+    expect(settingsLink).not.toBeNull();
+    expect(settingsLink.getAttribute('routerLink') || settingsLink.getAttribute('href') || settingsLink.outerHTML).toContain('settings');
   });
 
   it('should open TelegramModalComponent when clicking on telegram chip', () => {
