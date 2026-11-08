@@ -9,13 +9,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '../../../core/api/auth.service';
-import { TelegramApiService } from '../../../core/api/telegram.service';
 import { InstrumentService } from '../../../core/api/instrument.service';
 import { FirestoreApiService } from '../../../core/api/firestore.service';
-import { AudioChimeService } from '../../../core/services/audio-chime.service';
 import { AlertService } from '../../../core/api/alert.service';
 import { OrderService } from '../../../core/api/order.service';
-import { TokenVerifyResult } from '../../../core/models/auth.models';
 import { IndexConfigItem } from '../../../core/models/instrument.models';
 import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 
@@ -50,7 +47,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
               <span>Platform Settings & Engine Configuration</span>
             </div>
             <div class="page-subtitle">
-              Manage Dhan HQ v2 JWT tokens, Telegram notifications, dynamic index lot sizes, and Google Cloud Firestore security master sync.
+              Manage Dhan HQ v2 JWT tokens, dynamic index lot sizes, and Google Cloud Firestore security master sync.
             </div>
           </div>
 
@@ -66,16 +63,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             >
               <span class="material-symbols-rounded">timer</span>
               <span class="pill-text mono-val">Token: {{ authService.timeRemainingFormatted() }}</span>
-            </div>
-
-            <!-- Telegram Pill -->
-            <div
-              class="status-pill tg-pill"
-              [class.active]="telegramService.status().configured"
-              matTooltip="Telegram Bot Alerts Status"
-            >
-              <span class="material-symbols-rounded">send</span>
-              <span class="pill-text">TG Bot: {{ telegramService.status().configured ? 'Connected' : 'Offline' }}</span>
             </div>
 
             <!-- Firestore Pill -->
@@ -117,25 +104,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 </div>
               </div>
               <div class="section-actions">
-                <button
-                  mat-stroked-button
-                  class="action-btn"
-                  (click)="authService.refreshStatus(true)"
-                  matTooltip="Refresh token state from backend"
-                >
-                  <span class="material-symbols-rounded">refresh</span>
-                  Refresh Status
-                </button>
-                <button
-                  mat-stroked-button
-                  class="action-btn"
-                  (click)="verifyValidity()"
-                  [disabled]="isVerifyingToken()"
-                  matTooltip="Verify token live with Dhan HQ API"
-                >
-                  <span class="material-symbols-rounded" [class.spinning]="isVerifyingToken()">verified_user</span>
-                  {{ isVerifyingToken() ? 'Verifying...' : 'Verify Live' }}
-                </button>
                 <button
                   mat-flat-button
                   color="primary"
@@ -181,22 +149,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 <div class="detail-label">Expires At (IST)</div>
                 <div class="detail-val mono-val">{{ token.expiresAtIST || 'N/A' }}</div>
               </div>
-              <div class="detail-box" *ngIf="token.payload?.userName">
-                <div class="detail-label">Account Holder</div>
-                <div class="detail-val">{{ token.payload?.userName }}</div>
-              </div>
-            </div>
-
-            <!-- Live Verification Result Alert -->
-            <div class="verification-alert" *ngIf="verifyResult() as v" [class.success]="v.valid" [class.failed]="!v.valid">
-              <span class="material-symbols-rounded alert-icon">{{ v.valid ? 'check_circle' : 'error' }}</span>
-              <div class="alert-content">
-                <div class="alert-title">{{ v.valid ? 'Token Valid & Connected to Dhan HQ v2' : 'Token Verification Failed' }}</div>
-                <div class="alert-desc">{{ v.message }}</div>
-                <div class="alert-meta mono-val" *ngIf="v.valid && (v.profile || v.inspection?.payload)">
-                  User: {{ v.profile?.userName || v.profile?.name || v.inspection?.payload?.userName || 'Dhan Trader' }} &bull; Client ID: {{ v.profile?.clientId || v.profile?.dhanClientId || v.inspection?.clientId }} &bull; Profile Status: Active
-                </div>
-              </div>
             </div>
 
             <!-- Manual Token Hot-Reload Form -->
@@ -210,19 +162,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
               </p>
 
               <form (ngSubmit)="submitTokenUpdate()" class="token-form">
-                <div class="form-row">
-                  <mat-form-field appearance="outline" class="flex-field-1">
-                    <mat-label>Dhan Client ID</mat-label>
-                    <input
-                      matInput
-                      [(ngModel)]="clientIdInput"
-                      name="clientId"
-                      placeholder="e.g. 1106885516"
-                      required
-                    />
-                  </mat-form-field>
-                </div>
-
                 <div class="form-row">
                   <mat-form-field appearance="outline" class="full-width">
                     <mat-label>New Dhan JWT Access Token</mat-label>
@@ -270,21 +209,11 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 <div>
                   <h2 class="section-heading">Index Lot Size Configuration & Dropdown (Firestore-Driven)</h2>
                   <p class="section-subheading">
-                    Input your order size in <strong>Lots</strong> (e.g. 5 lots) below — the order quantity (e.g. 325 Shares) will get configured automatically based on NSE contract lot multipliers. Manage which indices appear in the Conditional Alert Composer dropdown.
+                    Configure your preferred order size in <strong>Lots</strong> and <strong>Quantity in 1 Lot</strong> below. Manage which indices appear in the Conditional Alert Composer dropdown.
                   </p>
                 </div>
               </div>
               <div class="section-actions">
-                <button
-                  mat-stroked-button
-                  class="action-btn"
-                  (click)="resetLotSizesToDefaults()"
-                  [disabled]="instrumentService.isSavingLotSizes()"
-                  matTooltip="Reset lot sizes and indices back to standard defaults"
-                >
-                  <span class="material-symbols-rounded">restore</span>
-                  Reset Defaults
-                </button>
                 <button
                   mat-flat-button
                   color="primary"
@@ -327,7 +256,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                         class="styled-number-input"
                         [(ngModel)]="qtyNifty50"
                         (ngModelChange)="onQtyChanged('NIFTY 50', qtyNifty50)"
-                        placeholder="65"
+                        placeholder="Qty"
                       />
                       <span class="input-suffix">Qty</span>
                     </div>
@@ -342,7 +271,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                         class="styled-number-input"
                         [(ngModel)]="lotNifty50"
                         (ngModelChange)="onLotsChanged('NIFTY 50', lotNifty50)"
-                        placeholder="5"
+                        placeholder="Lots"
                       />
                       <span class="input-suffix">Lots</span>
                     </div>
@@ -388,7 +317,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                         class="styled-number-input"
                         [(ngModel)]="qtyBankNifty"
                         (ngModelChange)="onQtyChanged('BANK NIFTY', qtyBankNifty)"
-                        placeholder="30"
+                        placeholder="Qty"
                       />
                       <span class="input-suffix">Qty</span>
                     </div>
@@ -403,7 +332,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                         class="styled-number-input"
                         [(ngModel)]="lotBankNifty"
                         (ngModelChange)="onLotsChanged('BANK NIFTY', lotBankNifty)"
-                        placeholder="5"
+                        placeholder="Lots"
                       />
                       <span class="input-suffix">Lots</span>
                     </div>
@@ -418,65 +347,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   <button type="button" class="quick-pill" [class.active]="lotBankNifty === 5" (click)="lotBankNifty = 5; onLotsChanged('BANK NIFTY', 5)">5 Lots ({{ 5 * qtyBankNifty }})</button>
                   <button type="button" class="quick-pill" [class.active]="lotBankNifty === 10" (click)="lotBankNifty = 10; onLotsChanged('BANK NIFTY', 10)">10 Lots ({{ 10 * qtyBankNifty }})</button>
                   <button type="button" class="quick-pill" [class.active]="lotBankNifty === 15" (click)="lotBankNifty = 15; onLotsChanged('BANK NIFTY', 15)">15 Lots ({{ 15 * qtyBankNifty }})</button>
-                </div>
-              </div>
-
-              <!-- FINNIFTY -->
-              <div class="lot-card" [class.disabled-index]="!getIndexConfig('FINNIFTY')?.enabled">
-                <div class="lot-card-header">
-                  <div>
-                    <div class="index-symbol">FINNIFTY</div>
-                    <span class="index-badge">Financial Services</span>
-                  </div>
-                  <label class="dropdown-toggle" matTooltip="Toggle whether FINNIFTY appears in the Alert Composer dropdown">
-                    <input
-                      type="checkbox"
-                      [checked]="getIndexConfig('FINNIFTY')?.enabled"
-                      (change)="toggleIndexEnabled('FINNIFTY', $event)"
-                    />
-                    <span>Dropdown</span>
-                  </label>
-                </div>
-                <div class="lot-inputs-dual-grid">
-                  <div class="lot-input-wrapper">
-                    <label class="lot-label">Quantity in 1 Lot:</label>
-                    <div class="input-with-suffix">
-                      <input
-                        type="number"
-                        min="1"
-                        class="styled-number-input"
-                        [(ngModel)]="qtyFinNifty"
-                        (ngModelChange)="onQtyChanged('FINNIFTY', qtyFinNifty)"
-                        placeholder="65"
-                      />
-                      <span class="input-suffix">Qty</span>
-                    </div>
-                  </div>
-                  <div class="lot-input-wrapper">
-                    <label class="lot-label">Preferred Lot Size:</label>
-                    <div class="input-with-suffix">
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        class="styled-number-input"
-                        [(ngModel)]="lotFinNifty"
-                        (ngModelChange)="onLotsChanged('FINNIFTY', lotFinNifty)"
-                        placeholder="5"
-                      />
-                      <span class="input-suffix">Lots</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="configured-qty-box">
-                  <span class="qty-sub">Configured Order Quantity:</span>
-                  <span class="qty-main mono-val">{{ lotFinNifty * qtyFinNifty }} Shares</span>
-                  <span class="qty-calc mono-val">({{ lotFinNifty }} lots &times; {{ qtyFinNifty }} qty/lot)</span>
-                </div>
-                <div class="quick-lot-pills">
-                  <button type="button" class="quick-pill" [class.active]="lotFinNifty === 5" (click)="lotFinNifty = 5; onLotsChanged('FINNIFTY', 5)">5 Lots ({{ 5 * qtyFinNifty }})</button>
-                  <button type="button" class="quick-pill" [class.active]="lotFinNifty === 10" (click)="lotFinNifty = 10; onLotsChanged('FINNIFTY', 10)">10 Lots ({{ 10 * qtyFinNifty }})</button>
-                  <button type="button" class="quick-pill" [class.active]="lotFinNifty === 15" (click)="lotFinNifty = 15; onLotsChanged('FINNIFTY', 15)">15 Lots ({{ 15 * qtyFinNifty }})</button>
                 </div>
               </div>
 
@@ -506,7 +376,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                         class="styled-number-input"
                         [(ngModel)]="qtyMidcapNifty"
                         (ngModelChange)="onQtyChanged('MIDCAP NIFTY', qtyMidcapNifty)"
-                        placeholder="120"
+                        placeholder="Qty"
                       />
                       <span class="input-suffix">Qty</span>
                     </div>
@@ -521,7 +391,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                         class="styled-number-input"
                         [(ngModel)]="lotMidcapNifty"
                         (ngModelChange)="onLotsChanged('MIDCAP NIFTY', lotMidcapNifty)"
-                        placeholder="5"
+                        placeholder="Lots"
                       />
                       <span class="input-suffix">Lots</span>
                     </div>
@@ -565,7 +435,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                         class="styled-number-input"
                         [(ngModel)]="qtySensex"
                         (ngModelChange)="onQtyChanged('SENSEX', qtySensex)"
-                        placeholder="20"
+                        placeholder="Qty"
                       />
                       <span class="input-suffix">Qty</span>
                     </div>
@@ -580,7 +450,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                         class="styled-number-input"
                         [(ngModel)]="lotSensex"
                         (ngModelChange)="onLotsChanged('SENSEX', lotSensex)"
-                        placeholder="5"
+                        placeholder="Lots"
                       />
                       <span class="input-suffix">Lots</span>
                     </div>
@@ -605,102 +475,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             </div>
           </section>
 
-          <!-- SECTION 3: TELEGRAM BOT & NOTIFICATION BRIDGE -->
-          <section class="settings-section-card" id="telegram-section">
-            <div class="section-header">
-              <div class="section-title-wrap">
-                <div class="icon-avatar tg-avatar">
-                  <span class="material-symbols-rounded">send</span>
-                </div>
-                <div>
-                  <h2 class="section-heading">Telegram Bot & Notifications Bridge</h2>
-                  <p class="section-subheading">Instant HTML formatted alerts dispatched to your private Telegram chat or channel</p>
-                </div>
-              </div>
-              <div class="section-actions">
-                <button
-                  mat-stroked-button
-                  class="action-btn"
-                  (click)="telegramService.sendTest()"
-                  [disabled]="!telegramService.status().configured || telegramService.isTesting()"
-                  matTooltip="Dispatch a live test notification to verify delivery"
-                >
-                  <span class="material-symbols-rounded" [class.spinning]="telegramService.isTesting()">notifications_active</span>
-                  {{ telegramService.isTesting() ? 'Sending Test...' : 'Send Test Notification' }}
-                </button>
-              </div>
-            </div>
-
-            <!-- Telegram Status Overview -->
-            <div class="tg-status-row" *ngIf="telegramService.status() as tg">
-              <div class="tg-status-box">
-                <span class="label">Bridge Status</span>
-                <div class="val-with-dot" [class.online]="tg.configured" [class.offline]="!tg.configured">
-                  <span class="pulse-dot"></span>
-                  {{ tg.configured ? 'Connected & Active' : 'Not Configured' }}
-                </div>
-              </div>
-              <div class="tg-status-box">
-                <span class="label">Destination Chat ID</span>
-                <span class="val mono-val">{{ tg.chatId || 'Not Set' }}</span>
-              </div>
-              <div class="tg-status-box">
-                <span class="label">Bot Token</span>
-                <span class="val mono-val">{{ tg.botConfigured ? 'Configured (Active)' : 'Missing' }}</span>
-              </div>
-            </div>
-
-            <!-- Update Telegram Form -->
-            <div class="inner-form-box">
-              <h3 class="inner-form-title">
-                <span class="material-symbols-rounded">smart_toy</span>
-                Update Bot Credentials
-              </h3>
-              <p class="inner-form-desc">
-                Obtain your Bot Token from <strong>&#64;BotFather</strong> on Telegram, and find your Chat ID from <strong>&#64;userinfobot</strong> or channel username.
-              </p>
-
-              <form (ngSubmit)="submitTelegramUpdate()" class="telegram-form">
-                <div class="form-row-2">
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Telegram Bot Token</mat-label>
-                    <input
-                      matInput
-                      [(ngModel)]="tgBotTokenInput"
-                      name="botToken"
-                      placeholder="123456789:ABCdefGhIjk..."
-                      required
-                    />
-                  </mat-form-field>
-
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Telegram Chat ID</mat-label>
-                    <input
-                      matInput
-                      [(ngModel)]="tgChatIdInput"
-                      name="chatId"
-                      placeholder="e.g. 8953936469"
-                      required
-                    />
-                  </mat-form-field>
-                </div>
-
-                <div class="form-actions-row">
-                  <button
-                    mat-flat-button
-                    color="primary"
-                    type="submit"
-                    [disabled]="!tgBotTokenInput.trim() || !tgChatIdInput.trim() || isUpdatingTg()"
-                  >
-                    <span class="material-symbols-rounded">save</span>
-                    {{ isUpdatingTg() ? 'Saving...' : 'Save Telegram Settings' }}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </section>
-
-          <!-- SECTION 4: NSE SECURITY MASTER & FIRESTORE SYNC -->
+          <!-- SECTION 3: NSE SECURITY MASTER & FIRESTORE SYNC -->
           <section class="settings-section-card" id="scrip-section">
             <div class="section-header">
               <div class="section-title-wrap">
@@ -766,69 +541,9 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 Last synchronized: {{ meta.updatedAt | istDate : 'full' }}
               </div>
             </div>
-
-            <!-- Scrip Master CSV Upload / Paste Area -->
-            <div class="inner-form-box">
-              <h3 class="inner-form-title">
-                <span class="material-symbols-rounded">upload_file</span>
-                Upload & Sync Official CSV Master
-              </h3>
-              <p class="inner-form-desc">
-                Upload or paste Dhan's official <code>api-scrip-master.csv</code>. The engine automatically parses it, extracts strictly NSE instruments, and saves to Firestore.
-              </p>
-
-              <div class="csv-upload-box">
-                <div class="file-picker-line">
-                  <input
-                    type="file"
-                    #csvFileInput
-                    accept=".csv,.txt"
-                    (change)="onFileSelected($event)"
-                    style="display: none"
-                  />
-                  <button mat-stroked-button (click)="csvFileInput.click()" type="button">
-                    <span class="material-symbols-rounded">folder_open</span>
-                    Choose CSV File
-                  </button>
-                  <span class="file-name" *ngIf="selectedFileName">{{ selectedFileName }}</span>
-                </div>
-
-                <mat-form-field appearance="outline" class="full-width csv-textarea-field">
-                  <mat-label>Or Paste Raw CSV Content</mat-label>
-                  <textarea
-                    matInput
-                    rows="4"
-                    [(ngModel)]="csvTextInput"
-                    name="csvContent"
-                    placeholder="SEM_EXM_EXCH_ID,SEM_SEGMENT,SEM_SMST_SECURITY_ID,SEM_INSTRUMENT_NAME,SEM_TRADING_SYMBOL..."
-                  ></textarea>
-                </mat-form-field>
-
-                <div class="form-actions-row">
-                  <button
-                    mat-flat-button
-                    color="primary"
-                    type="button"
-                    (click)="submitCsvSync()"
-                    [disabled]="!csvTextInput.trim() || instrumentService.isSyncing()"
-                  >
-                    <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncing()">publish</span>
-                    {{ instrumentService.isSyncing() ? 'Uploading & Syncing...' : 'Upload & Sync CSV to Firestore' }}
-                  </button>
-                  <button
-                    mat-button
-                    type="button"
-                    (click)="csvTextInput = ''; selectedFileName = ''"
-                    [disabled]="!csvTextInput"
-                  >
-                    Clear CSV
-                  </button>
-                </div>
-              </div>
-            </div>
           </section>
 
-          <!-- SECTION 5: GOOGLE CLOUD FIRESTORE DIAGNOSTICS -->
+          <!-- SECTION 4: GOOGLE CLOUD FIRESTORE DIAGNOSTICS -->
           <section class="settings-section-card" id="firestore-section">
             <div class="section-header">
               <div class="section-title-wrap">
@@ -886,49 +601,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   Latency: <strong>{{ t.latencyMs }}ms</strong> &bull; Collections: {{ (t.collections || []).join(', ') }}
                 </div>
               </div>
-            </div>
-          </section>
-
-          <!-- SECTION 6: AUDIO CHIMES & SOUND PREFERENCES -->
-          <section class="settings-section-card" id="sound-section">
-            <div class="section-header">
-              <div class="section-title-wrap">
-                <div class="icon-avatar sound-avatar">
-                  <span class="material-symbols-rounded">volume_up</span>
-                </div>
-                <div>
-                  <h2 class="section-heading">Audio Chimes & Alert Sounds</h2>
-                  <p class="section-subheading">Audible cues for price alert trigger events, stop loss hits, and order executions</p>
-                </div>
-              </div>
-              <div class="section-actions">
-                <button
-                  mat-stroked-button
-                  class="action-btn"
-                  (click)="alertService.testChime()"
-                  matTooltip="Play instant test audio chime"
-                >
-                  <span class="material-symbols-rounded">notifications_active</span>
-                  Test Sound
-                </button>
-              </div>
-            </div>
-
-            <div class="sound-toggle-row">
-              <div class="sound-info">
-                <div class="sound-title">Browser Synthesized Audio Chime</div>
-                <div class="sound-desc">
-                  Plays a high-frequency ascending chime when a price alert triggers or an automated order fills.
-                </div>
-              </div>
-              <button
-                mat-flat-button
-                [color]="audioChime.soundEnabled() ? 'primary' : 'warn'"
-                (click)="audioChime.toggleSound()"
-              >
-                <span class="material-symbols-rounded">{{ audioChime.soundEnabled() ? 'volume_up' : 'volume_off' }}</span>
-                {{ audioChime.soundEnabled() ? 'Audio Enabled' : 'Audio Muted' }}
-              </button>
             </div>
           </section>
         </div>
@@ -1113,11 +785,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--dhan-cyan);
       }
 
-      .tg-avatar {
-        background: rgba(56, 189, 248, 0.15);
-        color: #38bdf8;
-      }
-
       .master-avatar {
         background: rgba(16, 185, 129, 0.15);
         color: #10b981;
@@ -1126,11 +793,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
       .fs-avatar {
         background: rgba(245, 158, 11, 0.15);
         color: #f59e0b;
-      }
-
-      .sound-avatar {
-        background: rgba(236, 72, 153, 0.15);
-        color: #ec4899;
       }
 
       .section-heading {
@@ -1242,54 +904,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         white-space: nowrap;
       }
 
-      /* Verification Alert */
-      .verification-alert {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 14px 16px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-      }
-
-      .verification-alert.success {
-        background: rgba(16, 185, 129, 0.1);
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        color: #10b981;
-      }
-
-      .verification-alert.failed {
-        background: rgba(244, 63, 94, 0.1);
-        border: 1px solid rgba(244, 63, 94, 0.3);
-        color: #f43f5e;
-      }
-
-      .alert-icon {
-        font-size: 24px;
-        flex-shrink: 0;
-      }
-
-      .alert-content {
-        flex: 1;
-      }
-
-      .alert-title {
-        font-weight: 700;
-        font-size: 0.875rem;
-        margin-bottom: 2px;
-      }
-
-      .alert-desc {
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-      }
-
-      .alert-meta {
-        font-size: 0.75rem;
-        margin-top: 4px;
-        color: var(--text-muted);
-      }
-
       /* Inner Form Box */
       .inner-form-box {
         background: rgba(0, 0, 0, 0.2);
@@ -1326,18 +940,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 
       .form-row {
         margin-bottom: 12px;
-      }
-
-      .form-row-2 {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-      }
-
-      @media (max-width: 768px) {
-        .form-row-2 {
-          grid-template-columns: 1fr;
-        }
       }
 
       .full-width {
@@ -1536,27 +1138,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--dhan-cyan);
       }
 
-      .lot-calculations {
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 6px;
-        padding: 8px 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-
-      .calc-row {
-        display: flex;
-        justify-content: space-between;
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-      }
-
-      .calc-row strong {
-        color: var(--dhan-cyan);
-        font-family: var(--font-mono);
-      }
-
       .lot-footer-note {
         display: flex;
         align-items: center;
@@ -1564,37 +1145,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         font-size: 0.75rem;
         color: var(--text-muted);
         margin-top: 8px;
-      }
-
-      /* Telegram Status Row */
-      .tg-status-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-        gap: 14px;
-        margin-bottom: 20px;
-      }
-
-      .tg-status-box {
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        padding: 12px 14px;
-      }
-
-      .val-with-dot {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-weight: 600;
-        font-size: 0.875rem;
-      }
-
-      .val-with-dot.online {
-        color: #10b981;
-      }
-
-      .val-with-dot.offline {
-        color: #f43f5e;
       }
 
       /* Master Stats Grid */
@@ -1668,19 +1218,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--text-muted);
       }
 
-      .file-picker-line {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 12px;
-      }
-
-      .file-name {
-        font-size: 0.8rem;
-        color: var(--dhan-cyan);
-        font-family: var(--font-mono);
-      }
-
       /* Firestore Grid */
       .fs-status-grid {
         display: grid;
@@ -1752,30 +1289,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         margin-top: 2px;
       }
 
-      /* Sound Row */
-      .sound-toggle-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 16px;
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        padding: 16px;
-      }
-
-      .sound-title {
-        font-weight: 700;
-        font-size: 0.95rem;
-        color: var(--text-primary);
-        margin-bottom: 4px;
-      }
-
-      .sound-desc {
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-      }
-
       .spinning {
         animation: spin 1s linear infinite;
       }
@@ -1790,44 +1303,28 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 })
 export class SettingsPageComponent implements OnInit {
   readonly authService = inject(AuthService);
-  readonly telegramService = inject(TelegramApiService);
   readonly instrumentService = inject(InstrumentService);
   readonly firestoreApi = inject(FirestoreApiService);
-  readonly audioChime = inject(AudioChimeService);
   readonly alertService = inject(AlertService);
   readonly orderService = inject(OrderService);
   private readonly snackBar = inject(MatSnackBar);
 
   // Token Update Form
-  clientIdInput = '';
   tokenInput = '';
   readonly isUpdatingToken = signal(false);
-  readonly isVerifyingToken = signal(false);
-  readonly verifyResult = signal<TokenVerifyResult | null>(null);
 
-  // Telegram Update Form
-  tgBotTokenInput = '';
-  tgChatIdInput = '';
-  readonly isUpdatingTg = signal(false);
-
-  // Quantities in 1 lot (e.g. 65 shares/lot)
-  qtyNifty50 = 65;
-  qtyBankNifty = 30;
-  qtyFinNifty = 65;
-  qtyMidcapNifty = 120;
-  qtySensex = 20;
+  // Quantities in 1 lot
+  qtyNifty50 = 0;
+  qtyBankNifty = 0;
+  qtyMidcapNifty = 0;
+  qtySensex = 0;
 
   // Preferred lot sizes (number of LOTS!)
-  lotNifty50 = 5;
-  lotBankNifty = 5;
-  lotFinNifty = 5;
-  lotMidcapNifty = 5;
-  lotSensex = 5;
+  lotNifty50 = 0;
+  lotBankNifty = 0;
+  lotMidcapNifty = 0;
+  lotSensex = 0;
   indicesList: IndexConfigItem[] = [];
-
-  // CSV sync
-  csvTextInput = '';
-  selectedFileName = '';
 
   constructor() {
     // Synchronize inputs when lot sizes signal changes
@@ -1836,41 +1333,22 @@ export class SettingsPageComponent implements OnInit {
       if (cfg) {
         const nItem = cfg.indices?.find((i) => i.symbol.toUpperCase().includes('NIFTY 50'));
         const bItem = cfg.indices?.find((i) => i.symbol.toUpperCase().includes('BANK'));
-        const fItem = cfg.indices?.find((i) => i.symbol.toUpperCase().includes('FIN'));
         const mItem = cfg.indices?.find((i) => i.symbol.toUpperCase().includes('MIDCAP') || i.symbol.toUpperCase().includes('MIDCP'));
         const sItem = cfg.indices?.find((i) => i.symbol.toUpperCase().includes('SENSEX'));
 
-        this.qtyNifty50 = nItem?.defaultQuantityInOneLot || nItem?.lotSize || cfg.nifty50 || 65;
-        this.qtyBankNifty = bItem?.defaultQuantityInOneLot || bItem?.lotSize || cfg.bankNifty || 30;
-        this.qtyFinNifty = fItem?.defaultQuantityInOneLot || fItem?.lotSize || cfg.finNifty || 65;
-        this.qtyMidcapNifty = mItem?.defaultQuantityInOneLot || mItem?.lotSize || cfg.midcapNifty || 120;
-        this.qtySensex = sItem?.defaultQuantityInOneLot || sItem?.lotSize || cfg.sensex || 20;
+        this.qtyNifty50 = nItem?.defaultQuantityInOneLot ?? nItem?.lotSize ?? cfg.nifty50 ?? 0;
+        this.qtyBankNifty = bItem?.defaultQuantityInOneLot ?? bItem?.lotSize ?? cfg.bankNifty ?? 0;
+        this.qtyMidcapNifty = mItem?.defaultQuantityInOneLot ?? mItem?.lotSize ?? cfg.midcapNifty ?? 0;
+        this.qtySensex = sItem?.defaultQuantityInOneLot ?? sItem?.lotSize ?? cfg.sensex ?? 0;
 
-        this.lotNifty50 = nItem?.defaultLotSize || nItem?.defaultLots || cfg.nifty50Lots || 5;
-        this.lotBankNifty = bItem?.defaultLotSize || bItem?.defaultLots || cfg.bankNiftyLots || 5;
-        this.lotFinNifty = fItem?.defaultLotSize || fItem?.defaultLots || cfg.finNiftyLots || 5;
-        this.lotMidcapNifty = mItem?.defaultLotSize || mItem?.defaultLots || cfg.midcapNiftyLots || 5;
-        this.lotSensex = sItem?.defaultLotSize || sItem?.defaultLots || cfg.sensexLots || 5;
+        this.lotNifty50 = nItem?.defaultLotSize ?? nItem?.defaultLots ?? cfg.nifty50Lots ?? 0;
+        this.lotBankNifty = bItem?.defaultLotSize ?? bItem?.defaultLots ?? cfg.bankNiftyLots ?? 0;
+        this.lotMidcapNifty = mItem?.defaultLotSize ?? mItem?.defaultLots ?? cfg.midcapNiftyLots ?? 0;
+        this.lotSensex = sItem?.defaultLotSize ?? sItem?.defaultLots ?? cfg.sensexLots ?? 0;
 
         if (cfg.indices && cfg.indices.length > 0) {
           this.indicesList = cfg.indices.map((i) => ({ ...i }));
         }
-      }
-    });
-
-    // Populate Client ID from current token status
-    effect(() => {
-      const token = this.authService.tokenStatus();
-      if (token?.clientId && !this.clientIdInput) {
-        this.clientIdInput = token.clientId;
-      }
-    });
-
-    // Populate Telegram inputs from status
-    effect(() => {
-      const tg = this.telegramService.status();
-      if (tg?.chatId && tg.chatId !== 'Not Set' && !this.tgChatIdInput) {
-        this.tgChatIdInput = tg.chatId;
       }
     });
   }
@@ -1887,52 +1365,33 @@ export class SettingsPageComponent implements OnInit {
   }
 
   onQtyChanged(symbol: string, qty: number): void {
-    const clean = Number(qty) || 1;
+    const clean = Number(qty) || 0;
     const idx = this.getIndexConfig(symbol);
     if (idx) {
       idx.defaultQuantityInOneLot = clean;
       idx.lotSize = clean;
-      const lots = idx.defaultLotSize ?? idx.defaultLots ?? 5;
+      const lots = idx.defaultLotSize ?? idx.defaultLots ?? 0;
       idx.defaultQuantity = lots * clean;
     }
   }
 
   onLotsChanged(symbol: string, lots: number): void {
-    const clean = Number(lots) || 1;
+    const clean = Number(lots) || 0;
     const idx = this.getIndexConfig(symbol);
     if (idx) {
       idx.defaultLotSize = clean;
       idx.defaultLots = clean;
-      const qtyInOneLot = idx.defaultQuantityInOneLot ?? idx.lotSize ?? 1;
+      const qtyInOneLot = idx.defaultQuantityInOneLot ?? idx.lotSize ?? 0;
       idx.defaultQuantity = clean * qtyInOneLot;
     }
   }
 
   ngOnInit(): void {
     this.authService.refreshStatus();
-    this.telegramService.refreshStatus();
     this.instrumentService.fetchSyncStatus().subscribe();
     this.instrumentService.fetchLotSizes().subscribe();
     this.instrumentService.fetchConfiguredIndices().subscribe();
     this.firestoreApi.refreshStatus().subscribe();
-  }
-
-  verifyValidity(): void {
-    if (this.isVerifyingToken()) return;
-    this.isVerifyingToken.set(true);
-    this.authService.verifyToken().subscribe({
-      next: (res) => {
-        this.isVerifyingToken.set(false);
-        this.verifyResult.set(res);
-      },
-      error: (err) => {
-        this.isVerifyingToken.set(false);
-        this.verifyResult.set({
-          valid: false,
-          message: err.error?.message || err.message || 'Live token verification failed',
-        });
-      },
-    });
   }
 
   submitTokenUpdate(): void {
@@ -1940,16 +1399,16 @@ export class SettingsPageComponent implements OnInit {
     if (!rawToken) return;
 
     this.isUpdatingToken.set(true);
+    const existingClientId = this.authService.tokenStatus()?.clientId;
     this.authService
       .updateToken({
         token: rawToken,
-        clientId: this.clientIdInput.trim() || undefined,
+        clientId: existingClientId || undefined,
       })
       .subscribe({
         next: () => {
           this.isUpdatingToken.set(false);
           this.tokenInput = '';
-          this.verifyResult.set(null);
         },
         error: (err) => {
           this.isUpdatingToken.set(false);
@@ -1958,53 +1417,25 @@ export class SettingsPageComponent implements OnInit {
       });
   }
 
-  submitTelegramUpdate(): void {
-    const token = this.tgBotTokenInput.trim();
-    const chat = this.tgChatIdInput.trim();
-    if (!token || !chat) return;
-
-    this.isUpdatingTg.set(true);
-    this.telegramService
-      .updateCredentials({
-        botToken: token,
-        chatId: chat,
-      })
-      .subscribe({
-        next: () => {
-          this.isUpdatingTg.set(false);
-          this.tgBotTokenInput = '';
-        },
-        error: (err) => {
-          this.isUpdatingTg.set(false);
-          this.snackBar.open(`Failed: ${err.message}`, 'Dismiss', { duration: 4000 });
-        },
-      });
-  }
-
   saveLotSizes(): void {
-    const nifty50Lots = Number(this.lotNifty50) || 5;
-    const bankNiftyLots = Number(this.lotBankNifty) || 5;
-    const finNiftyLots = Number(this.lotFinNifty) || 5;
-    const midcapNiftyLots = Number(this.lotMidcapNifty) || 5;
-    const sensexLots = Number(this.lotSensex) || 5;
+    const nifty50Lots = Number(this.lotNifty50) || 0;
+    const bankNiftyLots = Number(this.lotBankNifty) || 0;
+    const midcapNiftyLots = Number(this.lotMidcapNifty) || 0;
+    const sensexLots = Number(this.lotSensex) || 0;
 
-    const nifty50Qty = Number(this.qtyNifty50) || 65;
-    const bankNiftyQty = Number(this.qtyBankNifty) || 30;
-    const finNiftyQty = Number(this.qtyFinNifty) || 65;
-    const midcapNiftyQty = Number(this.qtyMidcapNifty) || 120;
-    const sensexQty = Number(this.qtySensex) || 20;
+    const nifty50Qty = Number(this.qtyNifty50) || 0;
+    const bankNiftyQty = Number(this.qtyBankNifty) || 0;
+    const midcapNiftyQty = Number(this.qtyMidcapNifty) || 0;
+    const sensexQty = Number(this.qtySensex) || 0;
 
     const updatedIndices: IndexConfigItem[] = this.indicesList.map((idx) => {
       const sym = idx.symbol.toUpperCase();
-      let lots = idx.defaultLotSize || idx.defaultLots || 5;
-      let qtyInOneLot = idx.defaultQuantityInOneLot || idx.lotSize || 1;
+      let lots = idx.defaultLotSize ?? idx.defaultLots ?? 0;
+      let qtyInOneLot = idx.defaultQuantityInOneLot ?? idx.lotSize ?? 0;
 
       if (sym.includes('BANK')) {
         lots = bankNiftyLots;
         qtyInOneLot = bankNiftyQty;
-      } else if (sym.includes('FIN')) {
-        lots = finNiftyLots;
-        qtyInOneLot = finNiftyQty;
       } else if (sym.includes('MIDCAP') || sym.includes('MIDCP')) {
         lots = midcapNiftyLots;
         qtyInOneLot = midcapNiftyQty;
@@ -2031,60 +1462,15 @@ export class SettingsPageComponent implements OnInit {
         indices: updatedIndices,
         nifty50: nifty50Qty,
         bankNifty: bankNiftyQty,
-        finNifty: finNiftyQty,
         midcapNifty: midcapNiftyQty,
         sensex: sensexQty,
         nifty50Lots,
         bankNiftyLots,
-        finNiftyLots,
         midcapNiftyLots,
         sensexLots,
       })
       .subscribe(() => {
         this.instrumentService.fetchConfiguredIndices().subscribe();
       });
-  }
-
-  resetLotSizesToDefaults(): void {
-    this.instrumentService.resetLotSizes().subscribe(() => {
-      this.qtyNifty50 = 65;
-      this.qtyBankNifty = 30;
-      this.qtyFinNifty = 65;
-      this.qtyMidcapNifty = 120;
-      this.qtySensex = 20;
-
-      this.lotNifty50 = 5;
-      this.lotBankNifty = 5;
-      this.lotFinNifty = 5;
-      this.lotMidcapNifty = 5;
-      this.lotSensex = 5;
-      this.instrumentService.fetchConfiguredIndices().subscribe();
-    });
-  }
-
-  onFileSelected(event: any): void {
-    const file = event.target?.files?.[0];
-    if (!file) return;
-
-    this.selectedFileName = file.name;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      this.csvTextInput = (e.target?.result as string) || '';
-    };
-    reader.readAsText(file);
-  }
-
-  submitCsvSync(): void {
-    const content = this.csvTextInput.trim();
-    if (!content) return;
-
-    this.instrumentService.syncCsv(content).subscribe({
-      next: (res) => {
-        if (res?.success) {
-          this.csvTextInput = '';
-          this.selectedFileName = '';
-        }
-      },
-    });
   }
 }

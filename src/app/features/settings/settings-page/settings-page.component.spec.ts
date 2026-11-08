@@ -7,7 +7,6 @@ import { of } from 'rxjs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SettingsPageComponent } from './settings-page.component';
 import { AuthService } from '../../../core/api/auth.service';
-import { TelegramApiService } from '../../../core/api/telegram.service';
 import { InstrumentService } from '../../../core/api/instrument.service';
 import { FirestoreApiService } from '../../../core/api/firestore.service';
 
@@ -41,18 +40,6 @@ describe('SettingsPageComponent', () => {
     ),
   };
 
-  const mockTelegramService = {
-    status: vi.fn().mockReturnValue({
-      configured: true,
-      chatId: '8953936469',
-      botConfigured: true,
-    }),
-    isTesting: vi.fn().mockReturnValue(false),
-    refreshStatus: vi.fn(),
-    sendTest: vi.fn(),
-    updateCredentials: vi.fn().mockReturnValue(of({ success: true })),
-  };
-
   const mockInstrumentService = {
     syncStatus: vi.fn().mockReturnValue({
       storedInFirestore: true,
@@ -69,18 +56,15 @@ describe('SettingsPageComponent', () => {
     lotSizes: vi.fn().mockReturnValue({
       nifty50: 65,
       bankNifty: 30,
-      finNifty: 65,
       midcapNifty: 120,
       sensex: 20,
       nifty50Lots: 5,
       bankNiftyLots: 5,
-      finNiftyLots: 5,
       midcapNiftyLots: 5,
       sensexLots: 5,
       indices: [
         { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 65, lotSize: 65, defaultLots: 5, defaultQuantity: 325, enabled: true },
         { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 30, lotSize: 30, defaultLots: 5, defaultQuantity: 150, enabled: true },
-        { symbol: 'FINNIFTY', name: 'Nifty Financial Services', securityId: '27', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 65, lotSize: 65, defaultLots: 5, defaultQuantity: 325, enabled: true },
         { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 120, lotSize: 120, defaultLots: 5, defaultQuantity: 600, enabled: true },
         { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 20, lotSize: 20, defaultLots: 5, defaultQuantity: 100, enabled: true },
       ],
@@ -92,7 +76,6 @@ describe('SettingsPageComponent', () => {
     fetchLotSizes: vi.fn().mockReturnValue(of(null)),
     fetchConfiguredIndices: vi.fn().mockReturnValue(of([])),
     updateLotSizes: vi.fn().mockReturnValue(of({ success: true })),
-    resetLotSizes: vi.fn().mockReturnValue(of({ success: true })),
     syncMaster: vi.fn().mockReturnValue(of({ success: true })),
     syncCsv: vi.fn().mockReturnValue(of({ success: true })),
   };
@@ -119,7 +102,6 @@ describe('SettingsPageComponent', () => {
         provideNoopAnimations(),
         provideRouter([]),
         { provide: AuthService, useValue: mockAuthService },
-        { provide: TelegramApiService, useValue: mockTelegramService },
         { provide: InstrumentService, useValue: mockInstrumentService },
         { provide: FirestoreApiService, useValue: mockFirestoreApi },
       ],
@@ -137,15 +119,33 @@ describe('SettingsPageComponent', () => {
   it('should load initial lot sizes in LOTS from InstrumentService', () => {
     expect(component.lotNifty50).toBe(5);
     expect(component.lotBankNifty).toBe(5);
-    expect(component.lotFinNifty).toBe(5);
     expect(component.lotMidcapNifty).toBe(5);
     expect(component.lotSensex).toBe(5);
   });
 
-  it('should trigger verify validity on button call', () => {
-    component.verifyValidity();
-    expect(mockAuthService.verifyToken).toHaveBeenCalled();
-    expect(component.verifyResult()?.valid).toBe(true);
+  it('should update token using existing client ID when submitted', () => {
+    component.tokenInput = 'eyMockToken123';
+    component.submitTokenUpdate();
+    expect(mockAuthService.updateToken).toHaveBeenCalledWith({
+      token: 'eyMockToken123',
+      clientId: '1106885516',
+    });
+    expect(component.tokenInput).toBe('');
+  });
+
+  it('should not display account holder, client id text box, verify live, or refresh status button', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).not.toContain('Account Holder');
+    expect(el.querySelector('input[name="clientId"]')).toBeNull();
+    expect(el.textContent).not.toContain('Verify Live');
+    expect(el.textContent).not.toContain('Refresh Status');
+  });
+
+  it('should not display Telegram Bot section or pill', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).not.toContain('Telegram Bot & Notifications Bridge');
+    expect(el.querySelector('#telegram-section')).toBeNull();
+    expect(el.querySelector('.tg-pill')).toBeNull();
   });
 
   it('should call updateLotSizes when saving lot sizes', () => {
@@ -154,16 +154,24 @@ describe('SettingsPageComponent', () => {
     expect(mockInstrumentService.updateLotSizes).toHaveBeenCalled();
   });
 
-  it('should call resetLotSizes when resetting to defaults', () => {
-    component.resetLotSizesToDefaults();
-    expect(mockInstrumentService.resetLotSizes).toHaveBeenCalled();
+  it('should not display Reset Defaults button in lots-section', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('#lots-section')?.textContent).not.toContain('Reset Defaults');
   });
 
-  it('should submit CSV sync when content is provided', () => {
-    component.csvTextInput = 'SEM_EXM_EXCH_ID,SEM_SEGMENT\nNSE,NSE_EQ';
-    component.submitCsvSync();
-    expect(mockInstrumentService.syncCsv).toHaveBeenCalledWith(
-      'SEM_EXM_EXCH_ID,SEM_SEGMENT\nNSE,NSE_EQ'
-    );
+  it('should not display CSV upload or input options in scrip-section', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('#scrip-section input[type="file"]')).toBeNull();
+    expect(el.querySelector('#scrip-section textarea')).toBeNull();
+    expect(el.querySelector('#scrip-section')?.textContent).not.toContain('Choose CSV File');
+    expect(el.querySelector('#scrip-section')?.textContent).not.toContain('Upload & Sync');
+  });
+
+  it('should call syncMaster when clicking Sync Master button', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const syncBtn = el.querySelector('#scrip-section .action-btn-primary') as HTMLButtonElement;
+    expect(syncBtn).toBeTruthy();
+    syncBtn.click();
+    expect(mockInstrumentService.syncMaster).toHaveBeenCalled();
   });
 });

@@ -13,7 +13,6 @@ A high-performance, reactive, and trader-friendly single-page application (SPA) 
   2. `BANK NIFTY` (`IDX_I`, 30 lot size)
   3. `SENSEX` (`IDX_I`, 20 lot size)
   4. `MIDCAP NIFTY` (`IDX_I`, 120 lot size)
-- **Continuous 1.5s Polling Engine & Web Audio Chime**: Synthesizes pleasant two-tone audio chimes upon trigger events via the Web Audio API (`AudioContext`).
 - **Material You Dynamic Theming (Fintech Pro)**: High-contrast Dark mode (`#0B0F19`) and Light mode (`#F8FAFC`) with JetBrains Mono tabular price badges.
 - **Graceful Section-Level Error Handling**: If the backend server (`127.0.0.1:8000`) is offline, each section displays a dedicated error card with a retry button without crashing or blanking the rest of the application.
 - **Live Portfolio & Real-time Order Book**: Positions with 1-click square-off exit, and live order book with status badges.
@@ -68,8 +67,6 @@ Production bundles are generated in `dist/dhan-trader-ui/`.
 ## ⌨️ Shortcuts & Controls
 
 - `Ctrl + K` or `Cmd + K`: Open Spotlight Scrip Searcher
-- `Speaker Icon` in Header/Dock: Mute or unmute Web Audio chime
-- `Bell Icon` in Header: Test browser audio synthesizer permission
 - `Palette Icon`: Toggle Dark / Light Theme
 - `Gear Icon`: Open JWT Token Inspector, Manual Update & Profile Verification Modal
 

@@ -10,7 +10,6 @@ import { AlertService } from '../../../core/api/alert.service';
 import { OrderService } from '../../../core/api/order.service';
 import { TelegramApiService } from '../../../core/api/telegram.service';
 import { InstrumentService } from '../../../core/api/instrument.service';
-import { AudioChimeService } from '../../../core/services/audio-chime.service';
 import { AuthModalComponent } from '../../../features/settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../../../features/settings/telegram-modal/telegram-modal.component';
 import { FundsModalComponent } from '../../../features/settings/funds-modal/funds-modal.component';
@@ -119,27 +118,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
       <!-- Right: Quick Actions -->
       <div class="header-quick-actions">
-        <!-- Sound Toggle Button -->
-        <button
-          class="action-btn"
-          [class.active]="audioChime.soundEnabled()"
-          (click)="audioChime.toggleSound()"
-          [matTooltip]="audioChime.soundEnabled() ? 'Audio Chime Enabled' : 'Audio Chime Muted'"
-        >
-          <span class="material-symbols-rounded">
-            {{ audioChime.soundEnabled() ? 'volume_up' : 'volume_off' }}
-          </span>
-        </button>
-
-        <!-- Test Chime Button -->
-        <button
-          class="action-btn"
-          (click)="alertService.testChime()"
-          matTooltip="Verify browser audio chime trigger"
-        >
-          <span class="material-symbols-rounded">notifications_active</span>
-        </button>
-
         <!-- Sync Scrip Master & Options to Firestore -->
         <button
           class="action-btn"
@@ -437,7 +415,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
   readonly orderService = inject(OrderService);
   readonly telegramService = inject(TelegramApiService);
   readonly instrumentService = inject(InstrumentService);
-  readonly audioChime = inject(AudioChimeService);
   private readonly dialog = inject(MatDialog);
 
   private fundsPollInterval: ReturnType<typeof setInterval> | null = null;

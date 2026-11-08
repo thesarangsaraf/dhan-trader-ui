@@ -89,7 +89,7 @@ describe('AlertComposerComponent', () => {
     fetchLotSizes: vi.fn().mockReturnValue(
       of({
         success: true,
-        data: { nifty50: 65, bankNifty: 30, finNifty: 65, midcapNifty: 120, sensex: 20 },
+        data: { nifty50: 65, bankNifty: 30, midcapNifty: 120, sensex: 20 },
       }),
     ),
     fetchConfiguredIndices: vi.fn().mockReturnValue(
@@ -121,12 +121,10 @@ describe('AlertComposerComponent', () => {
     lotSizes: vi.fn().mockReturnValue({
       nifty50: 65,
       bankNifty: 30,
-      finNifty: 65,
       midcapNifty: 120,
       sensex: 20,
       nifty50Lots: 5,
       bankNiftyLots: 5,
-      finNiftyLots: 5,
       midcapNiftyLots: 5,
       sensexLots: 5,
     }),

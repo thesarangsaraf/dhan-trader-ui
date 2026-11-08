@@ -727,11 +727,10 @@ export class AlertComposerComponent implements OnInit {
 
       if (activeIndices.length === 0) {
         activeIndices = [
-          { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, ltp: 24500 },
-          { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 30, ltp: 52000 },
-          { symbol: 'FINNIFTY', name: 'Nifty Financial Services', securityId: '27', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, ltp: 23500 },
-          { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 120, ltp: 12500 },
-          { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, ltp: 80000 },
+          { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 65, ltp: 0 },
+          { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 30, ltp: 0 },
+          { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 120, ltp: 0 },
+          { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', instrumentType: 'INDEX', lotSize: 20, ltp: 0 },
         ];
       }
 
@@ -762,14 +761,12 @@ export class AlertComposerComponent implements OnInit {
       (i) =>
         i.symbol.toUpperCase() === upper ||
         (upper.includes('BANK') && i.symbol.toUpperCase().includes('BANK')) ||
-        (upper.includes('FIN') && i.symbol.toUpperCase().includes('FIN')) ||
         (upper.includes('SENSEX') && i.symbol.toUpperCase().includes('SENSEX')) ||
         ((upper.includes('MIDCAP') || upper.includes('MIDCP')) &&
           (i.symbol.toUpperCase().includes('MIDCAP') || i.symbol.toUpperCase().includes('MIDCP'))) ||
         (upper.includes('NIFTY') &&
           !upper.includes('BANK') &&
           !upper.includes('MID') &&
-          !upper.includes('FIN') &&
           i.symbol === 'NIFTY 50')
     );
     if (!found) return;
@@ -777,17 +774,21 @@ export class AlertComposerComponent implements OnInit {
     this.selectedInstrument = found;
     this.selectedInstrumentSymbol = found.symbol;
 
-    // Resolve configured default lots from Firestore config
+    // Resolve configured lots from Firestore config
     const cfg = this.instrumentService.lotSizes();
     const matchedIdx = cfg.indices?.find((i) => i.symbol.toUpperCase() === upper);
-    let configuredLots = 5;
-    if (matchedIdx) {
-      configuredLots = matchedIdx.defaultLotSize || matchedIdx.defaultLots || 5;
-    } else if (upper.includes('BANK')) configuredLots = cfg.bankNiftyLots || 5;
-    else if (upper.includes('FIN')) configuredLots = cfg.finNiftyLots || 5;
-    else if (upper.includes('MIDCAP') || upper.includes('MIDCP')) configuredLots = cfg.midcapNiftyLots || 5;
-    else if (upper.includes('SENSEX')) configuredLots = cfg.sensexLots || 5;
-    else if (upper.includes('NIFTY')) configuredLots = cfg.nifty50Lots || 5;
+    let configuredLots = this.orderLots || 5;
+    if (matchedIdx && (matchedIdx.defaultLotSize || matchedIdx.defaultLots)) {
+      configuredLots = matchedIdx.defaultLotSize || matchedIdx.defaultLots || configuredLots;
+    } else if (upper.includes('BANK') && cfg.bankNiftyLots) {
+      configuredLots = cfg.bankNiftyLots;
+    } else if ((upper.includes('MIDCAP') || upper.includes('MIDCP')) && cfg.midcapNiftyLots) {
+      configuredLots = cfg.midcapNiftyLots;
+    } else if (upper.includes('SENSEX') && cfg.sensexLots) {
+      configuredLots = cfg.sensexLots;
+    } else if (upper.includes('NIFTY') && cfg.nifty50Lots) {
+      configuredLots = cfg.nifty50Lots;
+    }
 
     this.orderLots = configuredLots;
 
@@ -937,7 +938,6 @@ export class AlertComposerComponent implements OnInit {
     const sizes = this.instrumentService.lotSizes();
     const sym = (this.selectedInstrumentSymbol || this.selectedInstrument?.symbol || '').toUpperCase();
     if (sym.includes('BANK')) return sizes.bankNifty;
-    if (sym.includes('FIN')) return sizes.finNifty;
     if (sym.includes('MIDCAP') || sym.includes('MIDCP')) return sizes.midcapNifty;
     if (sym.includes('SENSEX')) return sizes.sensex;
     if (sym.includes('NIFTY')) return sizes.nifty50;

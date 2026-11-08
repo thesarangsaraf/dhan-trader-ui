@@ -11,7 +11,6 @@ import { OrderService } from '../../../core/api/order.service';
 import { AuthService } from '../../../core/api/auth.service';
 import { AlertService } from '../../../core/api/alert.service';
 import { TelegramApiService } from '../../../core/api/telegram.service';
-import { AudioChimeService } from '../../../core/services/audio-chime.service';
 import { FundsModalComponent } from '../../../features/settings/funds-modal/funds-modal.component';
 import { AuthModalComponent } from '../../../features/settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../../../features/settings/telegram-modal/telegram-modal.component';
@@ -43,17 +42,10 @@ describe('HeaderComponent', () => {
     renewToken: vi.fn(),
   };
 
-  const mockAlertService = {
-    testChime: vi.fn(),
-  };
+  const mockAlertService = {};
 
   const mockTelegramService = {
     status: signal({ configured: true, chatId: '895***469' }),
-  };
-
-  const mockAudioChime = {
-    soundEnabled: signal(true),
-    toggleSound: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -74,7 +66,6 @@ describe('HeaderComponent', () => {
         { provide: AuthService, useValue: mockAuthService },
         { provide: AlertService, useValue: mockAlertService },
         { provide: TelegramApiService, useValue: mockTelegramService },
-        { provide: AudioChimeService, useValue: mockAudioChime },
       ],
     }).compileComponents();
 
@@ -189,20 +180,11 @@ describe('HeaderComponent', () => {
     });
   });
 
-  it('should toggle audio chime when audio button is clicked', () => {
+  it('should not render sound toggle or chime test buttons in header', () => {
     fixture.detectChanges();
-
-    const soundBtn = fixture.nativeElement.querySelectorAll('.action-btn')[0] as HTMLButtonElement;
-    soundBtn.click();
-    expect(mockAudioChime.toggleSound).toHaveBeenCalled();
-  });
-
-  it('should test audio chime when chime button is clicked', () => {
-    fixture.detectChanges();
-
-    const chimeBtn = fixture.nativeElement.querySelectorAll('.action-btn')[1] as HTMLButtonElement;
-    chimeBtn.click();
-    expect(mockAlertService.testChime).toHaveBeenCalled();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('.action-btn[matTooltip*="Audio"]')).toBeNull();
+    expect(compiled.querySelector('.action-btn[matTooltip*="chime"]')).toBeNull();
   });
 
   it('should not render Dhan Engine Online or Net P&L in the top bar', () => {

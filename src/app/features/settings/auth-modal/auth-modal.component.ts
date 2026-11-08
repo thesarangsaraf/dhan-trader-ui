@@ -10,7 +10,6 @@ import { MatChipsModule } from '@angular/material/chips';
 import { AuthService } from '../../../core/api/auth.service';
 import { OrderService } from '../../../core/api/order.service';
 import { InstrumentService } from '../../../core/api/instrument.service';
-import { TokenVerifyResult } from '../../../core/models/auth.models';
 import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 
 @Component({
@@ -72,29 +71,10 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
               <span class="label">Expires At (IST):</span>
               <span class="val mono-val">{{ token.expiresAtIST || 'N/A' }}</span>
             </div>
-            <div class="detail-row" *ngIf="token.payload?.userName">
-              <span class="label">Account User:</span>
-              <span class="val mono-val">{{ token.payload?.userName }}</span>
-            </div>
           </div>
 
           <!-- Quick Action Buttons inside Inspection -->
           <div class="quick-actions">
-            <button
-              mat-stroked-button
-              (click)="authService.refreshStatus(true)"
-            >
-              <span class="material-symbols-rounded">refresh</span>
-              Refresh Status
-            </button>
-            <button
-              mat-stroked-button
-              (click)="verifyValidity()"
-              [disabled]="isVerifying()"
-            >
-              <span class="material-symbols-rounded">verified_user</span>
-              Verify Live
-            </button>
             <button
               mat-flat-button
               color="primary"
@@ -104,15 +84,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
               <span class="material-symbols-rounded" [class.spinning]="authService.isRenewing()">autorenew</span>
               {{ authService.isRenewing() ? 'Renewing...' : '1-Click Renew' }}
             </button>
-          </div>
-
-          <!-- Verification Outcome -->
-          <div class="verify-alert" *ngIf="verifyResult() as vr" [class.success]="isTokenVerified(vr)" [class.fail]="!isTokenVerified(vr)">
-            <span class="material-symbols-rounded alert-icon">{{ isTokenVerified(vr) ? 'check_circle' : 'cancel' }}</span>
-            <div class="verify-text">
-              <span class="verify-title">{{ isTokenVerified(vr) ? ('Dhan Profile Verified & Active: ' + (vr.profile?.userName || vr.profile?.name || vr.profile?.clientId || 'Connected')) : 'Live Verification Failed' }}</span>
-              <span class="verify-desc" *ngIf="!isTokenVerified(vr)">{{ vr.message || 'Verification Failed' }}</span>
-            </div>
           </div>
         </div>
 
@@ -124,11 +95,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
           <p class="section-desc">Paste new JWT access token generated from Dhan HQ web console if automatic renewal is unavailable.</p>
 
           <form (ngSubmit)="submitManualUpdate()">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Dhan Client ID</mat-label>
-              <input matInput [(ngModel)]="clientIdInput" name="clientId" placeholder="e.g. 1106885516" />
-            </mat-form-field>
-
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Access Token (JWT)</mat-label>
               <textarea
@@ -162,7 +128,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
           <div class="section-header-row">
             <div>
               <h3 class="section-title">NSE Security Master & Firestore Sync</h3>
-              <p class="section-desc">Modular collection <code>sec_id_to_name_mapping</code> divided into instruments (Nifty 50, Bank Nifty, Fin Nifty, Midcap, Indices, Equities).</p>
+              <p class="section-desc">Modular collection <code>sec_id_to_name_mapping</code> divided into instruments (Nifty 50, Bank Nifty, Midcap, Indices, Equities).</p>
             </div>
             <button
               mat-flat-button
@@ -351,41 +317,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         justify-content: center;
         gap: 6px;
       }
-      .verify-alert {
-        margin-top: 12px;
-        padding: 10px 14px;
-        border-radius: 8px;
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        font-size: 0.8125rem;
-        line-height: 1.4;
-      }
-      .alert-icon {
-        font-size: 20px;
-        flex-shrink: 0;
-        margin-top: 1px;
-      }
-      .verify-text {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-      .verify-title {
-        font-weight: 600;
-      }
-      .verify-desc {
-        font-size: 0.75rem;
-        opacity: 0.95;
-      }
-      .verify-alert.success {
-        background: var(--color-profit-bg);
-        color: var(--color-profit);
-      }
-      .verify-alert.fail {
-        background: var(--color-loss-bg);
-        color: var(--color-loss);
-      }
       .divider {
         height: 1px;
         background: var(--border-subtle);
@@ -423,61 +354,29 @@ export class AuthModalComponent implements OnInit {
   readonly orderService = inject(OrderService);
   readonly instrumentService = inject(InstrumentService);
 
-  readonly isVerifying = signal<boolean>(false);
   readonly isSubmitting = signal<boolean>(false);
-  readonly verifyResult = signal<TokenVerifyResult | null>(null);
 
   tokenInput = '';
-  clientIdInput = '';
-
-  constructor() {
-    const current = this.authService.tokenStatus();
-    if (current?.clientId) {
-      this.clientIdInput = current.clientId;
-    }
-  }
 
   ngOnInit(): void {
     this.instrumentService.fetchSyncStatus().subscribe();
   }
 
-  isTokenVerified(vr: TokenVerifyResult | null): boolean {
-    if (!vr) return false;
-    return Boolean(vr.valid || vr.verified);
-  }
-
-  verifyValidity(): void {
-    this.isVerifying.set(true);
-    this.authService.verifyToken().subscribe({
-      next: (res) => {
-        this.isVerifying.set(false);
-        this.verifyResult.set(res);
-      },
-      error: (err) => {
-        this.isVerifying.set(false);
-        this.verifyResult.set({
-          valid: false,
-          verified: false,
-          message: err.error?.message || 'Verification call failed',
-        });
-      },
-    });
-  }
-
   submitManualUpdate(): void {
-    if (!this.tokenInput.trim()) return;
+    const rawToken = this.tokenInput.trim();
+    if (!rawToken) return;
     this.isSubmitting.set(true);
+    const existingClientId = this.authService.tokenStatus()?.clientId;
     this.authService
       .updateToken({
-        token: this.tokenInput.trim(),
-        clientId: this.clientIdInput.trim() || undefined,
+        token: rawToken,
+        clientId: existingClientId || undefined,
       })
       .subscribe({
         next: () => {
           this.isSubmitting.set(false);
           this.tokenInput = '';
           this.orderService.refreshAll();
-          this.verifyValidity();
         },
         error: () => {
           this.isSubmitting.set(false);

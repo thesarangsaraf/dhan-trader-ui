@@ -22,7 +22,6 @@ This document provides operational context, architectural contracts, design rule
   - **Brand Colors**: Dhan Cyan (`#00D2C4`), Indigo (`#6366F1`).
   - **Semantic Trading Colors**: Mint Emerald (`#10B981`) for Profit/Buy/Long, Rose Coral (`#F43F5E`) for Loss/Sell/Short, Amber Glow (`#F59E0B`) for Pending/Triggered.
 - **Typography**: Google Sans / Roboto Flex paired with **JetBrains Mono** for all monetary values, strike prices, and IST timestamps.
-- **Audio Synthesizer**: Web Audio API (`AudioContext`) two-tone synthesizer (D5 $\to$ A5) for trigger chimes and testing.
 
 ---
 
@@ -123,8 +122,6 @@ src/app/
 │   │   ├── instrument.models.ts
 │   │   ├── order.models.ts
 │   │   └── telegram.models.ts
-│   └── services/
-│       └── audio-chime.service.ts   // Web Audio API synthesizer
 ├── features/
 │   ├── dashboard/
 │   │   ├── components/

@@ -76,7 +76,7 @@ describe('InstrumentService', () => {
     expect(req.request.method).toBe('GET');
     req.flush({
       success: true,
-      data: { nifty50: 65, bankNifty: 30, finNifty: 65, midcapNifty: 120, sensex: 20 },
+      data: { nifty50: 65, bankNifty: 30, midcapNifty: 120, sensex: 20 },
     });
 
     expect(result?.success).toBe(true);
@@ -95,28 +95,11 @@ describe('InstrumentService', () => {
     expect(req.request.body).toEqual({ nifty50: 75, bankNifty: 35 });
     req.flush({
       success: true,
-      data: { nifty50: 75, bankNifty: 35, finNifty: 65, midcapNifty: 120, sensex: 20 },
+      data: { nifty50: 75, bankNifty: 35, midcapNifty: 120, sensex: 20 },
     });
 
     expect(result?.success).toBe(true);
     expect(service.lotSizes().nifty50).toBe(75);
     expect(service.lotSizes().bankNifty).toBe(35);
-  });
-
-  it('should reset index lot sizes to defaults', () => {
-    let result: any;
-    service.resetLotSizes().subscribe((res) => {
-      result = res;
-    });
-
-    const req = httpTesting.expectOne('/api/instruments/lot-sizes/reset');
-    expect(req.request.method).toBe('POST');
-    req.flush({
-      success: true,
-      data: { nifty50: 65, bankNifty: 30, finNifty: 65, midcapNifty: 120, sensex: 20 },
-    });
-
-    expect(result?.success).toBe(true);
-    expect(service.lotSizes().nifty50).toBe(65);
   });
 });

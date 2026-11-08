@@ -108,12 +108,10 @@ export interface IndexConfigItem {
 export interface IndexLotSizesConfig {
   nifty50: number;
   bankNifty: number;
-  finNifty: number;
   midcapNifty: number;
   sensex: number;
   nifty50Lots?: number;
   bankNiftyLots?: number;
-  finNiftyLots?: number;
   midcapNiftyLots?: number;
   sensexLots?: number;
   indices?: IndexConfigItem[];
@@ -123,12 +121,10 @@ export interface IndexLotSizesConfig {
 export interface UpdateLotSizesDto {
   nifty50?: number;
   bankNifty?: number;
-  finNifty?: number;
   midcapNifty?: number;
   sensex?: number;
   nifty50Lots?: number;
   bankNiftyLots?: number;
-  finNiftyLots?: number;
   midcapNiftyLots?: number;
   sensexLots?: number;
   indices?: IndexConfigItem[];

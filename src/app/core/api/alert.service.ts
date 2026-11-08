@@ -9,14 +9,12 @@ import {
   GroupedAlert,
   UpdateAlertDto,
 } from '../models/alert.models';
-import { AudioChimeService } from '../services/audio-chime.service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class AlertService {
   private readonly http = inject(HttpClient);
-  private readonly audioChime = inject(AudioChimeService);
   private readonly snackBar = inject(MatSnackBar);
 
   readonly alerts = signal<DhanAlert[]>([]);
@@ -161,26 +159,5 @@ export class AlertService {
         `/api/alerts/instrument-name/${encodeURIComponent(clean)}`
       )
       .pipe(catchError(() => of(null)));
-  }
-
-  testChime(instrument = 'NIFTY 50') {
-    return this.http
-      .post<{ success: boolean; message: string; event: AlertTriggerEvent }>('/api/alerts/test-chime', {
-        instrument,
-      })
-      .pipe(
-        tap((res) => {
-          this.audioChime.playTestChime();
-          this.snackBar.open(`Chime Test Sent for ${instrument}!`, 'OK', { duration: 3000 });
-          if (res?.event) {
-            this.recentEvents.set([res.event, ...this.recentEvents()].slice(0, 30));
-          }
-        }),
-        catchError((err) => {
-          this.audioChime.playTestChime();
-          this.snackBar.open('Audio synth chime tested locally.', 'OK', { duration: 3000 });
-          return of(null);
-        })
-      );
   }
 }

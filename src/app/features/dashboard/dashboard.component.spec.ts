@@ -9,7 +9,6 @@ import { DashboardComponent } from './dashboard.component';
 import { OrderService } from '../../core/api/order.service';
 import { AuthService } from '../../core/api/auth.service';
 import { AlertService } from '../../core/api/alert.service';
-import { AudioChimeService } from '../../core/services/audio-chime.service';
 
 describe('DashboardComponent', () => {
   let component: DashboardComponent;
@@ -51,12 +50,6 @@ describe('DashboardComponent', () => {
     error: signal(null),
     loadAlerts: vi.fn(),
     refreshAlerts: vi.fn(),
-    testChime: vi.fn(),
-  };
-
-  const mockAudioChime = {
-    soundEnabled: signal(true),
-    toggleSound: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -72,7 +65,6 @@ describe('DashboardComponent', () => {
         { provide: OrderService, useValue: mockOrderService },
         { provide: AuthService, useValue: mockAuthService },
         { provide: AlertService, useValue: mockAlertService },
-        { provide: AudioChimeService, useValue: mockAudioChime },
       ],
     }).compileComponents();
 

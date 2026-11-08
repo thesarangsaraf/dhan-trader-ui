@@ -303,7 +303,7 @@ export interface AlertPreviewData {
                   <span class="section-title text-muted">Alert Notification Only</span>
                 </div>
                 <p class="no-order-desc">
-                  No automated order attached. You will receive an audio chime when the target price is hit.
+                  No automated order attached. You will receive an on-screen alert notification when the target price is hit.
                 </p>
               </div>
 

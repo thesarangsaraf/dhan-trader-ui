@@ -24,79 +24,6 @@ export interface LotSizesResponse {
   message?: string;
 }
 
-export const DEFAULT_INDICES_CONFIG: IndexConfigItem[] = [
-  {
-    symbol: 'NIFTY 50',
-    name: 'Nifty 50 Index',
-    securityId: '13',
-    exchangeSegment: 'IDX_I',
-    defaultLotSize: 5,
-    defaultQuantityInOneLot: 65,
-    lotSize: 65,
-    defaultLots: 5,
-    defaultQuantity: 325,
-    stopLossPoints: 12,
-    enabled: true,
-    order: 1,
-  },
-  {
-    symbol: 'BANK NIFTY',
-    name: 'Bank Nifty Index',
-    securityId: '25',
-    exchangeSegment: 'IDX_I',
-    defaultLotSize: 5,
-    defaultQuantityInOneLot: 30,
-    lotSize: 30,
-    defaultLots: 5,
-    defaultQuantity: 150,
-    stopLossPoints: 20,
-    enabled: true,
-    order: 2,
-  },
-  {
-    symbol: 'FINNIFTY',
-    name: 'Nifty Financial Services',
-    securityId: '27',
-    exchangeSegment: 'IDX_I',
-    defaultLotSize: 5,
-    defaultQuantityInOneLot: 65,
-    lotSize: 65,
-    defaultLots: 5,
-    defaultQuantity: 325,
-    stopLossPoints: 15,
-    enabled: true,
-    order: 3,
-  },
-  {
-    symbol: 'MIDCAP NIFTY',
-    name: 'Nifty Midcap Select',
-    securityId: '442',
-    exchangeSegment: 'IDX_I',
-    defaultLotSize: 5,
-    defaultQuantityInOneLot: 120,
-    lotSize: 120,
-    defaultLots: 5,
-    defaultQuantity: 600,
-    stopLossPoints: 15,
-    enabled: true,
-    order: 4,
-  },
-  {
-    symbol: 'SENSEX',
-    name: 'BSE Sensex Index',
-    securityId: '51',
-    exchangeSegment: 'IDX_I',
-    defaultLotSize: 5,
-    defaultQuantityInOneLot: 20,
-    lotSize: 20,
-    defaultLots: 5,
-    defaultQuantity: 100,
-    stopLossPoints: 30,
-    enabled: true,
-    order: 5,
-  },
-];
-
 @Injectable({
   providedIn: 'root',
 })
@@ -108,17 +35,15 @@ export class InstrumentService {
   readonly syncStatus = signal<SyncStatusResult | null>(null);
   readonly configuredIndices = signal<Instrument[]>([]);
   readonly lotSizes = signal<IndexLotSizesConfig>({
-    nifty50: 65,
-    bankNifty: 30,
-    finNifty: 65,
-    midcapNifty: 120,
-    sensex: 20,
-    nifty50Lots: 5,
-    bankNiftyLots: 5,
-    finNiftyLots: 5,
-    midcapNiftyLots: 5,
-    sensexLots: 5,
-    indices: [...DEFAULT_INDICES_CONFIG],
+    nifty50: 0,
+    bankNifty: 0,
+    midcapNifty: 0,
+    sensex: 0,
+    nifty50Lots: 0,
+    bankNiftyLots: 0,
+    midcapNiftyLots: 0,
+    sensexLots: 0,
+    indices: [],
   });
   readonly isSavingLotSizes = signal<boolean>(false);
 
@@ -174,30 +99,6 @@ export class InstrumentService {
       catchError((err) => {
         console.error('Failed to update lot sizes:', err);
         const errMsg = err?.error?.message || err?.message || 'Failed to update lot sizes';
-        this.snackBar.open(`❌ ${errMsg}`, 'Dismiss', { duration: 5000 });
-        return of(null);
-      }),
-      finalize(() => this.isSavingLotSizes.set(false))
-    );
-  }
-
-  /**
-   * Reset index lot sizes configuration to defaults.
-   */
-  resetLotSizes(): Observable<LotSizesResponse | null> {
-    this.isSavingLotSizes.set(true);
-    return this.http.post<LotSizesResponse>('/api/instruments/lot-sizes/reset', {}).pipe(
-      tap((res) => {
-        if (res?.success && res.data) {
-          this.lotSizes.set(res.data);
-          this.snackBar.open('🔄 Restored default lot sizes (NIFTY 65, BANK NIFTY 30)!', 'OK', {
-            duration: 4000,
-          });
-        }
-      }),
-      catchError((err) => {
-        console.error('Failed to reset lot sizes:', err);
-        const errMsg = err?.error?.message || err?.message || 'Failed to reset lot sizes';
         this.snackBar.open(`❌ ${errMsg}`, 'Dismiss', { duration: 5000 });
         return of(null);
       }),
