@@ -1,4 +1,15 @@
+import {
+  getBackendApiUrl,
+  isLocalHost,
+  GCP_PRODUCTION_API_URL,
+  LOCAL_BACKEND_API_URL,
+} from './environment.helper';
+
 export const environment = {
   production: false,
-  apiUrl: 'http://127.0.0.1:8000',
+  get apiUrl(): string {
+    return getBackendApiUrl();
+  },
 };
+
+export { isLocalHost, getBackendApiUrl, GCP_PRODUCTION_API_URL, LOCAL_BACKEND_API_URL };

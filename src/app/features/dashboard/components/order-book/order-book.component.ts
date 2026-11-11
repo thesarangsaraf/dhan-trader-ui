@@ -204,6 +204,27 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
         color: var(--dhan-cyan);
         font-weight: 600;
       }
+
+      /* Mobile Optimizations for Order Book */
+      @media (max-width: 768px) {
+        .orders-scroll-area {
+          max-height: none;
+          overflow-y: visible;
+        }
+
+        .order-card {
+          padding: 10px 12px;
+        }
+
+        .cancel-btn {
+          min-width: 36px;
+          min-height: 36px;
+          padding: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+      }
     `,
   ],
 })

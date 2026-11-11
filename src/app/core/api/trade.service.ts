@@ -8,6 +8,7 @@ import {
   TradeHistoryResponse,
   TradeSummary,
 } from '../models/trade.models';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root',
@@ -107,7 +108,7 @@ export class TradeService {
         }),
         catchError((err) => {
           this.isLoading.set(false);
-          const msg = err.error?.message || err.message || 'Backend server not available (127.0.0.1:8000)';
+          const msg = err.error?.message || err.message || `Backend server not available (${environment.apiUrl})`;
           this.error.set(`Failed to load historical trades: ${msg}`);
           return of(null);
         }),

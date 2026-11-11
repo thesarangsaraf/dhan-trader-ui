@@ -920,6 +920,116 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         flex-shrink: 0;
         margin-top: 1px;
       }
+
+      /* Mobile Optimizations for Historical Trade Book */
+      @media (max-width: 768px) {
+        .page-body {
+          padding: 12px 12px 80px;
+          gap: 12px;
+        }
+
+        .control-header-card {
+          padding: 14px 16px;
+          gap: 12px;
+        }
+
+        .page-title {
+          font-size: 1.15rem;
+        }
+
+        .controls-toolbar {
+          width: 100%;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 10px;
+        }
+
+        .fy-selector-group {
+          width: 100%;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
+        }
+
+        .select-wrapper,
+        .styled-select {
+          width: 100%;
+        }
+
+        .custom-dates-group {
+          width: 100%;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .date-field {
+          flex: 1;
+        }
+
+        .styled-date-input {
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .date-range-badge {
+          width: 100%;
+          box-sizing: border-box;
+          justify-content: center;
+        }
+
+        .refresh-btn {
+          width: 100%;
+          justify-content: center;
+          min-height: 40px;
+        }
+
+        .summary-cards-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 8px;
+        }
+
+        .kpi-card {
+          padding: 12px 14px;
+          gap: 10px;
+        }
+
+        .kpi-icon-wrap {
+          width: 36px;
+          height: 36px;
+        }
+
+        .kpi-value {
+          font-size: 1rem;
+        }
+
+        .table-header-bar {
+          padding: 12px 14px;
+          gap: 10px;
+        }
+
+        .search-box {
+          min-width: 0;
+          max-width: 100%;
+          width: 100%;
+        }
+
+        .status-filter-pills {
+          width: 100%;
+          justify-content: space-between;
+        }
+
+        .pill-btn {
+          flex: 1;
+          text-align: center;
+          padding: 6px 4px;
+        }
+      }
+
+      @media (max-width: 460px) {
+        .summary-cards-grid {
+          grid-template-columns: 1fr;
+        }
+      }
     `
   ],
 })

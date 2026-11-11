@@ -48,6 +48,10 @@ scratch/
 # Miscellaneous
 .sass-cache/
 /connect.lock
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
 /coverage
 /libpeerconnection.log
 testem.log

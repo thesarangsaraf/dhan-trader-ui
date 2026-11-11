@@ -9,6 +9,7 @@ import {
   GroupedAlert,
   UpdateAlertDto,
 } from '../models/alert.models';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root',
@@ -49,7 +50,7 @@ export class AlertService {
         }),
         catchError((err) => {
           this.isLoadingAlerts.set(false);
-          this.alertsError.set('Failed to load alerts: Backend server not available (127.0.0.1:8000).');
+          this.alertsError.set(`Failed to load alerts: Backend server not available (${environment.apiUrl}).`);
           return of([]);
         })
       )
@@ -84,6 +85,12 @@ export class AlertService {
         });
       })
     );
+  }
+
+  verifyOrderPassword(password: string) {
+    return this.http.post<{ valid: boolean; message: string }>('/api/alerts/verify-order-password', {
+      password,
+    });
   }
 
   updateAlert(id: string, dto: UpdateAlertDto) {

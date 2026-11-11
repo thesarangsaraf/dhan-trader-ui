@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { OrderService } from '../../../core/api/order.service';
 import { AuthService } from '../../../core/api/auth.service';
 import { CurrencyInrPipe } from '../../../shared/pipes/currency-inr.pipe';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-funds-modal',
@@ -105,7 +106,7 @@ import { CurrencyInrPipe } from '../../../shared/pipes/currency-inr.pipe';
             <span class="acc-label">Dhan Engine:</span>
             <span class="acc-val online-txt">
               <span class="pulse-dot-inline"></span>
-              {{ authService.isBackendOnline() ? 'Connected (127.0.0.1:8000)' : 'Offline' }}
+              {{ authService.isBackendOnline() ? 'Connected (' + backendUrl + ')' : 'Offline' }}
             </span>
           </div>
         </div>
@@ -399,6 +400,48 @@ import { CurrencyInrPipe } from '../../../shared/pipes/currency-inr.pipe';
       .cancel-btn {
         color: var(--text-muted);
       }
+
+      /* Mobile Optimizations for Funds Dialog */
+      @media (max-width: 600px) {
+        .dialog-header {
+          padding: 12px 14px;
+        }
+
+        .dialog-title {
+          font-size: 1rem;
+        }
+
+        .dialog-body {
+          padding: 12px 14px;
+          gap: 12px;
+        }
+
+        .hero-amount {
+          font-size: 1.5rem;
+        }
+
+        .demat-row {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
+        }
+
+        .breakdown-grid {
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+
+        .dialog-actions {
+          padding: 10px 14px;
+          flex-direction: column-reverse;
+          gap: 6px;
+        }
+
+        .dialog-actions button {
+          width: 100%;
+          min-height: 40px;
+        }
+      }
     `,
   ],
 })
@@ -406,4 +449,5 @@ export class FundsModalComponent {
   readonly orderService = inject(OrderService);
   readonly authService = inject(AuthService);
   readonly dialogRef = inject(MatDialogRef<FundsModalComponent>);
+  readonly backendUrl = environment.apiUrl;
 }

@@ -2,6 +2,7 @@ import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, throwError } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const snackBar = inject(MatSnackBar);
@@ -26,7 +27,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         } else if (typeof error.error === 'string') {
           errorMsg = error.error;
         } else if (error.status === 0) {
-          errorMsg = 'Cannot connect to Dhan Backend (http://127.0.0.1:8000)';
+          errorMsg = `Cannot connect to Dhan Backend (${environment.apiUrl})`;
         } else if (error.status === 502) {
           errorMsg = 'Dhan API Gateway Error: ' + (error.error?.message || error.statusText);
         } else {

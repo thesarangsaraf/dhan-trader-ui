@@ -1,17 +1,20 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { of } from 'rxjs';
 import { vi } from 'vitest';
 import {
   AlertPreviewDialogComponent,
   AlertPreviewData,
 } from './alert-preview-dialog.component';
+import { AlertService } from '../../../core/api/alert.service';
 
 describe('AlertPreviewDialogComponent', () => {
   let component: AlertPreviewDialogComponent;
   let fixture: ComponentFixture<AlertPreviewDialogComponent>;
   let mockDialogRef: { close: ReturnType<typeof vi.fn> };
   let mockSnackBar: { open: ReturnType<typeof vi.fn> };
+  let mockAlertService: { verifyOrderPassword: ReturnType<typeof vi.fn> };
 
   const baseData: AlertPreviewData = {
     instrument: 'NIFTY 50',
@@ -52,6 +55,14 @@ describe('AlertPreviewDialogComponent', () => {
   beforeEach(async () => {
     mockDialogRef = { close: vi.fn() };
     mockSnackBar = { open: vi.fn() };
+    mockAlertService = {
+      verifyOrderPassword: vi.fn().mockImplementation((pwd: string) => {
+        if (pwd === '3646') {
+          return of({ valid: true, message: 'Password verified' });
+        }
+        return of({ valid: false, message: 'Incorrect trade password' });
+      }),
+    };
 
     await TestBed.configureTestingModule({
       imports: [AlertPreviewDialogComponent],
@@ -59,6 +70,7 @@ describe('AlertPreviewDialogComponent', () => {
         { provide: MAT_DIALOG_DATA, useValue: baseData },
         { provide: MatDialogRef, useValue: mockDialogRef },
         { provide: MatSnackBar, useValue: mockSnackBar },
+        { provide: AlertService, useValue: mockAlertService },
       ],
     }).compileComponents();
 
@@ -125,5 +137,49 @@ describe('AlertPreviewDialogComponent', () => {
   it('should close dialog with true when close(true) is called', () => {
     component.close(true);
     expect(mockDialogRef.close).toHaveBeenCalledWith(true);
+  });
+
+  it('should render password authorization input when hasOrder is true and mode is confirm', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const authSection = compiled.querySelector('.order-auth-section');
+    expect(authSection).toBeTruthy();
+    const input = compiled.querySelector('.auth-password-input');
+    expect(input).toBeTruthy();
+  });
+
+  it('should NOT render password input when hasOrder is false', () => {
+    component.data = {
+      ...baseData,
+      hasOrder: false,
+    };
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('.order-auth-section')).toBeNull();
+  });
+
+  it('should set error message when confirming without password', async () => {
+    component.orderPassword = '';
+    await component.confirm();
+
+    expect(component.passwordError).toContain('Please enter your order authorization password');
+    expect(mockDialogRef.close).not.toHaveBeenCalled();
+  });
+
+  it('should verify password and close with password payload when valid (3646)', async () => {
+    component.orderPassword = '3646';
+    await component.confirm();
+
+    expect(mockAlertService.verifyOrderPassword).toHaveBeenCalledWith('3646');
+    expect(mockDialogRef.close).toHaveBeenCalledWith({ confirmed: true, password: '3646' });
+  });
+
+  it('should display error and keep dialog open when password is wrong', async () => {
+    component.orderPassword = '0000';
+    await component.confirm();
+
+    expect(mockAlertService.verifyOrderPassword).toHaveBeenCalledWith('0000');
+    expect(component.passwordError).toBe('Incorrect trade password');
+    expect(mockDialogRef.close).not.toHaveBeenCalled();
   });
 });

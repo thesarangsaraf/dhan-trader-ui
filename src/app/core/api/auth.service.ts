@@ -3,6 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, of, tap } from 'rxjs';
 import { TokenInspection, TokenUpdateDto, TokenVerifyResult } from '../models/auth.models';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root',
@@ -87,7 +88,7 @@ export class AuthService {
           this.isBackendOnline.set(false);
           this.tokenStatus.set(null);
           this.secondsRemaining.set(0);
-          this.error.set('Backend server offline (127.0.0.1:8000)');
+          this.error.set(`Backend server offline (${environment.apiUrl})`);
           if (notify) {
             this.snackBar.open('Could not connect to backend server', 'Dismiss', { duration: 4000 });
           }

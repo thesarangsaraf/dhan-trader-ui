@@ -2,6 +2,7 @@ import { Component, EventEmitter, Output, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-section-error',
@@ -16,7 +17,7 @@ import { MatIconModule } from '@angular/material/icon';
       <div class="error-body">
         <div class="error-title">{{ title() }}</div>
         <div class="error-message">{{ message() }}</div>
-        <div class="error-target-hint">Endpoint: http://127.0.0.1:8000</div>
+        <div class="error-target-hint">Endpoint: {{ endpoint() }}</div>
       </div>
 
       <button *ngIf="showRetry()" class="retry-action-btn" (click)="retry.emit()">
@@ -110,7 +111,8 @@ import { MatIconModule } from '@angular/material/icon';
 })
 export class SectionErrorComponent {
   title = input<string>('Connection Error');
-  message = input<string>('Backend server is not available (127.0.0.1:8000).');
+  message = input<string>(`Backend server is not available (${environment.apiUrl}).`);
+  endpoint = input<string>(environment.apiUrl);
   icon = input<string>('cloud_off');
   showRetry = input<boolean>(true);
 

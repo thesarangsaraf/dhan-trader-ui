@@ -1802,6 +1802,31 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: var(--text-secondary);
         margin-top: 2px;
       }
+
+      /* Mobile Optimizations for Platform Settings */
+      @media (max-width: 768px) {
+        .page-body { padding: 12px 14px 80px; }
+        .control-header-card { padding: 14px 16px; margin-bottom: 16px; gap: 12px; }
+        .page-title { font-size: 1.15rem; }
+        .page-icon { font-size: 24px; }
+        .quick-status-ribbon { gap: 6px; }
+        .status-pill { padding: 4px 8px; font-size: 0.7rem; }
+        .settings-container { gap: 16px; }
+        .settings-section-card { padding: 14px 16px; border-radius: 10px; }
+        .section-header { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; }
+        .section-actions { width: 100%; }
+        .section-actions button, .action-btn-primary { width: 100%; justify-content: center; min-height: 40px; }
+        .token-details-grid, .fs-status-grid, .lot-sizes-inputs-grid { grid-template-columns: 1fr; gap: 10px; }
+        .inspector-controls-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+        .search-box { min-width: 0; width: 100%; }
+        .filter-pills { flex-wrap: wrap; }
+        .inspector-tab-content { padding: 12px 10px; }
+      }
+      @media (max-width: 480px) {
+        .lot-inputs-dual-grid { grid-template-columns: 1fr; gap: 8px; }
+        .quick-lot-pills { flex-direction: column; }
+        .quick-pill { min-height: 36px; display: flex; align-items: center; justify-content: center; }
+      }
     `,
   ],
 })

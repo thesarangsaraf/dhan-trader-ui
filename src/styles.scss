@@ -459,3 +459,72 @@ textarea.ng-valid.ng-dirty {
   color: var(--text-primary) !important;
   border: 1px solid var(--border-medium);
 }
+
+/* ==========================================================================
+   MOBILE & TOUCH VIEWPORT RESPONSIVENESS
+   ========================================================================== */
+
+/* Prevent iOS Safari auto-zoom on form controls */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea,
+  .styled-number-input,
+  .styled-date-input,
+  .mat-mdc-input-element {
+    font-size: 16px !important;
+  }
+
+  /* Responsive Dialog Boundaries on Mobile */
+  .cdk-overlay-pane {
+    max-width: 96vw !important;
+  }
+
+  .mat-mdc-dialog-container {
+    max-width: 96vw !important;
+    width: 96vw !important;
+    margin: 8px auto !important;
+  }
+
+  .mat-mdc-dialog-container .mdc-dialog__surface {
+    border-radius: 16px !important;
+    max-width: 96vw !important;
+    max-height: 90vh !important;
+  }
+
+  .dhan-spotlight-dialog .mat-mdc-dialog-container {
+    max-width: 98vw !important;
+    width: 98vw !important;
+    margin: 4px auto !important;
+  }
+
+  .dhan-spotlight-dialog .mdc-dialog__surface {
+    max-width: 98vw !important;
+    border-radius: 14px !important;
+  }
+}
+
+/* Eliminate mobile 300ms tap delay and touch highlight glare */
+button,
+a,
+.action-btn,
+.lot-select-btn,
+.quick-pill,
+.pill-btn,
+.nav-tab,
+.strike-chip,
+.token-expiry-chip,
+.funds-chip,
+.telegram-chip {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Touch momentum scrolling for scroll containers */
+.table-responsive,
+.table-container,
+.alerts-scroll-area,
+.positions-list,
+.orders-scroll-area {
+  -webkit-overflow-scrolling: touch;
+}

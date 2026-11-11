@@ -1,12 +1,15 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { firstValueFrom } from 'rxjs';
 import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
+import { AlertService } from '../../../core/api/alert.service';
 
 export interface AlertPreviewData {
   title?: string;
@@ -59,6 +62,7 @@ export interface AlertPreviewData {
   slDhanPayload?: Record<string, any>;
   rawJsonTitle?: string;
   slRawJsonTitle?: string;
+  password?: string;
 }
 
 @Component({
@@ -66,6 +70,7 @@ export interface AlertPreviewData {
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     MatDialogModule,
     MatTabsModule,
     MatButtonModule,
@@ -375,6 +380,49 @@ export interface AlertPreviewData {
         </mat-tab-group>
       </div>
 
+      <!-- Order Authorization Password Input (Only when placing alert with order) -->
+      <div class="order-auth-section" *ngIf="!isViewMode && data.hasOrder">
+        <div class="auth-header-row">
+          <div class="auth-title-wrap">
+            <span class="material-symbols-rounded auth-shield-icon">security</span>
+            <div>
+              <span class="auth-heading">Order Authorization Required</span>
+              <span class="auth-subtext">Enter trade password to authorize placing live conditional order</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="auth-form-row">
+          <div class="auth-input-container" [class.has-error]="!!passwordError">
+            <span class="material-symbols-rounded lock-prefix-icon">lock</span>
+            <input
+              [type]="showPassword ? 'text' : 'password'"
+              class="auth-password-input"
+              placeholder="Enter trade password"
+              [(ngModel)]="orderPassword"
+              (keyup.enter)="confirm()"
+              (input)="clearPasswordError()"
+              autocomplete="off"
+              maxlength="32"
+            />
+            <button
+              type="button"
+              class="auth-visibility-btn"
+              (click)="showPassword = !showPassword"
+              [matTooltip]="showPassword ? 'Hide password' : 'Show password'"
+            >
+              <span class="material-symbols-rounded">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
+            </button>
+          </div>
+          <span class="auth-firebase-hint">Stored securely in Firebase config collection</span>
+        </div>
+
+        <div class="auth-error-banner" *ngIf="passwordError">
+          <span class="material-symbols-rounded error-icon">error</span>
+          <span>{{ passwordError }}</span>
+        </div>
+      </div>
+
       <!-- Dialog Actions -->
       <div class="dialog-actions">
         <button *ngIf="isViewMode" mat-flat-button color="primary" class="close-view-btn" (click)="close(false)">
@@ -382,12 +430,18 @@ export interface AlertPreviewData {
         </button>
 
         <ng-container *ngIf="!isViewMode">
-          <button mat-stroked-button class="cancel-btn" (click)="close(false)">
+          <button mat-stroked-button class="cancel-btn" (click)="close(false)" [disabled]="isVerifying">
             Cancel
           </button>
-          <button mat-flat-button color="primary" class="confirm-btn" (click)="close(true)">
-            <span class="material-symbols-rounded">rocket_launch</span>
-            Confirm & Place Alert
+          <button
+            mat-flat-button
+            color="primary"
+            class="confirm-btn"
+            (click)="confirm()"
+            [disabled]="isVerifying || (data.hasOrder && !orderPassword.trim())"
+          >
+            <span class="material-symbols-rounded">{{ isVerifying ? 'sync' : 'rocket_launch' }}</span>
+            {{ isVerifying ? 'Verifying...' : 'Confirm & Place Alert' }}
           </button>
         </ng-container>
       </div>
@@ -695,6 +749,173 @@ export interface AlertPreviewData {
         color: #fda4af;
         margin-left: 6px;
       }
+
+      .order-auth-section {
+        margin: 0 20px 14px 20px;
+        padding: 12px 14px;
+        background: rgba(14, 165, 233, 0.05);
+        border: 1px solid rgba(14, 165, 233, 0.25);
+        border-radius: 10px;
+      }
+
+      .auth-header-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .auth-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .auth-shield-icon {
+        font-size: 22px;
+        color: #38bdf8;
+      }
+
+      .auth-heading {
+        display: block;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #f8fafc;
+      }
+
+      .auth-subtext {
+        display: block;
+        font-size: 0.7rem;
+        color: #94a3b8;
+      }
+
+      .auth-form-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .auth-input-container {
+        display: flex;
+        align-items: center;
+        background: #0b0f19;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        padding: 0 10px;
+        height: 38px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      .auth-input-container:focus-within {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+      }
+
+      .auth-input-container.has-error {
+        border-color: #f43f5e;
+        box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.2);
+      }
+
+      .lock-prefix-icon {
+        font-size: 18px;
+        color: #64748b;
+        margin-right: 8px;
+      }
+
+      .auth-password-input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: #f8fafc;
+        font-size: 0.875rem;
+        font-family: inherit;
+        letter-spacing: 2px;
+      }
+
+      .auth-password-input::placeholder {
+        color: #475569;
+        letter-spacing: normal;
+      }
+
+      .auth-visibility-btn {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .auth-visibility-btn:hover {
+        color: #f8fafc;
+      }
+
+      .auth-visibility-btn .material-symbols-rounded {
+        font-size: 18px;
+      }
+
+      .auth-firebase-hint {
+        font-size: 0.6875rem;
+        color: #64748b;
+        margin-top: 2px;
+      }
+
+      .auth-error-banner {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        padding: 6px 10px;
+        background: rgba(244, 63, 94, 0.12);
+        border: 1px solid rgba(244, 63, 94, 0.3);
+        border-radius: 6px;
+        color: #fb7185;
+        font-size: 0.75rem;
+      }
+
+      .auth-error-banner .error-icon {
+        font-size: 16px;
+      }
+
+      /* Mobile Optimizations for Alert Preview Dialog */
+      @media (max-width: 600px) {
+        .dialog-header {
+          padding: 12px 14px;
+        }
+
+        .tab-content {
+          padding: 12px 14px;
+        }
+
+        .summary-grid {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+
+        .detail-card {
+          padding: 12px 14px;
+        }
+
+        .dialog-actions {
+          padding: 10px 14px;
+          flex-direction: column-reverse;
+          gap: 6px;
+        }
+
+        .dialog-actions button {
+          width: 100%;
+          min-height: 40px;
+        }
+
+        .json-header-row {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 8px;
+        }
+      }
     `,
   ],
 })
@@ -711,10 +932,57 @@ export class AlertPreviewDialogComponent {
 
   private dialogRef = inject(MatDialogRef<AlertPreviewDialogComponent>);
   private snackBar = inject(MatSnackBar);
+  private alertService = inject(AlertService, { optional: true });
 
   selectedTabIndex = this.data.initialTabIndex ?? 0;
   hasCopied = false;
   hasCopiedSl = false;
+
+  orderPassword = '';
+  showPassword = false;
+  passwordError = '';
+  isVerifying = false;
+
+  clearPasswordError(): void {
+    this.passwordError = '';
+  }
+
+  async confirm(): Promise<void> {
+    if (this.isViewMode) {
+      this.close(false);
+      return;
+    }
+
+    if (!this.data.hasOrder) {
+      this.dialogRef.close(true);
+      return;
+    }
+
+    const pwd = (this.orderPassword || '').trim();
+    if (!pwd) {
+      this.passwordError = 'Please enter your order authorization password';
+      return;
+    }
+
+    if (this.alertService) {
+      this.isVerifying = true;
+      this.passwordError = '';
+      try {
+        const res = await firstValueFrom(this.alertService.verifyOrderPassword(pwd));
+        if (res && res.valid) {
+          this.dialogRef.close({ confirmed: true, password: pwd });
+        } else {
+          this.passwordError = res?.message || 'Incorrect trade password. Please try again.';
+        }
+      } catch (err: any) {
+        this.passwordError = err?.error?.message || 'Verification failed. Please check your trade password.';
+      } finally {
+        this.isVerifying = false;
+      }
+    } else {
+      this.dialogRef.close({ confirmed: true, password: pwd });
+    }
+  }
 
   get isViewMode(): boolean {
     return this.data?.mode === 'view';

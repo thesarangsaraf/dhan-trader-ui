@@ -60,4 +60,24 @@ export class FirestoreApiService {
       finalize(() => this.isTesting.set(false))
     );
   }
+
+  getTradeSecurityStatus(): Observable<{ configured: boolean; updatedAt?: string } | null> {
+    return this.http.get<{ configured: boolean; updatedAt?: string }>('/api/firestore/trade-security').pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  updateTradeSecurity(password: string): Observable<{ success: boolean; message: string } | null> {
+    return this.http.post<{ success: boolean; message: string }>('/api/firestore/trade-security', { password }).pipe(
+      tap((res) => {
+        if (res?.success) {
+          this.snackBar.open('Trade password updated in Firebase config/security!', 'OK', { duration: 3000 });
+        }
+      }),
+      catchError((err) => {
+        this.snackBar.open(err?.error?.message || 'Failed to update trade password', 'Dismiss', { duration: 5000 });
+        return of(null);
+      })
+    );
+  }
 }

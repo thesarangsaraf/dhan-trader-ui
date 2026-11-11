@@ -26,6 +26,7 @@ import {
   AlertPreviewData,
   AlertPreviewDialogComponent,
 } from './alert-preview-dialog/alert-preview-dialog.component';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-alert-composer',
@@ -60,7 +61,7 @@ import {
       <app-section-error
         *ngIf="!authService.isBackendOnline()"
         title="Backend Offline"
-        message="Cannot fetch real-time market prices or place alerts. Ensure server is online on 127.0.0.1:8000."
+        [message]="'Cannot fetch real-time market prices or place alerts. Ensure server is online on ' + backendUrl + '.'"
         (retry)="retryConnection()"
       ></app-section-error>
 
@@ -688,11 +689,78 @@ import {
       .submit-btn {
         width: 100%;
         padding: 10px;
-        font-weight: 600;
+        min-height: 48px;
+        font-size: 0.9375rem;
+        font-weight: 700;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
+      }
+
+      /* Mobile Layout Optimizations */
+      @media (max-width: 600px) {
+        .composer-card {
+          padding: 12px;
+        }
+
+        .action-toggle {
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .action-toggle mat-button-toggle {
+          width: 100%;
+          border-radius: 8px !important;
+          border: 1px solid var(--border-subtle) !important;
+          min-height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .lots-header-line {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
+        }
+
+        .lot-select-btn {
+          min-height: 44px;
+          padding: 8px 6px;
+          font-size: 0.8125rem;
+        }
+
+        .sl-header-row {
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .sl-preview-line {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 2px;
+        }
+
+        .sl-action-line {
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+      }
+
+      @media (max-width: 440px) {
+        .strike-chips {
+          gap: 4px;
+        }
+        .strike-chip {
+          padding: 6px 2px;
+        }
+        .strike-val {
+          font-size: 0.75rem;
+        }
+        .strike-ltp {
+          font-size: 0.625rem;
+        }
       }
     `,
   ],
@@ -703,6 +771,7 @@ export class AlertComposerComponent implements OnInit {
   private readonly instrumentService = inject(InstrumentService);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
+  readonly backendUrl = environment.apiUrl;
 
   readonly isSubmitting = signal<boolean>(false);
   readonly instruments = signal<Instrument[]>([]);
@@ -1288,14 +1357,15 @@ export class AlertComposerComponent implements OnInit {
       panelClass: 'alert-preview-dialog-panel',
     });
 
-    dialogRef.afterClosed().subscribe((confirmed: boolean) => {
-      if (confirmed) {
-        this.executeCreateAlert(operator);
+    dialogRef.afterClosed().subscribe((res: boolean | { confirmed: boolean; password?: string }) => {
+      if (res) {
+        const password = typeof res === 'object' ? res.password : undefined;
+        this.executeCreateAlert(operator, password);
       }
     });
   }
 
-  private executeCreateAlert(operator: AlertOperator): void {
+  private executeCreateAlert(operator: AlertOperator, password?: string): void {
     if (this.executeOrderOnTrigger && (!this.orderSecurityId || !this.orderSymbol)) {
       this.snackBar.open(
         'Cannot place alert: Option contract data is not found in database. Please sync master data from Settings.',
@@ -1355,6 +1425,7 @@ export class AlertComposerComponent implements OnInit {
         remarks: `Alert for ${this.selectedInstrumentSymbol} @ ₹${this.targetPrice}`,
         conditionalOrder,
         stopLoss,
+        password,
         attachedOrder: conditionalOrder
           ? {
               enabled: true,

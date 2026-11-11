@@ -280,6 +280,32 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
       .detail-row.warning-text .material-symbols-rounded {
         font-size: 18px;
       }
+
+      /* Mobile Optimizations for Auth Modal */
+      @media (max-width: 600px) {
+        .dialog-header {
+          padding: 12px 14px;
+        }
+
+        .dialog-title {
+          font-size: 1rem;
+        }
+
+        .dialog-body {
+          padding: 12px 14px;
+        }
+
+        .detail-row {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 2px;
+        }
+
+        .quick-actions button,
+        .form-actions button {
+          min-height: 40px;
+        }
+      }
     `,
   ],
 })

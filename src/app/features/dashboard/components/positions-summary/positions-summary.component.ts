@@ -232,6 +232,49 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
         background: var(--color-loss);
         color: #FFFFFF;
       }
+
+      /* Mobile Optimizations for Positions */
+      @media (max-width: 768px) {
+        .positions-list {
+          max-height: none;
+          overflow-y: visible;
+        }
+
+        .metrics-grid {
+          padding: 8px;
+          gap: 6px;
+        }
+
+        .position-row {
+          padding: 10px 12px;
+        }
+
+        .exit-btn {
+          padding: 6px 12px;
+          min-height: 36px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .sym-row {
+          flex-wrap: wrap;
+        }
+
+        .position-row {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 10px;
+        }
+
+        .pos-pnl {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          width: 100%;
+          border-top: 1px dashed var(--border-subtle);
+          padding-top: 8px;
+        }
+      }
     `,
   ],
 })

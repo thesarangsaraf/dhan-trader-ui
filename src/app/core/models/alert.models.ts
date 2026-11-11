@@ -100,6 +100,7 @@ export interface CreateAlertDto {
   };
   expDate?: string;
   stopLoss?: AlertStopLossConfig;
+  password?: string;
 }
 
 export interface UpdateAlertDto {

@@ -92,7 +92,8 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
     `
       .searcher-dialog {
         padding: 0;
-        min-width: 540px;
+        width: 100%;
+        min-width: 0;
         max-width: 640px;
         overflow: hidden;
       }
@@ -260,6 +261,50 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         padding: 1px 4px;
         border-radius: 3px;
         border: 1px solid var(--border-subtle);
+      }
+
+      /* Mobile Optimizations for Scrip Search Modal */
+      @media (max-width: 600px) {
+        .search-input-wrapper {
+          padding: 12px 14px;
+          gap: 8px;
+        }
+
+        .kbd-badge {
+          display: none;
+        }
+
+        .result-row {
+          padding: 10px 14px;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .col-tags {
+          margin: 0;
+        }
+
+        .col-price {
+          margin-right: 0;
+        }
+
+        .action-btn {
+          padding: 6px 12px;
+          min-height: 36px;
+        }
+
+        .searcher-footer {
+          padding: 8px 14px;
+          flex-direction: column;
+          gap: 8px;
+          align-items: stretch;
+          text-align: center;
+        }
+
+        .sync-scrip-btn {
+          justify-content: center;
+          min-height: 38px;
+        }
       }
     `,
   ],

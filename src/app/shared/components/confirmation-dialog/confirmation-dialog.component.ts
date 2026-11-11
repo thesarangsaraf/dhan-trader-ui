@@ -46,7 +46,10 @@ export interface ConfirmationDialogData {
     `
       .confirm-modal {
         padding: 8px;
-        min-width: 320px;
+        min-width: 0;
+        width: 100%;
+        max-width: 440px;
+        box-sizing: border-box;
       }
       .dialog-header {
         display: flex;

@@ -7,7 +7,7 @@ This document provides operational context, architectural contracts, design rule
 ## 1. Project Mission & Identity
 
 - **Name**: Dhan Trader Pro UI
-- **Role**: High-performance, reactive, trader-friendly Single-Page Application (SPA) interfacing directly with the **Dhan Trader Backend API v2.0.0** (`http://127.0.0.1:8000`).
+- **Role**: High-performance, reactive, trader-friendly Single-Page Application (SPA) interfacing directly with the **Dhan Trader Backend API v2.0.0** (Local: `http://127.0.0.1:8000`, Production Cloud Run: `https://dhan-trader-api-218680608145.asia-south1.run.app`).
 - **Core Value Proposition**: Index Price Monitoring coupled with sub-millisecond Instant & Automated Conditional Execution (ATM Call/Put options and equity orders).
 
 ---
@@ -31,10 +31,17 @@ This document provides operational context, architectural contracts, design rule
 - **For every change in this project, if you think that there is a change needed in backend as well, then there is a backend project in the same folder directory called as `dhan-trader-api` (`../dhan-trader-api`). Go there and make needed changes as well.**
 - Always ensure both projects remain in sync, pass their test suites (`npm test`), and compile production builds (`npm run build`) without errors.
 
-### Rule 1: Always Show Real Data — No Mock / Fake Fallbacks
-- **Never inject hardcoded mock data** (e.g., fake LTPs, static positions, simulated orders) into services or components.
-- All metrics (P&L, funds, orders, positions, alerts) must originate from real backend responses.
-- If an endpoint has not returned data yet or is offline, display `--` or `Unavailable`, not fake numbers or zero currency values.
+### Rule 0.1: Strict Local Backend Connection When Running Locally
+- When the UI is running locally (`localhost`, `127.0.0.1`, LAN IP, `*.local`, dev server, or local production preview), the UI MUST connect strictly to the local backend on `http://127.0.0.1:8000`.
+- It must NEVER connect to the GCP Cloud Run URL when running locally.
+- Only when running in cloud production (e.g. Firebase Hosting `*.web.app`) should it connect to the GCP Cloud Run URL (`https://dhan-trader-api-218680608145.asia-south1.run.app`).
+- The `apiPrefixInterceptor` acts as defense-in-depth, automatically redirecting any accidental GCP URLs to `http://127.0.0.1:8000` whenever the UI runs on localhost.
+
+### Rule 1: Always Show Real Data — No Mock / Fake Fallbacks & Zero Secret Leaks
+- **Never inject hardcoded mock data or static fallback values** (e.g., fake LTPs, static positions, simulated orders, hardcoded fallback passwords) into services, components, or API calls.
+- All metrics (P&L, funds, orders, positions, alerts, lot sizes, trade password verification) must originate dynamically from the backend and Google Cloud Firestore.
+- If an endpoint has not returned data yet or is offline, display `--` or `Unavailable`, or throw an explicit section error with a Retry button; do not fall back to synthetic or fake values.
+- **Never expose sensitive credentials in UI text**: Never include real passwords, default PINs, access tokens, or sensitive values in placeholders, helper text, labels, or error messages (e.g. never show `(e.g. 3646)` in an input placeholder). Password inputs must have generic placeholders like `"Enter trade password"`.
 
 ### Rule 2: Graceful Section-Level Error Handling
 - **Never crash or show an error across the entire page.** The application shell, navigation, and other functional panels must remain intact.

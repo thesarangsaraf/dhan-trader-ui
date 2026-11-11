@@ -396,6 +396,129 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
       .action-btn span {
         font-size: 18px;
       }
+
+      /* Mobile Responsive Top App Bar & Mobile Bottom Nav */
+      @media (max-width: 768px) {
+        .top-app-bar {
+          height: 52px;
+          flex: 0 0 52px;
+          padding: 0 8px;
+        }
+
+        .header-brand {
+          gap: 8px;
+        }
+
+        .brand-logo {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+        }
+
+        .brand-logo span {
+          font-size: 20px;
+        }
+
+        .brand-name {
+          font-size: 0.8125rem;
+          white-space: nowrap;
+        }
+
+        .brand-badge {
+          display: none;
+        }
+
+        /* Bottom Navigation Bar for Mobile */
+        .header-nav-tabs {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 56px;
+          background: rgba(11, 15, 25, 0.96);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border-top: 1px solid var(--border-medium);
+          border-radius: 0;
+          border-left: none;
+          border-right: none;
+          border-bottom: none;
+          display: flex;
+          justify-content: space-around;
+          align-items: center;
+          padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px));
+          z-index: 1000;
+          gap: 2px;
+          box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .nav-tab {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          gap: 2px;
+          padding: 4px 2px;
+          font-size: 0.65rem;
+          font-weight: 600;
+          height: 100%;
+          border-radius: 8px;
+          color: var(--text-muted);
+          background: transparent;
+        }
+
+        .nav-tab span.material-symbols-rounded {
+          font-size: 20px;
+        }
+
+        .nav-tab:hover {
+          color: var(--text-primary);
+        }
+
+        .nav-tab.active {
+          background: rgba(0, 210, 196, 0.15);
+          color: var(--dhan-cyan);
+        }
+
+        .header-status-group {
+          gap: 6px;
+        }
+
+        .telegram-chip {
+          display: none;
+        }
+
+        .token-expiry-chip {
+          padding: 3px 6px;
+          font-size: 0.6875rem;
+          gap: 4px;
+        }
+
+        .funds-chip {
+          padding: 3px 6px;
+          font-size: 0.6875rem;
+          gap: 4px;
+        }
+
+        .funds-label {
+          display: none;
+        }
+
+        .header-quick-actions {
+          gap: 4px;
+        }
+
+        .action-btn {
+          width: 32px;
+          height: 32px;
+          border-radius: 6px;
+        }
+
+        .action-btn.settings {
+          display: none; /* Accessible in bottom nav */
+        }
+      }
     `,
   ],
 })
@@ -453,7 +576,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   openScripSearcher(): void {
     this.dialog.open(ScripSearcherModalComponent, {
-      width: '640px',
+      width: 'min(96vw, 640px)',
+      maxWidth: '96vw',
       panelClass: 'dhan-spotlight-dialog',
     });
   }

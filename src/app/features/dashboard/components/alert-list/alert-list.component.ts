@@ -668,6 +668,47 @@ export function isClaimedByAnother(
       .sl-order-id {
         color: var(--dhan-cyan);
       }
+
+      /* Mobile Optimizations for Alert List */
+      @media (max-width: 768px) {
+        .alert-list-card {
+          padding: 10px;
+        }
+
+        .alerts-scroll-area {
+          max-height: none;
+          overflow-y: visible;
+          padding-right: 0;
+        }
+
+        .alert-item {
+          padding: 8px 10px;
+        }
+      }
+
+      @media (max-width: 520px) {
+        .item-main {
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .col-inst {
+          width: 100%;
+        }
+
+        .col-target {
+          flex: 1;
+        }
+
+        .action-icon-btn {
+          min-width: 36px;
+          min-height: 36px;
+          padding: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+      }
     `,
   ],
 })

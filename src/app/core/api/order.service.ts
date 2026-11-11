@@ -10,6 +10,7 @@ import {
   PositionsResponse,
   PositionsSummary,
 } from '../models/order.models';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root',
@@ -61,7 +62,7 @@ export class OrderService {
         }),
         catchError((err) => {
           this.isLoadingOrders.set(false);
-          const msg = err.error?.message || 'Backend server not available (127.0.0.1:8000)';
+          const msg = err.error?.message || `Backend server not available (${environment.apiUrl})`;
           this.ordersError.set(`Failed to load order book: ${msg}`);
           return of([]);
         })
@@ -85,7 +86,7 @@ export class OrderService {
         }),
         catchError((err) => {
           this.isLoadingPositions.set(false);
-          const msg = err.error?.message || 'Backend server not available (127.0.0.1:8000)';
+          const msg = err.error?.message || `Backend server not available (${environment.apiUrl})`;
           this.positionsError.set(`Failed to load positions: ${msg}`);
           return of(null);
         })

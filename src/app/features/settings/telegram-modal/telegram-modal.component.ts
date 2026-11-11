@@ -160,6 +160,26 @@ import { TelegramApiService } from '../../../core/api/telegram.service';
         align-items: center;
         gap: 6px;
       }
+
+      /* Mobile Optimizations for Telegram Modal */
+      @media (max-width: 600px) {
+        .dialog-header {
+          padding: 12px 14px;
+        }
+
+        .dialog-title {
+          font-size: 1rem;
+        }
+
+        .dialog-body {
+          padding: 12px 14px;
+        }
+
+        .test-row button,
+        .form-actions button {
+          min-height: 40px;
+        }
+      }
     `,
   ],
 })
