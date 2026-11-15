@@ -117,6 +117,47 @@ export interface SyncMasterResult {
   message?: string;
 }
 
+export interface FlushAndReloadResult {
+  success: boolean;
+  flushed: {
+    secIdMappingDeleted: number;
+    indexOptionsDeleted: number;
+  };
+  reloaded: {
+    totalInstruments: number;
+    totalEquities: number;
+    totalIndices: number;
+    totalOptions: number;
+    documents?: string[];
+    syncedAt?: string;
+  };
+  message: string;
+}
+
+export interface FlushAndReloadEquitiesResult {
+  success: boolean;
+  collection: string;
+  deletedDocuments: number;
+  totalInstruments: number;
+  totalEquities: number;
+  totalIndices: number;
+  documents: string[];
+  syncedAt: string;
+  message: string;
+}
+
+export interface FlushAndReloadOptionsResult {
+  success: boolean;
+  collection: string;
+  deletedDocuments: number;
+  totalItems: number;
+  totalChunks: number;
+  documentIds?: string[];
+  writeTime?: string;
+  tradedIndices?: string[];
+  message: string;
+}
+
 export interface SyncStatusResult {
   storedInFirestore: boolean;
   metadata: SecIdMappingMetadata | null;

@@ -5,6 +5,9 @@ import { Observable, catchError, finalize, of, tap } from 'rxjs';
 import {
   CachedIndexOption,
   EquitiesQueryResult,
+  FlushAndReloadEquitiesResult,
+  FlushAndReloadOptionsResult,
+  FlushAndReloadResult,
   IndexConfigItem,
   IndexLotSizesConfig,
   IndexOptionsStatusResult,
@@ -40,6 +43,12 @@ export class InstrumentService {
   readonly isSyncing = signal<boolean>(false);
   readonly isSyncingEquities = signal<boolean>(false);
   readonly isSyncingOptions = signal<boolean>(false);
+  readonly isFlushingAndReloading = signal<boolean>(false);
+  readonly isFlushingEquities = signal<boolean>(false);
+  readonly isFlushingOptions = signal<boolean>(false);
+  readonly lastFlushReloadResult = signal<FlushAndReloadResult | null>(null);
+  readonly lastFlushEquitiesResult = signal<FlushAndReloadEquitiesResult | null>(null);
+  readonly lastFlushOptionsResult = signal<FlushAndReloadOptionsResult | null>(null);
   readonly syncStatus = signal<SyncStatusResult | null>(null);
   readonly optionsSyncStatus = signal<IndexOptionsStatusResult | null>(null);
   readonly configuredIndices = signal<Instrument[]>([]);
@@ -217,6 +226,89 @@ export class InstrumentService {
         return of(null);
       }),
       finalize(() => this.isSyncingOptions.set(false))
+    );
+  }
+
+  /**
+   * Totally flush all master data from Firestore (sec_id_to_name_mapping & index_options)
+   * and reload fresh official instruments from Dhan.
+   */
+  flushAndReloadMaster(): Observable<FlushAndReloadResult | null> {
+    this.isFlushingAndReloading.set(true);
+    return this.http.post<FlushAndReloadResult>('/api/instruments/flush-and-reload', {}).pipe(
+      tap((res) => {
+        if (res?.success) {
+          this.lastFlushReloadResult.set(res);
+          this.snackBar.open(
+            `✅ Master data flushed and reloaded: ${res.reloaded.totalInstruments} instruments (${res.reloaded.totalEquities} equities, ${res.reloaded.totalOptions} options)`,
+            'OK',
+            { duration: 6000 }
+          );
+          this.fetchSyncStatus().subscribe();
+          this.fetchOptionsSyncStatus().subscribe();
+        }
+      }),
+      catchError((err) => {
+        console.error('Failed to flush and reload master data:', err);
+        const errMsg = err?.error?.message || err?.message || 'Flush and reload failed';
+        this.snackBar.open(`❌ Flush and reload failed: ${errMsg}`, 'Dismiss', { duration: 6000 });
+        return of(null);
+      }),
+      finalize(() => this.isFlushingAndReloading.set(false))
+    );
+  }
+
+  /**
+   * Flush and reload cash equities & benchmark indices into sec_id_to_name_mapping.
+   */
+  flushAndReloadEquities(): Observable<FlushAndReloadEquitiesResult | null> {
+    this.isFlushingEquities.set(true);
+    return this.http.post<FlushAndReloadEquitiesResult>('/api/instruments/flush-and-reload/equities', {}).pipe(
+      tap((res) => {
+        if (res?.success) {
+          this.lastFlushEquitiesResult.set(res);
+          this.snackBar.open(
+            `✅ Equities flushed and reloaded: ${res.totalInstruments} instruments (${res.totalEquities} equities, ${res.totalIndices} indices)`,
+            'OK',
+            { duration: 6000 }
+          );
+          this.fetchSyncStatus().subscribe();
+        }
+      }),
+      catchError((err) => {
+        console.error('Failed to flush and reload equities:', err);
+        const errMsg = err?.error?.message || err?.message || 'Flush and reload equities failed';
+        this.snackBar.open(`❌ Flush equities failed: ${errMsg}`, 'Dismiss', { duration: 6000 });
+        return of(null);
+      }),
+      finalize(() => this.isFlushingEquities.set(false))
+    );
+  }
+
+  /**
+   * Flush and reload traded index options contracts into index_options.
+   */
+  flushAndReloadOptions(): Observable<FlushAndReloadOptionsResult | null> {
+    this.isFlushingOptions.set(true);
+    return this.http.post<FlushAndReloadOptionsResult>('/api/instruments/flush-and-reload/options', {}).pipe(
+      tap((res) => {
+        if (res?.success) {
+          this.lastFlushOptionsResult.set(res);
+          this.snackBar.open(
+            `✅ Options flushed and reloaded: ${res.totalItems} contracts for ${res.tradedIndices?.join(', ')}`,
+            'OK',
+            { duration: 6000 }
+          );
+          this.fetchOptionsSyncStatus().subscribe();
+        }
+      }),
+      catchError((err) => {
+        console.error('Failed to flush and reload options:', err);
+        const errMsg = err?.error?.message || err?.message || 'Flush and reload options failed';
+        this.snackBar.open(`❌ Flush options failed: ${errMsg}`, 'Dismiss', { duration: 6000 });
+        return of(null);
+      }),
+      finalize(() => this.isFlushingOptions.set(false))
     );
   }
 

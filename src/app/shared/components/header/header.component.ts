@@ -10,6 +10,7 @@ import { AlertService } from '../../../core/api/alert.service';
 import { OrderService } from '../../../core/api/order.service';
 import { TelegramApiService } from '../../../core/api/telegram.service';
 import { InstrumentService } from '../../../core/api/instrument.service';
+import { UserAuthService } from '../../../core/api/user-auth.service';
 import { AuthModalComponent } from '../../../features/settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../../../features/settings/telegram-modal/telegram-modal.component';
 import { FundsModalComponent } from '../../../features/settings/funds-modal/funds-modal.component';
@@ -145,6 +146,20 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         >
           <span class="material-symbols-rounded">settings</span>
         </a>
+
+        <!-- User Profile Pill & Logout -->
+        <div class="user-chip" [matTooltip]="'Logged in as ' + (userAuthService.currentUser()?.username || 'admin')">
+          <span class="material-symbols-rounded">account_circle</span>
+          <span class="user-name">{{ userAuthService.currentUser()?.username || 'admin' }}</span>
+        </div>
+
+        <button
+          class="action-btn logout-btn"
+          (click)="userAuthService.logout()"
+          matTooltip="Sign Out of Dhan Trader Pro"
+        >
+          <span class="material-symbols-rounded">logout</span>
+        </button>
       </div>
     </header>
   `,
@@ -397,6 +412,28 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         font-size: 18px;
       }
 
+      .user-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: rgba(0, 210, 196, 0.1);
+        border: 1px solid rgba(0, 210, 196, 0.25);
+        color: var(--dhan-cyan);
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+
+      .user-chip span.material-symbols-rounded {
+        font-size: 16px;
+      }
+
+      .logout-btn:hover {
+        color: #f43f5e !important;
+        border-color: #f43f5e !important;
+      }
+
       /* Mobile Responsive Top App Bar & Mobile Bottom Nav */
       @media (max-width: 768px) {
         .top-app-bar {
@@ -524,6 +561,7 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 })
 export class HeaderComponent implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
+  readonly userAuthService = inject(UserAuthService);
   readonly alertService = inject(AlertService);
   readonly orderService = inject(OrderService);
   readonly telegramService = inject(TelegramApiService);

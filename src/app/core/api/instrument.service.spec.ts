@@ -186,4 +186,96 @@ describe('InstrumentService', () => {
     expect(result?.storedInFirestore).toBe(true);
     expect(service.optionsSyncStatus()?.metadata?.totalItems).toBe(9809);
   });
+
+  it('should trigger flushAndReloadMaster and refresh sync statuses', () => {
+    let result: any;
+    service.flushAndReloadMaster().subscribe((res) => {
+      result = res;
+    });
+
+    const flushReq = httpTesting.expectOne('/api/instruments/flush-and-reload');
+    expect(flushReq.request.method).toBe('POST');
+    flushReq.flush({
+      success: true,
+      flushed: { secIdMappingDeleted: 7, indexOptionsDeleted: 4 },
+      reloaded: {
+        totalInstruments: 19967,
+        totalEquities: 10158,
+        totalIndices: 4,
+        totalOptions: 9805,
+      },
+      message: 'Master data flushed and reloaded',
+    });
+
+    // fetchSyncStatus triggers both /api/instruments/sync/options/status and /api/instruments/sync/status
+    // plus fetchOptionsSyncStatus triggers /api/instruments/sync/options/status
+    const optReqs = httpTesting.match('/api/instruments/sync/options/status');
+    expect(optReqs.length).toBeGreaterThanOrEqual(1);
+    optReqs.forEach((r) => r.flush({ storedInFirestore: true, metadata: null }));
+
+    const statusReq = httpTesting.expectOne('/api/instruments/sync/status');
+    statusReq.flush({ storedInFirestore: true, metadata: null });
+
+    expect(result?.success).toBe(true);
+    expect(result?.reloaded.totalInstruments).toBe(19967);
+    expect(service.lastFlushReloadResult()).toEqual(result);
+  });
+
+  it('should trigger flushAndReloadEquities and update syncStatus', () => {
+    let result: any;
+    service.flushAndReloadEquities().subscribe((res) => {
+      result = res;
+    });
+
+    const req = httpTesting.expectOne('/api/instruments/flush-and-reload/equities');
+    expect(req.request.method).toBe('POST');
+    req.flush({
+      success: true,
+      collection: 'sec_id_to_name_mapping',
+      deletedDocuments: 7,
+      totalInstruments: 10162,
+      totalEquities: 10158,
+      totalIndices: 4,
+      documents: ['chunk1', 'indices'],
+      syncedAt: new Date().toISOString(),
+      message: 'Equities flushed and reloaded',
+    });
+
+    const statusReq = httpTesting.expectOne('/api/instruments/sync/status');
+    statusReq.flush({ storedInFirestore: true, metadata: null });
+    const optReqs = httpTesting.match('/api/instruments/sync/options/status');
+    optReqs.forEach((r) => r.flush({ storedInFirestore: true, metadata: null }));
+
+    expect(result?.success).toBe(true);
+    expect(result?.totalInstruments).toBe(10162);
+    expect(service.lastFlushEquitiesResult()).toEqual(result);
+  });
+
+  it('should trigger flushAndReloadOptions and update optionsSyncStatus', () => {
+    let result: any;
+    service.flushAndReloadOptions().subscribe((res) => {
+      result = res;
+    });
+
+    const req = httpTesting.expectOne('/api/instruments/flush-and-reload/options');
+    expect(req.request.method).toBe('POST');
+    req.flush({
+      success: true,
+      collection: 'index_options',
+      deletedDocuments: 4,
+      totalItems: 9805,
+      totalChunks: 4,
+      documentIds: ['NIFTY', 'BANKNIFTY'],
+      writeTime: new Date().toISOString(),
+      tradedIndices: ['NIFTY', 'BANKNIFTY'],
+      message: 'Options flushed and reloaded',
+    });
+
+    const optReq = httpTesting.expectOne('/api/instruments/sync/options/status');
+    optReq.flush({ storedInFirestore: true, metadata: null });
+
+    expect(result?.success).toBe(true);
+    expect(result?.totalItems).toBe(9805);
+    expect(service.lastFlushOptionsResult()).toEqual(result);
+  });
 });

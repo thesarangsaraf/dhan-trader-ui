@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, effect } from '@angular/core';
+import { Component, OnInit, inject, signal, effect, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -9,11 +9,13 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '../../../core/api/auth.service';
+import { UserAuthService } from '../../../core/api/user-auth.service';
+import { ActiveSession, UserSummary } from '../../../core/models/user-auth.models';
 import { InstrumentService } from '../../../core/api/instrument.service';
 import { FirestoreApiService } from '../../../core/api/firestore.service';
 import { AlertService } from '../../../core/api/alert.service';
 import { OrderService } from '../../../core/api/order.service';
-import { CachedIndexOption, IndexConfigItem, Instrument } from '../../../core/models/instrument.models';
+import { IndexConfigItem } from '../../../core/models/instrument.models';
 import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 
 @Component({
@@ -111,6 +113,480 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 
         <!-- SETTINGS CARDS GRID / CONTAINER -->
         <div class="settings-container">
+          <!-- SECTION 0: APP USER & AUTHENTICATION -->
+          <section class="settings-section-card" id="user-auth-section">
+            <div class="section-header">
+              <div class="section-title-wrap">
+                <div class="icon-avatar token-avatar">
+                  <span class="material-symbols-rounded">admin_panel_settings</span>
+                </div>
+                <div>
+                  <h2 class="section-heading">App User & Persistent Authentication</h2>
+                  <p class="section-subheading">Manage workspace login credentials and active persistent session (stored in Firestore config/auth_user)</p>
+                </div>
+              </div>
+              <div class="section-actions">
+                <button
+                  mat-stroked-button
+                  color="warn"
+                  class="action-btn-danger"
+                  (click)="userAuthService.logout()"
+                  matTooltip="Sign out and revoke this session"
+                >
+                  <span class="material-symbols-rounded">logout</span>
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="token-overview-grid">
+              <div class="metric-box">
+                <span class="m-label">Active User</span>
+                <span class="m-val highlight">{{ userAuthService.currentUser()?.username || 'admin' }}</span>
+                <span class="m-meta">Role: Administrator</span>
+              </div>
+              <div class="metric-box">
+                <span class="m-label">Session Persistence</span>
+                <span class="m-val highlight" style="color: var(--color-profit)">Active (Permanent)</span>
+                <span class="m-meta">Keeps you signed in until browser cache & cookies are cleared</span>
+              </div>
+              <div class="metric-box">
+                <span class="m-label">Security Protocol</span>
+                <span class="m-val highlight">scrypt + HS256 JWT</span>
+                <span class="m-meta">Hardware-resistant salted password derivation</span>
+              </div>
+            </div>
+
+            <!-- Password Change Form -->
+            <div class="token-manual-card" style="margin-top: 16px;">
+              <div class="manual-header">
+                <span class="material-symbols-rounded">lock_reset</span>
+                <span>Change Workspace Password</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 12px;">
+                <div>
+                  <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Current Password</label>
+                  <input
+                    type="password"
+                    [value]="currentPasswordInput()"
+                    (input)="currentPasswordInput.set($any($event.target).value)"
+                    placeholder="Enter current password"
+                    style="width: 100%; padding: 8px 12px; background: #0B0F19; border: 1px solid #1E293B; border-radius: 8px; color: #fff; font-size: 0.8125rem; outline: none; box-sizing: border-box;"
+                  />
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">New Password (min 6 characters)</label>
+                  <input
+                    type="password"
+                    [value]="newPasswordInput()"
+                    (input)="newPasswordInput.set($any($event.target).value)"
+                    placeholder="Enter new password"
+                    style="width: 100%; padding: 8px 12px; background: #0B0F19; border: 1px solid #1E293B; border-radius: 8px; color: #fff; font-size: 0.8125rem; outline: none; box-sizing: border-box;"
+                  />
+                </div>
+              </div>
+              <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
+                <button
+                  mat-flat-button
+                  color="primary"
+                  class="action-btn-primary"
+                  (click)="changeAppPassword()"
+                  [disabled]="isChangingPassword() || !currentPasswordInput() || !newPasswordInput()"
+                >
+                  <span class="material-symbols-rounded">{{ isChangingPassword() ? 'autorenew' : 'save' }}</span>
+                  <span>{{ isChangingPassword() ? 'Updating Password...' : 'Update Password' }}</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- SECTION: USER MANAGEMENT, ACCESS CONTROL & ACTIVE SESSIONS (Restricted to 'admin' role) -->
+          <section class="settings-section-card" id="user-crud-section" *ngIf="userAuthService.isAdmin()">
+            <div class="section-header">
+              <div class="section-title-wrap">
+                <div class="icon-avatar token-avatar" style="background: linear-gradient(135deg, #6366F1, #8B5CF6);">
+                  <span class="material-symbols-rounded">manage_accounts</span>
+                </div>
+                <div>
+                  <h2 class="section-heading">User Management, Access Control & Active Sessions</h2>
+                  <p class="section-subheading">Create, update, and manage workspace user accounts, access roles, and active device sessions (Restricted to <strong>Admin</strong> role)</p>
+                </div>
+              </div>
+              <div class="section-actions" style="display: flex; gap: 8px;">
+                <button
+                  mat-stroked-button
+                  color="primary"
+                  class="action-btn-secondary"
+                  (click)="loadUsersAndSessions()"
+                  [disabled]="isLoadingUsers() || isLoadingSessions()"
+                  matTooltip="Refresh user accounts and active sessions"
+                >
+                  <span class="material-symbols-rounded" [class.spinning]="isLoadingUsers() || isLoadingSessions()">sync</span>
+                  <span>Refresh</span>
+                </button>
+                <button
+                  mat-flat-button
+                  color="primary"
+                  class="action-btn-primary"
+                  (click)="openCreateUserForm()"
+                  *ngIf="!isCreatingUser()"
+                  matTooltip="Add a new user to Dhan Trader Pro"
+                >
+                  <span class="material-symbols-rounded">person_add</span>
+                  <span>Add New User</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Create New User Inline Form -->
+            <div class="token-manual-card" style="margin-top: 16px;" *ngIf="isCreatingUser()">
+              <div class="manual-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="material-symbols-rounded">person_add</span>
+                  <span>Create New User Account</span>
+                </div>
+                <button mat-icon-button (click)="isCreatingUser.set(false)" class="close-btn" matTooltip="Cancel">
+                  <span class="material-symbols-rounded">close</span>
+                </button>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 12px;">
+                <div>
+                  <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Username</label>
+                  <input
+                    type="text"
+                    [value]="newUsernameInput()"
+                    (input)="newUsernameInput.set($any($event.target).value)"
+                    placeholder="Enter username"
+                    style="width: 100%; padding: 8px 12px; background: #0B0F19; border: 1px solid #1E293B; border-radius: 8px; color: #fff; font-size: 0.8125rem; outline: none; box-sizing: border-box;"
+                  />
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Initial Password (min 6 chars)</label>
+                  <input
+                    type="password"
+                    [value]="newUserPasswordInput()"
+                    (input)="newUserPasswordInput.set($any($event.target).value)"
+                    placeholder="Enter password"
+                    style="width: 100%; padding: 8px 12px; background: #0B0F19; border: 1px solid #1E293B; border-radius: 8px; color: #fff; font-size: 0.8125rem; outline: none; box-sizing: border-box;"
+                  />
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Role</label>
+                  <select
+                    [value]="newUserRoleInput()"
+                    (change)="newUserRoleInput.set($any($event.target).value)"
+                    style="width: 100%; padding: 8px 12px; background: #0B0F19; border: 1px solid #1E293B; border-radius: 8px; color: #fff; font-size: 0.8125rem; outline: none; box-sizing: border-box;"
+                  >
+                    <option value="trader">Trader (Order execution & alerts)</option>
+                    <option value="admin">Admin (Full configuration)</option>
+                    <option value="viewer">Viewer (Read-only monitoring)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                <button mat-stroked-button (click)="isCreatingUser.set(false)" class="action-btn-secondary">
+                  Cancel
+                </button>
+                <button
+                  mat-flat-button
+                  color="primary"
+                  class="action-btn-primary"
+                  (click)="submitCreateUser()"
+                  [disabled]="isSubmittingUser() || !newUsernameInput().trim() || !newUserPasswordInput().trim()"
+                >
+                  <span class="material-symbols-rounded">{{ isSubmittingUser() ? 'autorenew' : 'check' }}</span>
+                  <span>{{ isSubmittingUser() ? 'Creating...' : 'Create User' }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Edit User Inline Form -->
+            <div class="token-manual-card" style="margin-top: 16px; border-color: rgba(99, 102, 241, 0.4);" *ngIf="editingUser() as user">
+              <div class="manual-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="material-symbols-rounded">manage_accounts</span>
+                  <span>Edit User: <strong class="mono-val" style="color: var(--dhan-cyan);">{{ user.username }}</strong></span>
+                </div>
+                <button mat-icon-button (click)="editingUser.set(null)" class="close-btn" matTooltip="Cancel">
+                  <span class="material-symbols-rounded">close</span>
+                </button>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px;">
+                <div>
+                  <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Role</label>
+                  <select
+                    [value]="editUserRoleInput()"
+                    (change)="editUserRoleInput.set($any($event.target).value)"
+                    style="width: 100%; padding: 8px 12px; background: #0B0F19; border: 1px solid #1E293B; border-radius: 8px; color: #fff; font-size: 0.8125rem; outline: none; box-sizing: border-box;"
+                  >
+                    <option value="admin">Admin (Full access & user management)</option>
+                    <option value="trader">Trader (Order execution & alerts)</option>
+                    <option value="viewer">Viewer (Read-only monitoring)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Reset Password (leave empty to keep unchanged)</label>
+                  <input
+                    type="password"
+                    [value]="editUserPasswordInput()"
+                    (input)="editUserPasswordInput.set($any($event.target).value)"
+                    placeholder="Enter new password (optional)"
+                    style="width: 100%; padding: 8px 12px; background: #0B0F19; border: 1px solid #1E293B; border-radius: 8px; color: #fff; font-size: 0.8125rem; outline: none; box-sizing: border-box;"
+                  />
+                </div>
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                <button mat-stroked-button (click)="editingUser.set(null)" class="action-btn-secondary">
+                  Cancel
+                </button>
+                <button
+                  mat-flat-button
+                  color="primary"
+                  class="action-btn-primary"
+                  (click)="submitUpdateUser()"
+                  [disabled]="isSubmittingUser()"
+                >
+                  <span class="material-symbols-rounded">{{ isSubmittingUser() ? 'autorenew' : 'save' }}</span>
+                  <span>{{ isSubmittingUser() ? 'Saving...' : 'Save Changes' }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Users Table List -->
+            <div class="table-container" style="margin-top: 16px;">
+              <div class="loading-state" *ngIf="isLoadingUsers()" style="padding: 24px; text-align: center; color: var(--text-muted);">
+                <span class="material-symbols-rounded spinning">sync</span>
+                <span>Loading users from Firestore...</span>
+              </div>
+              <table class="inspector-table" *ngIf="!isLoadingUsers() && usersList().length > 0">
+                <thead>
+                  <tr>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Created At</th>
+                    <th>Active Sessions</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let u of usersList()">
+                    <td class="sec-id-cell">
+                      <div style="display: inline-flex; align-items: center; gap: 6px;">
+                        <span class="material-symbols-rounded" style="font-size: 16px; color: var(--text-muted);">account_circle</span>
+                        <strong>{{ u.username }}</strong>
+                        <span class="badge-chip" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);" *ngIf="u.username === 'sarang'">
+                          Primary
+                        </span>
+                        <span class="badge-chip" style="background: rgba(0, 210, 196, 0.15); color: var(--dhan-cyan); border: 1px solid rgba(0, 210, 196, 0.3);" *ngIf="u.username === userAuthService.currentUser()?.username">
+                          You
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="role-selector-wrap" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <select
+                          class="role-select-compact"
+                          [value]="u.role"
+                          (change)="onRoleChange(u, $any($event.target).value)"
+                          [disabled]="isUpdatingUserRole() === u.username"
+                          matTooltip="View or change role for {{ u.username }}"
+                        >
+                          <option value="admin">Admin</option>
+                          <option value="trader">Trader</option>
+                          <option value="viewer">Viewer</option>
+                        </select>
+                        <span class="material-symbols-rounded spinning" *ngIf="isUpdatingUserRole() === u.username" style="font-size: 14px; color: var(--dhan-cyan);">sync</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="mono-val" style="font-size: 0.75rem;">{{ u.createdAt | istDate }}</span>
+                    </td>
+                    <td>
+                      <button
+                        mat-button
+                        class="session-count-chip-btn"
+                        (click)="filterSessionsByUser(u.username)"
+                        [class.active-filter]="activeSessionFilter() === u.username"
+                        matTooltip="Filter active sessions for {{ u.username }}"
+                      >
+                        <span class="material-symbols-rounded" style="font-size: 14px;">devices</span>
+                        <span class="mono-val">{{ u.sessionCount }} active</span>
+                      </button>
+                    </td>
+                    <td style="text-align: right;">
+                      <div style="display: inline-flex; gap: 6px; justify-content: flex-end;">
+                        <button
+                          mat-icon-button
+                          class="action-icon-btn"
+                          (click)="filterSessionsByUser(u.username)"
+                          matTooltip="View & Manage Active Sessions"
+                        >
+                          <span class="material-symbols-rounded" style="font-size: 18px;">devices</span>
+                        </button>
+                        <button
+                          mat-icon-button
+                          class="action-icon-btn"
+                          (click)="startEditUser(u)"
+                          matTooltip="Edit User Role or Reset Password"
+                        >
+                          <span class="material-symbols-rounded" style="font-size: 18px;">edit</span>
+                        </button>
+                        <button
+                          mat-icon-button
+                          class="action-icon-btn"
+                          (click)="confirmDeleteUser(u.username)"
+                          [disabled]="u.username === 'sarang' || u.username === userAuthService.currentUser()?.username"
+                          [matTooltip]="u.username === 'sarang' ? 'Superuser sarang cannot be deleted' : (u.username === userAuthService.currentUser()?.username ? 'Cannot delete your own logged-in account' : 'Delete user account')"
+                          style="color: var(--color-loss);"
+                        >
+                          <span class="material-symbols-rounded" style="font-size: 18px;">delete</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div *ngIf="!isLoadingUsers() && usersList().length === 0" style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.8125rem;">
+                No users found. Click "+ Add New User" to register a user.
+              </div>
+
+              <!-- Integrated Active Connected Sessions & Devices Panel -->
+              <div class="active-sessions-integrated-panel" style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #1E293B;">
+                <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="icon-avatar" style="width: 32px; height: 32px; border-radius: 8px; background: rgba(0, 210, 196, 0.15); color: var(--dhan-cyan); display: flex; align-items: center; justify-content: center;">
+                      <span class="material-symbols-rounded" style="font-size: 18px;">devices</span>
+                    </div>
+                    <div>
+                      <h3 style="margin: 0; font-size: 0.9375rem; font-weight: 600; color: #fff;">
+                        Active Connected Sessions & Devices
+                      </h3>
+                      <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-muted);">
+                        Review and terminate active browser and device sessions across workspace users
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="session-quick-actions" style="display: flex; gap: 8px;">
+                    <button
+                      mat-stroked-button
+                      class="action-btn-secondary"
+                      (click)="loadAllSessions()"
+                      [disabled]="isLoadingSessions()"
+                      matTooltip="Refresh active sessions"
+                    >
+                      <span class="material-symbols-rounded" [class.spinning]="isLoadingSessions()">sync</span>
+                      <span>Refresh Sessions</span>
+                    </button>
+                    <button
+                      *ngIf="activeSessionFilter() !== 'ALL'"
+                      mat-flat-button
+                      color="warn"
+                      class="kill-all-user-btn"
+                      (click)="confirmKillAllUserSessions(activeSessionFilter())"
+                      [disabled]="isLoadingSessions() || filteredSessions().length === 0"
+                      matTooltip="Terminate all active sessions for {{ activeSessionFilter() }}"
+                    >
+                      <span class="material-symbols-rounded">phonelink_erase</span>
+                      <span>Kill All for @{{ activeSessionFilter() }}</span>
+                    </button>
+                    <button
+                      *ngIf="activeSessionFilter() === 'ALL'"
+                      mat-flat-button
+                      color="warn"
+                      class="kill-others-btn"
+                      (click)="confirmKillOtherSessions()"
+                      [disabled]="isLoadingSessions() || allSessions().length <= 1"
+                      matTooltip="Terminate all other sessions for current user"
+                    >
+                      <span class="material-symbols-rounded">phonelink_erase</span>
+                      <span>Kill Other Sessions</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- User Filter Chips / Tabs -->
+                <div class="session-user-filters" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+                  <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Filter by User:</span>
+                  <button
+                    type="button"
+                    class="filter-pill-btn"
+                    [class.active]="activeSessionFilter() === 'ALL'"
+                    (click)="activeSessionFilter.set('ALL')"
+                  >
+                    All Users ({{ allSessions().length }})
+                  </button>
+                  <button
+                    type="button"
+                    class="filter-pill-btn"
+                    *ngFor="let u of usersList()"
+                    [class.active]="activeSessionFilter() === u.username"
+                    (click)="filterSessionsByUser(u.username)"
+                  >
+                    @{{ u.username }} ({{ u.sessionCount }})
+                  </button>
+                </div>
+
+                <!-- Loading State -->
+                <div class="loading-state" *ngIf="isLoadingSessions()" style="padding: 24px; text-align: center; color: var(--text-muted);">
+                  <span class="material-symbols-rounded spinning">sync</span>
+                  <span>Loading active sessions...</span>
+                </div>
+
+                <!-- Sessions Grid -->
+                <div class="sessions-grid" *ngIf="!isLoadingSessions() && filteredSessions().length > 0">
+                  <div class="session-card" *ngFor="let s of filteredSessions()" [class.current-session]="s.isCurrent">
+                    <div class="session-card-header">
+                      <div class="session-device-icon" [ngClass]="{ 'current-icon': s.isCurrent }">
+                        <span class="material-symbols-rounded">
+                          {{ s.deviceType === 'Mobile' ? 'smartphone' : (s.deviceType === 'Tablet' ? 'tablet' : 'laptop_mac') }}
+                        </span>
+                      </div>
+                      <div class="session-info">
+                        <div class="session-name">
+                          <strong>{{ s.browser }} on {{ s.os }}</strong>
+                          <span class="badge-chip" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; margin-left: 6px;">
+                            @{{ s.username }}
+                          </span>
+                          <span class="current-badge" *ngIf="s.isCurrent">
+                            <span class="material-symbols-rounded">check_circle</span>
+                            Current Device
+                          </span>
+                        </div>
+                        <div class="session-meta">
+                          <span class="ip-tag">IP: <code class="mono-val">{{ s.ip || '127.0.0.1' }}</code></span>
+                          <span class="meta-dot">•</span>
+                          <span>Signed in: <span class="mono-val">{{ s.createdAt | istDate }}</span></span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="session-actions-box">
+                      <span class="session-active-indicator" *ngIf="s.isCurrent">
+                        <span class="pulsing-dot"></span>
+                        Active Now
+                      </span>
+                      <button
+                        *ngIf="!s.isCurrent"
+                        mat-stroked-button
+                        color="warn"
+                        class="kill-session-btn"
+                        (click)="confirmKillSession(s)"
+                        matTooltip="Terminate this session"
+                      >
+                        <span class="material-symbols-rounded" style="font-size: 16px;">block</span>
+                        <span>Kill Session</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div *ngIf="!isLoadingSessions() && filteredSessions().length === 0" style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.8125rem;">
+                  No active sessions found{{ activeSessionFilter() !== 'ALL' ? ' for ' + activeSessionFilter() : '' }}.
+                </div>
+              </div>
+            </div>
+          </section>
+
           <!-- SECTION 1: DHAN JWT TOKEN MANAGEMENT -->
           <section class="settings-section-card" id="token-section">
             <div class="section-header">
@@ -517,24 +993,28 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 <button
                   mat-flat-button
                   color="primary"
-                  class="action-btn-primary sync-equities-btn"
-                  (click)="onSyncEquities()"
-                  [disabled]="instrumentService.isSyncingEquities()"
-                  matTooltip="Synchronize cash equities & indices to Firestore collection sec_id_to_name_mapping"
+                  class="action-btn-primary flush-equities-btn"
+                  (click)="onFlushAndReloadEquities()"
+                  [disabled]="instrumentService.isFlushingEquities()"
+                  matTooltip="Flush sec_id_to_name_mapping and reload fresh cash equities & indices from Dhan"
                 >
-                  <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncingEquities()">cloud_sync</span>
-                  {{ instrumentService.isSyncingEquities() ? 'Syncing Equities...' : 'Sync Equities to Firestore' }}
+                  <span class="material-symbols-rounded" [class.spinning]="instrumentService.isFlushingEquities()">
+                    {{ instrumentService.isFlushingEquities() ? 'sync' : 'restart_alt' }}
+                  </span>
+                  <span>{{ instrumentService.isFlushingEquities() ? 'Flushing & Reloading Equities...' : 'Flush & Reload Equities' }}</span>
                 </button>
                 <button
                   mat-flat-button
                   color="accent"
-                  class="action-btn-accent sync-options-btn"
-                  (click)="onSyncOptions()"
-                  [disabled]="instrumentService.isSyncingOptions()"
-                  matTooltip="Synchronize traded index options (NIFTY, BANKNIFTY, MIDCPNIFTY, SENSEX) to Firestore collection index_options"
+                  class="action-btn-accent flush-options-btn"
+                  (click)="onFlushAndReloadOptions()"
+                  [disabled]="instrumentService.isFlushingOptions()"
+                  matTooltip="Flush index_options and reload fresh option contracts from Dhan"
                 >
-                  <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncingOptions()">tune</span>
-                  {{ instrumentService.isSyncingOptions() ? 'Syncing Options...' : 'Sync Options to Firestore' }}
+                  <span class="material-symbols-rounded" [class.spinning]="instrumentService.isFlushingOptions()">
+                    {{ instrumentService.isFlushingOptions() ? 'sync' : 'restart_alt' }}
+                  </span>
+                  <span>{{ instrumentService.isFlushingOptions() ? 'Flushing & Reloading Options...' : 'Flush & Reload Options' }}</span>
                 </button>
               </div>
             </div>
@@ -560,7 +1040,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                     <h4 class="db-not-found-title">Data is not found in database</h4>
                     <p class="db-not-found-msg">
                       Firestore collection <code>sec_id_to_name_mapping</code> contains no cash equities or indices.
-                      Click <strong>Sync Equities to Firestore</strong> above to download the official Dhan scrip master and populate equities.
+                      Click <strong>Flush & Reload Equities</strong> above to download the official Dhan scrip master and populate equities.
                     </p>
                   </div>
                 </div>
@@ -598,6 +1078,11 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                     Last synchronized: {{ meta.updatedAt | istDate : 'full' }}
                   </div>
                 </div>
+                <!-- Equities Flush & Reload Success Banner -->
+                <div class="flush-inline-banner" *ngIf="instrumentService.lastFlushEquitiesResult() as eqRes">
+                  <span class="material-symbols-rounded">check_circle</span>
+                  <span>Equities flushed & reloaded: <strong class="mono-val">{{ eqRes.totalInstruments | number }}</strong> total ({{ eqRes.totalEquities | number }} equities, {{ eqRes.totalIndices | number }} indices)</span>
+                </div>
               </div>
 
               <!-- SUBSECTION B: TRADED INDEX OPTIONS -->
@@ -619,7 +1104,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                     <h4 class="db-not-found-title">Data is not found in database</h4>
                     <p class="db-not-found-msg">
                       Firestore collection <code>index_options</code> contains no option contracts.
-                      Click <strong>Sync Options to Firestore</strong> above to download live option contracts for your traded indices.
+                      Click <strong>Flush & Reload Options</strong> above to download live option contracts for your traded indices.
                     </p>
                   </div>
                 </div>
@@ -657,267 +1142,11 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                     Last synchronized: {{ optMeta.updatedAt | istDate : 'full' }}
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <!-- MASTER DATA INSPECTOR & EXPLORER -->
-            <div class="master-inspector-card">
-              <div class="inspector-header">
-                <div class="inspector-title-group">
-                  <span class="material-symbols-rounded inspector-icon">manage_search</span>
-                  <div>
-                    <h3 class="inspector-heading">Master Data Inspector & Explorer</h3>
-                    <p class="inspector-subheading">Inspect and search real instruments stored in Firestore</p>
-                  </div>
-                </div>
-                <div class="inspector-tabs">
-                  <button
-                    type="button"
-                    class="inspector-tab"
-                    [ngClass]="{ 'active': activeInspectorTab === 'equities' }"
-                    (click)="onSelectInspectorTab('equities')"
-                  >
-                    <span class="material-symbols-rounded">table_chart</span>
-                    <span>Cash Equities & Indices ({{ (instrumentService.syncStatus()?.metadata?.totalInstruments || 0) | number }})</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="inspector-tab"
-                    [ngClass]="{ 'active': activeInspectorTab === 'options' }"
-                    (click)="onSelectInspectorTab('options')"
-                  >
-                    <span class="material-symbols-rounded">stacked_line_chart</span>
-                    <span>Traded Index Options ({{ (instrumentService.optionsSyncStatus()?.metadata?.totalItems || 0) | number }})</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- TAB 1: CASH EQUITIES EXPLORER -->
-              <div class="inspector-tab-content" *ngIf="activeInspectorTab === 'equities'">
-                <div class="inspector-controls-bar">
-                  <div class="search-box">
-                    <span class="material-symbols-rounded">search</span>
-                    <input
-                      type="text"
-                      placeholder="Search symbol, company name, or security ID (e.g. RELIANCE, TCS, INFY)..."
-                      [(ngModel)]="equitiesSearchTerm"
-                      (input)="onEquitiesSearchChange()"
-                    />
-                    <button *ngIf="equitiesSearchTerm" class="clear-btn" (click)="equitiesSearchTerm = ''; onEquitiesSearchChange()">
-                      <span class="material-symbols-rounded">close</span>
-                    </button>
-                  </div>
-                  <div class="filter-pills">
-                    <span class="filter-label">Segment:</span>
-                    <button
-                      type="button"
-                      class="filter-pill"
-                      [ngClass]="{ 'active': equitiesSegmentFilter === '' }"
-                      (click)="setEquitiesSegment('')"
-                    >All</button>
-                    <button
-                      type="button"
-                      class="filter-pill"
-                      [ngClass]="{ 'active': equitiesSegmentFilter === 'NSE_EQ' }"
-                      (click)="setEquitiesSegment('NSE_EQ')"
-                    >NSE Equities (NSE_EQ)</button>
-                    <button
-                      type="button"
-                      class="filter-pill"
-                      [ngClass]="{ 'active': equitiesSegmentFilter === 'IDX_I' }"
-                      (click)="setEquitiesSegment('IDX_I')"
-                    >Indices (IDX_I)</button>
-                  </div>
-                </div>
-
-                <!-- Equities Table -->
-                <div class="table-container">
-                  <div class="loading-state" *ngIf="isLoadingEquities()">
-                    <span class="material-symbols-rounded spinning">sync</span>
-                    <span>Loading equities from Firestore...</span>
-                  </div>
-                  <table class="inspector-table" *ngIf="!isLoadingEquities() && equitiesList().length > 0">
-                    <thead>
-                      <tr>
-                        <th>Security ID</th>
-                        <th>Symbol</th>
-                        <th>Instrument / Company Name</th>
-                        <th>Segment</th>
-                        <th>Type</th>
-                        <th class="text-right">Lot Size</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr *ngFor="let item of equitiesList(); let isEven = even; let isOdd = odd" [ngClass]="{ 'row-even': isEven, 'row-odd': isOdd }">
-                        <td class="mono-val sec-id-cell">{{ item.securityId }}</td>
-                        <td class="symbol-cell"><strong>{{ item.symbol }}</strong></td>
-                        <td class="name-cell">{{ item.name }}</td>
-                        <td><span class="badge-chip seg-chip">{{ item.exchangeSegment }}</span></td>
-                        <td><span class="badge-chip type-chip">{{ item.instrumentType }}</span></td>
-                        <td class="mono-val text-right">{{ item.lotSize || 1 }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <div class="empty-results" *ngIf="!isLoadingEquities() && equitiesList().length === 0">
-                    <span class="material-symbols-rounded">search_off</span>
-                    <span>No instruments found matching criteria in database.</span>
-                  </div>
-                </div>
-
-                <!-- Equities Pagination -->
-                <div class="inspector-pagination">
-                  <span class="page-summary">
-                    Showing {{ totalEquitiesCount > 0 ? equitiesOffset + 1 : 0 }} - {{ getMin(equitiesOffset + equitiesLimit, totalEquitiesCount) }} of {{ totalEquitiesCount | number }} instruments
-                  </span>
-                  <div class="page-buttons">
-                    <button
-                      type="button"
-                      class="page-btn"
-                      [disabled]="equitiesOffset === 0"
-                      (click)="changeEquitiesPage(-1)"
-                    >
-                      <span class="material-symbols-rounded">chevron_left</span>
-                      <span>Previous</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="page-btn"
-                      [disabled]="equitiesOffset + equitiesLimit >= totalEquitiesCount"
-                      (click)="changeEquitiesPage(1)"
-                    >
-                      <span>Next</span>
-                      <span class="material-symbols-rounded">chevron_right</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- TAB 2: OPTIONS EXPLORER -->
-              <div class="inspector-tab-content" *ngIf="activeInspectorTab === 'options'">
-                <div class="inspector-controls-bar">
-                  <div class="search-box">
-                    <span class="material-symbols-rounded">search</span>
-                    <input
-                      type="text"
-                      placeholder="Search strike, option symbol, or security ID (e.g. 24000, NIFTY 09 NOV)..."
-                      [(ngModel)]="optionsSearchTerm"
-                      (input)="onOptionsSearchChange()"
-                    />
-                    <button *ngIf="optionsSearchTerm" class="clear-btn" (click)="optionsSearchTerm = ''; onOptionsSearchChange()">
-                      <span class="material-symbols-rounded">close</span>
-                    </button>
-                  </div>
-                  <div class="filter-pills">
-                    <span class="filter-label">Index:</span>
-                    <button
-                      type="button"
-                      class="filter-pill"
-                      [ngClass]="{ 'active': optionsIndexFilter === '' }"
-                      (click)="setOptionsIndex('')"
-                    >All Traded</button>
-                    <button
-                      type="button"
-                      class="filter-pill"
-                      *ngFor="let idx of optionsTradedIndices"
-                      [ngClass]="{ 'active': optionsIndexFilter === idx }"
-                      (click)="setOptionsIndex(idx)"
-                    >{{ idx }}</button>
-                  </div>
-                  <div class="filter-pills">
-                    <span class="filter-label">Type:</span>
-                    <button
-                      type="button"
-                      class="filter-pill"
-                      [ngClass]="{ 'active': optionsTypeFilter === '' }"
-                      (click)="setOptionsType('')"
-                    >All</button>
-                    <button
-                      type="button"
-                      class="filter-pill call-pill"
-                      [ngClass]="{ 'active': optionsTypeFilter === 'CE' }"
-                      (click)="setOptionsType('CE')"
-                    >CALL (CE)</button>
-                    <button
-                      type="button"
-                      class="filter-pill put-pill"
-                      [ngClass]="{ 'active': optionsTypeFilter === 'PE' }"
-                      (click)="setOptionsType('PE')"
-                    >PUT (PE)</button>
-                  </div>
-                  <div class="expiry-select-wrap" *ngIf="optionsAvailableExpiries.length > 0">
-                    <span class="filter-label">Expiry:</span>
-                    <select class="expiry-select" [(ngModel)]="optionsExpiryFilter" (change)="loadOptions()">
-                      <option value="">All Expiries</option>
-                      <option *ngFor="let exp of optionsAvailableExpiries" [value]="exp">{{ exp }}</option>
-                    </select>
-                  </div>
-                </div>
-
-                <!-- Options Table -->
-                <div class="table-container">
-                  <div class="loading-state" *ngIf="isLoadingOptions()">
-                    <span class="material-symbols-rounded spinning">sync</span>
-                    <span>Loading options contracts from Firestore...</span>
-                  </div>
-                  <table class="inspector-table" *ngIf="!isLoadingOptions() && optionsList().length > 0">
-                    <thead>
-                      <tr>
-                        <th>Security ID</th>
-                        <th>Underlying</th>
-                        <th>Trading / Custom Symbol</th>
-                        <th>Expiry Date</th>
-                        <th class="text-right">Strike Price</th>
-                        <th>Type</th>
-                        <th class="text-right">Lot Size</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr *ngFor="let opt of optionsList(); let isEven = even; let isOdd = odd" [ngClass]="{ 'row-even': isEven, 'row-odd': isOdd }">
-                        <td class="mono-val sec-id-cell">{{ opt.securityId }}</td>
-                        <td><span class="badge-chip index-chip">{{ opt.symbolName }}</span></td>
-                        <td class="symbol-cell"><strong>{{ opt.customSymbol || opt.tradingSymbol }}</strong></td>
-                        <td class="mono-val">{{ opt.expiryDate }}</td>
-                        <td class="mono-val text-right">₹{{ opt.strikePrice | number }}</td>
-                        <td>
-                          <span class="badge-chip" [ngClass]="{ 'ce-chip': opt.optionType === 'CE', 'pe-chip': opt.optionType === 'PE' }">
-                            {{ opt.optionType === 'CE' ? 'CALL (CE)' : 'PUT (PE)' }}
-                          </span>
-                        </td>
-                        <td class="mono-val text-right">{{ opt.lotSize }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <div class="empty-results" *ngIf="!isLoadingOptions() && optionsList().length === 0">
-                    <span class="material-symbols-rounded">search_off</span>
-                    <span>No option contracts found matching criteria in database.</span>
-                  </div>
-                </div>
-
-                <!-- Options Pagination -->
-                <div class="inspector-pagination">
-                  <span class="page-summary">
-                    Showing {{ totalOptionsCount > 0 ? optionsOffset + 1 : 0 }} - {{ getMin(optionsOffset + optionsLimit, totalOptionsCount) }} of {{ totalOptionsCount | number }} contracts
-                  </span>
-                  <div class="page-buttons">
-                    <button
-                      type="button"
-                      class="page-btn"
-                      [disabled]="optionsOffset === 0"
-                      (click)="changeOptionsPage(-1)"
-                    >
-                      <span class="material-symbols-rounded">chevron_left</span>
-                      <span>Previous</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="page-btn"
-                      [disabled]="optionsOffset + optionsLimit >= totalOptionsCount"
-                      (click)="changeOptionsPage(1)"
-                    >
-                      <span>Next</span>
-                      <span class="material-symbols-rounded">chevron_right</span>
-                    </button>
-                  </div>
+                <!-- Options Flush & Reload Success Banner -->
+                <div class="flush-inline-banner" *ngIf="instrumentService.lastFlushOptionsResult() as optRes">
+                  <span class="material-symbols-rounded">check_circle</span>
+                  <span>Options flushed & reloaded: <strong class="mono-val">{{ optRes.totalItems | number }}</strong> contracts across {{ optRes.totalChunks }} chunks</span>
                 </div>
               </div>
             </div>
@@ -1096,6 +1325,23 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
           border-radius: 4px;
           font-size: 0.75rem;
           color: var(--dhan-cyan);
+        }
+      }
+      .flush-inline-banner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 10px 14px;
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 8px;
+        color: #10b981;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        .material-symbols-rounded {
+          font-size: 18px;
+          flex-shrink: 0;
         }
       }
       .settings-container {
@@ -1803,6 +2049,223 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         margin-top: 2px;
       }
 
+      /* Active Sessions Section Styles */
+      .kill-others-btn {
+        background: rgba(244, 63, 94, 0.15) !important;
+        color: #f43f5e !important;
+        border: 1px solid rgba(244, 63, 94, 0.3) !important;
+        &:hover {
+          background: rgba(244, 63, 94, 0.25) !important;
+        }
+      }
+      .sessions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .session-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 14px;
+        transition: all 0.2s ease;
+        &.current-session {
+          border-color: rgba(16, 185, 129, 0.4);
+          background: rgba(16, 185, 129, 0.04);
+        }
+      }
+      .session-card-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .session-device-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        &.current-icon {
+          background: rgba(16, 185, 129, 0.15);
+          color: #10b981;
+        }
+        .material-symbols-rounded { font-size: 22px; }
+      }
+      .session-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .session-name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+      }
+      .current-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        color: #10b981;
+        font-size: 0.7rem;
+        font-weight: 600;
+        .material-symbols-rounded { font-size: 14px; }
+      }
+      .session-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        flex-wrap: wrap;
+        .meta-dot { opacity: 0.5; }
+      }
+      .session-actions-box {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        padding-top: 10px;
+        border-top: 1px solid var(--border-subtle);
+      }
+      .session-active-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #10b981;
+      }
+      .pulsing-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #10b981;
+        box-shadow: 0 0 8px #10b981;
+        animation: pulseDot 2s infinite ease-in-out;
+      }
+      @keyframes pulseDot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(0.8); }
+      }
+      .kill-session-btn {
+        min-height: 32px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border-color: rgba(244, 63, 94, 0.3);
+        color: #f43f5e;
+        &:hover {
+          background: rgba(244, 63, 94, 0.15);
+        }
+      }
+      .role-select-compact {
+        background: #0B0F19;
+        border: 1px solid #1E293B;
+        color: #fff;
+        font-size: 0.75rem;
+        padding: 3px 8px;
+        border-radius: 6px;
+        outline: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        &:hover, &:focus {
+          border-color: var(--dhan-cyan);
+        }
+      }
+      .session-count-chip-btn {
+        height: 26px;
+        padding: 0 8px;
+        font-size: 0.75rem;
+        border-radius: 6px;
+        background: rgba(99, 102, 241, 0.12);
+        color: #818cf8;
+        border: 1px solid rgba(99, 102, 241, 0.25);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        &:hover {
+          background: rgba(99, 102, 241, 0.22);
+        }
+        &.active-filter {
+          background: rgba(99, 102, 241, 0.3);
+          border-color: #818cf8;
+          font-weight: 600;
+        }
+      }
+      .filter-pill-btn {
+        height: 28px;
+        padding: 0 10px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border-radius: 14px;
+        background: #151C2C;
+        color: var(--text-secondary);
+        border: 1px solid #1E293B;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        &:hover {
+          background: #1E293B;
+          color: #fff;
+        }
+        &.active {
+          background: rgba(99, 102, 241, 0.2);
+          color: #818cf8;
+          border-color: rgba(99, 102, 241, 0.4);
+          font-weight: 600;
+        }
+      }
+      .kill-all-user-btn {
+        background: rgba(244, 63, 94, 0.15) !important;
+        color: #f43f5e !important;
+        border: 1px solid rgba(244, 63, 94, 0.3) !important;
+        &:hover {
+          background: rgba(244, 63, 94, 0.25) !important;
+        }
+      }
+      .user-sessions-panel {
+        margin-top: 16px;
+        background: #0E131F;
+        border: 1px solid #1E293B;
+        border-radius: 10px;
+        padding: 16px;
+      }
+      .inspected-sessions-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .inspected-session-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 14px;
+        background: #151C2C;
+        border: 1px solid #1E293B;
+        border-radius: 8px;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
       /* Mobile Optimizations for Platform Settings */
       @media (max-width: 768px) {
         .page-body { padding: 12px 14px 80px; }
@@ -1832,11 +2295,45 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 })
 export class SettingsPageComponent implements OnInit {
   readonly authService = inject(AuthService);
+  readonly userAuthService = inject(UserAuthService);
   readonly instrumentService = inject(InstrumentService);
   readonly firestoreApi = inject(FirestoreApiService);
   readonly alertService = inject(AlertService);
   readonly orderService = inject(OrderService);
   private readonly snackBar = inject(MatSnackBar);
+
+  // App User Password Change
+  readonly currentPasswordInput = signal('');
+  readonly newPasswordInput = signal('');
+  readonly isChangingPassword = signal(false);
+
+  // User Management State (Restricted to 'sarang')
+  readonly usersList = signal<UserSummary[]>([]);
+  readonly isLoadingUsers = signal(false);
+  readonly isCreatingUser = signal(false);
+  readonly isSubmittingUser = signal(false);
+  readonly newUsernameInput = signal('');
+  readonly newUserPasswordInput = signal('');
+  readonly newUserRoleInput = signal('trader');
+  readonly editingUser = signal<UserSummary | null>(null);
+  readonly editUserRoleInput = signal('trader');
+  readonly editUserPasswordInput = signal('');
+  readonly isUpdatingUserRole = signal<string | null>(null);
+
+  // Active Sessions Management (Integrated in User Management & Access Control)
+  readonly allSessions = signal<ActiveSession[]>([]);
+  readonly activeSessionFilter = signal<string>('ALL');
+  readonly isLoadingSessions = signal(false);
+  readonly mySessions = signal<ActiveSession[]>([]);
+  readonly inspectedUsername = signal<string | null>(null);
+  readonly inspectedUserSessions = signal<ActiveSession[]>([]);
+  readonly isLoadingInspectedSessions = signal(false);
+  readonly filteredSessions = computed(() => {
+    const f = this.activeSessionFilter();
+    const list = this.allSessions();
+    if (f === 'ALL') return list;
+    return list.filter((s) => s.username?.toLowerCase() === f.toLowerCase());
+  });
 
   // Token Update Form
   tokenInput = '';
@@ -1854,31 +2351,6 @@ export class SettingsPageComponent implements OnInit {
   lotMidcapNifty = 0;
   lotSensex = 0;
   indicesList: IndexConfigItem[] = [];
-
-  // MASTER DATA INSPECTOR & EXPLORER STATE
-  activeInspectorTab: 'equities' | 'options' = 'equities';
-
-  // Equities Inspector state
-  equitiesSearchTerm = '';
-  equitiesSegmentFilter = '';
-  equitiesOffset = 0;
-  equitiesLimit = 20;
-  totalEquitiesCount = 0;
-  readonly equitiesList = signal<Instrument[]>([]);
-  readonly isLoadingEquities = signal<boolean>(false);
-
-  // Options Inspector state
-  optionsSearchTerm = '';
-  optionsIndexFilter = '';
-  optionsExpiryFilter = '';
-  optionsTypeFilter = '';
-  optionsOffset = 0;
-  optionsLimit = 20;
-  totalOptionsCount = 0;
-  optionsAvailableExpiries: string[] = [];
-  optionsTradedIndices: string[] = ['NIFTY', 'BANKNIFTY', 'MIDCPNIFTY', 'SENSEX'];
-  readonly optionsList = signal<CachedIndexOption[]>([]);
-  readonly isLoadingOptions = signal<boolean>(false);
 
   constructor() {
     // Synchronize inputs when lot sizes signal changes
@@ -1905,109 +2377,6 @@ export class SettingsPageComponent implements OnInit {
         }
       }
     });
-  }
-
-  getMin(a: number, b: number): number {
-    return Math.min(a, b);
-  }
-
-  onSelectInspectorTab(tab: 'equities' | 'options'): void {
-    this.activeInspectorTab = tab;
-    if (tab === 'equities' && this.equitiesList().length === 0) {
-      this.loadEquities();
-    } else if (tab === 'options' && this.optionsList().length === 0) {
-      this.loadOptions();
-    }
-  }
-
-  loadEquities(): void {
-    this.isLoadingEquities.set(true);
-    this.instrumentService
-      .queryEquities(this.equitiesSearchTerm, this.equitiesSegmentFilter, this.equitiesLimit, this.equitiesOffset)
-      .subscribe({
-        next: (res) => {
-          this.isLoadingEquities.set(false);
-          if (res) {
-            this.totalEquitiesCount = res.total;
-            this.equitiesList.set(res.items);
-          }
-        },
-        error: () => this.isLoadingEquities.set(false),
-      });
-  }
-
-  onEquitiesSearchChange(): void {
-    this.equitiesOffset = 0;
-    this.loadEquities();
-  }
-
-  setEquitiesSegment(seg: string): void {
-    this.equitiesSegmentFilter = seg;
-    this.equitiesOffset = 0;
-    this.loadEquities();
-  }
-
-  changeEquitiesPage(dir: number): void {
-    const next = this.equitiesOffset + dir * this.equitiesLimit;
-    if (next >= 0 && next < this.totalEquitiesCount) {
-      this.equitiesOffset = next;
-      this.loadEquities();
-    }
-  }
-
-  loadOptions(): void {
-    this.isLoadingOptions.set(true);
-    this.instrumentService
-      .queryOptions(
-        this.optionsIndexFilter,
-        this.optionsExpiryFilter,
-        null,
-        this.optionsTypeFilter,
-        this.optionsSearchTerm,
-        this.optionsLimit,
-        this.optionsOffset,
-      )
-      .subscribe({
-        next: (res) => {
-          this.isLoadingOptions.set(false);
-          if (res) {
-            this.totalOptionsCount = res.total;
-            this.optionsList.set(res.items);
-            if (res.expiries && res.expiries.length > 0) {
-              this.optionsAvailableExpiries = res.expiries;
-            }
-            if (res.tradedIndices && res.tradedIndices.length > 0) {
-              this.optionsTradedIndices = res.tradedIndices;
-            }
-          }
-        },
-        error: () => this.isLoadingOptions.set(false),
-      });
-  }
-
-  onOptionsSearchChange(): void {
-    this.optionsOffset = 0;
-    this.loadOptions();
-  }
-
-  setOptionsIndex(idx: string): void {
-    this.optionsIndexFilter = idx;
-    this.optionsOffset = 0;
-    this.loadOptions();
-  }
-
-  setOptionsType(type: string): void {
-    this.optionsTypeFilter = type;
-    this.optionsOffset = 0;
-    this.loadOptions();
-  }
-
-  changeOptionsPage(dir: number): void {
-    const next = this.optionsOffset + dir * this.optionsLimit;
-    if (next >= 0 && next < this.totalOptionsCount) {
-      this.optionsOffset = next;
-      this.loadOptions();
-    }
   }
 
   getIndexConfig(symbol: string): IndexConfigItem | undefined {
@@ -2050,20 +2419,23 @@ export class SettingsPageComponent implements OnInit {
     this.instrumentService.fetchLotSizes().subscribe();
     this.instrumentService.fetchConfiguredIndices().subscribe();
     this.firestoreApi.refreshStatus().subscribe();
-    this.loadEquities();
-    this.loadOptions();
+    if (this.userAuthService.isAdmin()) {
+      this.loadUsersAndSessions();
+    }
   }
 
-  onSyncEquities(): void {
-    this.instrumentService.syncEquities().subscribe(() => {
-      this.loadEquities();
-    });
+  onFlushAndReloadEquities(): void {
+    if (!confirm('Are you sure you want to completely flush and reload cash equities and benchmark indices from Dhan?')) {
+      return;
+    }
+    this.instrumentService.flushAndReloadEquities().subscribe();
   }
 
-  onSyncOptions(): void {
-    this.instrumentService.syncOptions().subscribe(() => {
-      this.loadOptions();
-    });
+  onFlushAndReloadOptions(): void {
+    if (!confirm('Are you sure you want to completely flush and reload traded index options contracts from Dhan?')) {
+      return;
+    }
+    this.instrumentService.flushAndReloadOptions().subscribe();
   }
 
   submitTokenUpdate(): void {
@@ -2146,5 +2518,258 @@ export class SettingsPageComponent implements OnInit {
       .subscribe(() => {
         this.instrumentService.fetchConfiguredIndices().subscribe();
       });
+  }
+
+  changeAppPassword(): void {
+    const current = this.currentPasswordInput().trim();
+    const newPwd = this.newPasswordInput().trim();
+
+    if (!current || !newPwd) {
+      this.snackBar.open('Please fill both current and new password', 'Dismiss', { duration: 3000 });
+      return;
+    }
+
+    if (newPwd.length < 6) {
+      this.snackBar.open('New password must be at least 6 characters long', 'Dismiss', { duration: 3000 });
+      return;
+    }
+
+    this.isChangingPassword.set(true);
+    this.userAuthService.changePassword({
+      currentPassword: current,
+      newPassword: newPwd,
+    }).subscribe({
+      next: () => {
+        this.isChangingPassword.set(false);
+        this.currentPasswordInput.set('');
+        this.newPasswordInput.set('');
+      },
+      error: (err) => {
+        this.isChangingPassword.set(false);
+        const msg = err?.error?.message || 'Failed to change password. Please verify current password.';
+        this.snackBar.open(msg, 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  // =========================================================================
+  // USER CRUD OPERATIONS (Restricted strictly to 'admin' role)
+  // =========================================================================
+
+  loadUsersList(): void {
+    if (!this.userAuthService.isAdmin()) return;
+    this.isLoadingUsers.set(true);
+    this.userAuthService.listUsers().subscribe({
+      next: (users) => {
+        this.isLoadingUsers.set(false);
+        this.usersList.set(users || []);
+      },
+      error: (err) => {
+        this.isLoadingUsers.set(false);
+        const msg = err?.error?.message || 'Failed to load users list';
+        this.snackBar.open(msg, 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  onRoleChange(user: UserSummary, newRole: string): void {
+    if (user.role === newRole) return;
+    this.isUpdatingUserRole.set(user.username);
+    this.userAuthService.updateUser(user.username, { role: newRole }).subscribe({
+      next: () => {
+        this.isUpdatingUserRole.set(null);
+        this.loadUsersList();
+      },
+      error: (err) => {
+        this.isUpdatingUserRole.set(null);
+        const msg = err?.error?.message || `Failed to update role for ${user.username}`;
+        this.snackBar.open(msg, 'Dismiss', { duration: 4000 });
+        this.loadUsersList();
+      },
+    });
+  }
+
+  openCreateUserForm(): void {
+    this.newUsernameInput.set('');
+    this.newUserPasswordInput.set('');
+    this.newUserRoleInput.set('trader');
+    this.isCreatingUser.set(true);
+  }
+
+  submitCreateUser(): void {
+    const username = this.newUsernameInput().trim();
+    const password = this.newUserPasswordInput().trim();
+    const role = this.newUserRoleInput();
+
+    if (!username || !password) {
+      this.snackBar.open('Username and password are required', 'Dismiss', { duration: 3000 });
+      return;
+    }
+
+    this.isSubmittingUser.set(true);
+    this.userAuthService.createUser({ username, password, role }).subscribe({
+      next: () => {
+        this.isSubmittingUser.set(false);
+        this.isCreatingUser.set(false);
+        this.loadUsersList();
+      },
+      error: (err) => {
+        this.isSubmittingUser.set(false);
+        const msg = err?.error?.message || 'Failed to create user';
+        this.snackBar.open(msg, 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  startEditUser(u: UserSummary): void {
+    this.editingUser.set(u);
+    this.editUserRoleInput.set(u.role || 'trader');
+    this.editUserPasswordInput.set('');
+  }
+
+  submitUpdateUser(): void {
+    const user = this.editingUser();
+    if (!user) return;
+
+    const role = this.editUserRoleInput();
+    const password = this.editUserPasswordInput().trim();
+
+    this.isSubmittingUser.set(true);
+    this.userAuthService.updateUser(user.username, {
+      role,
+      password: password || undefined,
+    }).subscribe({
+      next: () => {
+        this.isSubmittingUser.set(false);
+        this.editingUser.set(null);
+        this.loadUsersList();
+      },
+      error: (err) => {
+        this.isSubmittingUser.set(false);
+        const msg = err?.error?.message || 'Failed to update user';
+        this.snackBar.open(msg, 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  confirmDeleteUser(username: string): void {
+    const clean = username.trim().toLowerCase();
+    if (clean === 'sarang') {
+      this.snackBar.open('Cannot delete superuser account sarang', 'Dismiss', { duration: 4000 });
+      return;
+    }
+    const current = (this.userAuthService.currentUser()?.username || '').trim().toLowerCase();
+    if (clean === current) {
+      this.snackBar.open('Cannot delete your own logged-in account', 'Dismiss', { duration: 4000 });
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to permanently delete user account '${username}'?`)) {
+      return;
+    }
+
+    this.userAuthService.deleteUser(username).subscribe({
+      next: () => {
+        this.loadUsersList();
+      },
+      error: (err) => {
+        const msg = err?.error?.message || 'Failed to delete user';
+        this.snackBar.open(msg, 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  // =========================================================================
+  // ACTIVE SESSIONS METHODS (Integrated in User Management & Access Control)
+  // =========================================================================
+
+  loadUsersAndSessions(): void {
+    this.loadUsersList();
+    this.loadAllSessions();
+  }
+
+  loadAllSessions(): void {
+    this.isLoadingSessions.set(true);
+    this.userAuthService.getAllSessions().subscribe({
+      next: (sessions) => {
+        const list = sessions || [];
+        this.allSessions.set(list);
+        this.mySessions.set(list);
+        this.isLoadingSessions.set(false);
+      },
+      error: () => this.isLoadingSessions.set(false),
+    });
+  }
+
+  loadMySessions(): void {
+    this.loadAllSessions();
+  }
+
+  filterSessionsByUser(username: string): void {
+    if (this.activeSessionFilter().toLowerCase() === username.toLowerCase()) {
+      this.activeSessionFilter.set('ALL');
+      this.inspectedUsername.set(null);
+    } else {
+      this.activeSessionFilter.set(username);
+      this.inspectedUsername.set(username);
+      // Also load into inspectedUserSessions for backward compatibility
+      this.inspectedUserSessions.set(
+        this.allSessions().filter((s) => s.username?.toLowerCase() === username.toLowerCase())
+      );
+    }
+  }
+
+  confirmKillSession(session: ActiveSession): void {
+    if (!confirm(`Are you sure you want to terminate session on ${session.browser} (${session.os}) for user '${session.username}'?`)) {
+      return;
+    }
+    this.userAuthService.killUserSession(session.username, session.id).subscribe({
+      next: () => {
+        this.loadUsersAndSessions();
+      },
+    });
+  }
+
+  confirmKillOtherSessions(): void {
+    if (!confirm('Are you sure you want to terminate all other active sessions for current user? All other logged-in devices will be signed out.')) {
+      return;
+    }
+    this.userAuthService.killOtherSessions().subscribe({
+      next: () => {
+        this.loadUsersAndSessions();
+      },
+    });
+  }
+
+  inspectUserSessions(username: string): void {
+    this.filterSessionsByUser(username);
+  }
+
+  loadInspectedUserSessions(username: string): void {
+    this.filterSessionsByUser(username);
+  }
+
+  confirmKillInspectedSession(sessionId: string): void {
+    const user = this.inspectedUsername() || this.activeSessionFilter();
+    if (!user || user === 'ALL') return;
+    if (!confirm(`Are you sure you want to terminate this session for user '${user}'?`)) {
+      return;
+    }
+    this.userAuthService.killUserSession(user, sessionId).subscribe({
+      next: () => {
+        this.loadUsersAndSessions();
+      },
+    });
+  }
+
+  confirmKillAllUserSessions(username: string): void {
+    if (!confirm(`Are you sure you want to terminate ALL active sessions for '${username}'? The user will be immediately logged out of all devices.`)) {
+      return;
+    }
+    this.userAuthService.killAllUserSessions(username).subscribe({
+      next: () => {
+        this.loadUsersAndSessions();
+      },
+    });
   }
 }

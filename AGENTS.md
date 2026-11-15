@@ -41,7 +41,10 @@ This document provides operational context, architectural contracts, design rule
 - **Never inject hardcoded mock data or static fallback values** (e.g., fake LTPs, static positions, simulated orders, hardcoded fallback passwords) into services, components, or API calls.
 - All metrics (P&L, funds, orders, positions, alerts, lot sizes, trade password verification) must originate dynamically from the backend and Google Cloud Firestore.
 - If an endpoint has not returned data yet or is offline, display `--` or `Unavailable`, or throw an explicit section error with a Retry button; do not fall back to synthetic or fake values.
-- **Never expose sensitive credentials in UI text**: Never include real passwords, default PINs, access tokens, or sensitive values in placeholders, helper text, labels, or error messages (e.g. never show `(e.g. 3646)` in an input placeholder). Password inputs must have generic placeholders like `"Enter trade password"`.
+- **Strict Zero Secret Leaks & No Credential Display on UI (CRITICAL)**:
+  - **Never display, hint, pre-fill, or output usernames, passwords, default credentials, PINs, or tokens anywhere in the UI.**
+  - **The login page and dialogs must NEVER display default credentials chips, helper text with passwords, or pre-filled hints** (e.g. NEVER display `admin / admin123` or default credentials anywhere on screen). This is a critical financial trading platform.
+  - Input placeholders must remain strictly generic: `"Enter username"`, `"Enter password"`, `"Enter trade password"`. Never include example credentials (e.g. never show `(e.g. admin)` or `(e.g. 3646)` in placeholders or labels).
 
 ### Rule 2: Graceful Section-Level Error Handling
 - **Never crash or show an error across the entire page.** The application shell, navigation, and other functional panels must remain intact.
@@ -75,6 +78,29 @@ This document provides operational context, architectural contracts, design rule
   - Lifecycle: Both the Entry alert order and Stop Loss alert order are deployed immediately to Dhan HQ API v2 (`POST /alerts/orders`) to **SELL / square off the exact same option contract** that was bought.
   - **Unified Trade Order Card**: In the Live Alert Monitor, Buy orders with attached Stop Loss orders are presented as **a single, unified trade order card** rather than two scattered cards. The child Stop Loss order is embedded directly inside the parent card, displaying its trigger price, point distance (-12 pts / -20 pts), and square-off contract details. Deleting the card removes both the entry and stop loss alerts from Dhan.
 
+### Rule 5: User Authentication & Indefinite Session Persistence
+- **Dual-Token Architecture**:
+  - The application requires username and password login (`POST /api/user-auth/login`).
+  - Access Token: Short-lived HS256 JWT (15 minutes). Attached to all authenticated requests via `Authorization: Bearer <accessToken>`.
+  - Refresh Token: Long-lived cryptographically secure random token (365 days / 1 year), stored in `localStorage` and synced with Firestore `config/auth_user`.
+- **Indefinite Persistent Login ("Stay Logged In")**:
+  - Exactly like major platforms (Twitter/X, Facebook, LinkedIn), user sessions remain active indefinitely across browser restarts, reboots, and tab closures.
+  - The session expires **strictly and only when the user explicitly clicks Sign Out or clears their entire browser history, cache, cookies, and site data**.
+  - `userAuthInterceptor`: Intercepts 401 Unauthorized responses and silently refreshes the access token in the background using `POST /api/user-auth/refresh`, retrying the failed request seamlessly.
+- **Route Protection**:
+  - All workspace routes (`/`, `/trades`, `/settings`) are guarded by `authGuard`. Unauthenticated users are redirected to `/login`.
+  - The `/login` route is protected by `guestGuard`, redirecting authenticated users to the dashboard (`/`).
+  - The top navigation bar (`<app-header>`) is hidden when unauthenticated.
+- **Account Management & Password Updates**:
+  - Users can change their application password via the Settings page (`PUT /api/user-auth/password`).
+  - Never display credentials, default hints, or pre-filled passwords in any UI component or label.
+- **Role-Based Access Control (RBAC) & User Management (Restricted to 'admin' role)**:
+  - User accounts and roles (`admin`, `trader`, `viewer`) are stored in Google Cloud Firestore collection `users` (document ID = `username.toLowerCase()`).
+  - **Role-Based Authorization**: Users with the `admin` role are authorized to view and manage the User Management & Active Sessions section on the Settings page, view and adjust roles (`admin`, `trader`, `viewer`), create/update/delete users, and inspect/terminate active device sessions across users. For non-`admin` users (`trader`, `viewer`), this section is completely hidden in the UI.
+  - **Declarative Decorator / Annotation (@Roles)**: On the REST API backend, role permissions are enforced cleanly using the NestJS `@Roles(UserRole.ADMIN)` annotation and global `RolesGuard` rather than static string checks. Unauthorized callers receive HTTP 403 Forbidden.
+  - The seed superuser `sarang` account is permanently protected from deletion and demotion.
+  - Passwords are encrypted using memory-hard `scrypt` hashing and are never exposed in user list responses.
+
 ---
 
 ## 4. Backend Endpoints & API Contract (`http://127.0.0.1:8000`)
@@ -87,6 +113,19 @@ This document provides operational context, architectural contracts, design rule
 | Endpoint | Method | Tag | Description |
 | :--- | :---: | :--- | :--- |
 | `/health` | `GET` | System | Healthcheck & service status |
+| `/api/user-auth/login` | `POST` | User Auth | Authenticate username & password, issue JWT + persistent refresh token |
+| `/api/user-auth/refresh` | `POST` | User Auth | Silently renew short-lived access token using persistent refresh token |
+| `/api/user-auth/logout` | `POST` | User Auth | Revoke active refresh token session |
+| `/api/user-auth/me` | `GET` | User Auth | Retrieve profile information of authenticated user |
+| `/api/user-auth/password` | `PUT` | User Auth | Update user password in Firestore `users/{username}` |
+| `/api/user-auth/status` | `GET` | User Auth | Check user authentication readiness and configuration |
+| `/api/user-auth/sessions` | `GET`, `DELETE` | User Auth | List current user active sessions or kill all other sessions |
+| `/api/user-auth/sessions/{id}` | `DELETE` | User Auth | Terminate/kill a specific active session for current user |
+| `/api/user-auth/all-sessions` | `GET` | User Auth | List active sessions across all users (Restricted to `admin` via `@Roles`) |
+| `/api/user-auth/users` | `GET`, `POST` | User Auth | List all users or create a new user (Restricted to `admin` via `@Roles`) |
+| `/api/user-auth/users/{username}` | `PUT`, `DELETE` | User Auth | Update user role/password or delete user (Restricted to `admin` via `@Roles`) |
+| `/api/user-auth/users/{username}/sessions` | `GET`, `DELETE` | User Auth | List or terminate all active sessions for user (Restricted to `admin` via `@Roles`) |
+| `/api/user-auth/users/{username}/sessions/{id}` | `DELETE` | User Auth | Terminate specific active session for user (Restricted to `admin` via `@Roles`) |
 | `/api/auth/status` | `GET` | Auth | JWT inspection, remaining seconds, IST timestamps |
 | `/api/auth/verify` | `GET` | Auth | Verify live validity against Dhan API profile |
 | `/api/auth/renew` | `POST` | Auth | 1-Click auto-renew Dhan access token |
@@ -103,6 +142,13 @@ This document provides operational context, architectural contracts, design rule
 | `/api/instruments?q={term}` | `GET` | Instruments | Search scrip master with debounce |
 | `/api/instruments/expiries` | `GET` | Instruments | Available weekly/monthly option expiries |
 | `/api/instruments/option-contracts` | `GET`, `POST` | Instruments | 3 strikes (ATM-1, ATM, ATM+1) around target price |
+| `/api/instruments/flush-and-reload` | `POST` | Instruments | Totally flush master data from Firestore and reload fresh from Dhan |
+| `/api/instruments/flush-and-reload/equities` | `POST` | Instruments | Flush sec_id_to_name_mapping and reload fresh cash equities & indices from Dhan |
+| `/api/instruments/flush-and-reload/options` | `POST` | Instruments | Flush index_options and reload fresh traded index options contracts from Dhan |
+| `/api/instruments/sync/equities` | `POST` | Instruments | Synchronize cash equities & indices to sec_id_to_name_mapping |
+| `/api/instruments/sync/options` | `POST` | Instruments | Synchronize traded index options to index_options |
+| `/api/instruments/sync/status` | `GET` | Instruments | Metadata and document status of sec_id_to_name_mapping |
+| `/api/instruments/sync/options/status` | `GET` | Instruments | Metadata and document status of index_options |
 | `/api/telegram/status` | `GET` | Telegram | Telegram bot connection state |
 | `/api/telegram/test` | `POST` | Telegram | Dispatch test verification message |
 | `/api/telegram/update` | `POST` | Telegram | Update Bot Token and Chat ID dynamically |
@@ -116,20 +162,27 @@ src/app/
 ├── core/
 │   ├── api/
 │   │   ├── alert.service.ts         // Alerts endpoints and live alert state
-│   │   ├── auth.service.ts          // JWT status, countdown, and renewal
+│   │   ├── auth.service.ts          // Dhan HQ JWT status, countdown, and renewal
+│   │   ├── user-auth.service.ts     // App username/password auth, refresh tokens, signals
 │   │   ├── instrument.service.ts    // Real scrip search
 │   │   ├── order.service.ts         // Orders and positions
 │   │   └── telegram.service.ts      // Telegram bot connection & test
+│   ├── guards/
+│   │   └── auth.guard.ts            // Functional authGuard & guestGuard
 │   ├── interceptors/
 │   │   ├── api-prefix.interceptor.ts// Auto-prefixes http://127.0.0.1:8000
+│   │   ├── user-auth.interceptor.ts // Attaches Bearer JWT & auto-refreshes on 401
 │   │   └── error.interceptor.ts     // Global snackbar notification handler
 │   ├── models/
 │   │   ├── alert.models.ts
 │   │   ├── auth.models.ts
+│   │   ├── user-auth.models.ts
 │   │   ├── instrument.models.ts
 │   │   ├── order.models.ts
 │   │   └── telegram.models.ts
 ├── features/
+│   ├── auth/
+│   │   └── login/                   // M3 dark mode username/password login screen
 │   ├── dashboard/
 │   │   ├── components/
 │   │   │   ├── alert-composer/      // Fixed dropdown (NIFTY/BANK/SENSEX/RELIANCE) + order trigger
@@ -139,10 +192,12 @@ src/app/
 │   │   └── dashboard.component.ts   // 3-Zone dashboard layout (composer, monitor, positions/orders)
 │   └── settings/
 │       ├── auth-modal/              // Token inspection, live verify, manual edit
-│       └── telegram-modal/          // Bot token & chat ID configuration
+│       ├── telegram-modal/          // Bot token & chat ID configuration
+│       └── settings-page/           // Workspace settings & app password change
 ├── shared/
 │   ├── components/
 │   │   ├── confirmation-dialog/     // M3 confirmation dialogs
+│   │   ├── header/                  // Top app bar with user profile & logout action
 │   │   ├── price-badge/             // JetBrains Mono colored P&L badges
 │   │   ├── scrip-searcher-modal/    // Spotlight search (Ctrl+K)
 │   │   └── section-error/           // Section-level graceful degradation card

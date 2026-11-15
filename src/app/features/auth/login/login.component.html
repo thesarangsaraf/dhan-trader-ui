@@ -1,0 +1,122 @@
+<div class="login-page-container">
+  <!-- Subtle decorative ambient glows -->
+  <div class="ambient-glow cyan-glow"></div>
+  <div class="ambient-glow indigo-glow"></div>
+
+  <div class="login-card-wrapper">
+    <!-- Brand Header -->
+    <div class="brand-header">
+      <div class="brand-logo">
+        <span class="material-symbols-rounded">candlestick_chart</span>
+      </div>
+      <div class="brand-info">
+        <div class="brand-title">DHAN TRADER PRO</div>
+        <div class="brand-tagline">API v2.0 &bull; Live Marketfeed & Execution Engine</div>
+      </div>
+    </div>
+
+    <!-- Main Login Card -->
+    <div class="login-card">
+      <div class="card-title-group">
+        <h1 class="card-heading">Workspace Sign In</h1>
+        <p class="card-subheading">Enter your account credentials to access trading monitors and controls</p>
+      </div>
+
+      <!-- Error Alert Box -->
+      @if (errorMessage()) {
+        <div class="error-banner">
+          <span class="material-symbols-rounded error-icon">error</span>
+          <div class="error-text">{{ errorMessage() }}</div>
+        </div>
+      }
+
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+        <!-- Username Field -->
+        <div class="form-field-wrapper">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Username</mat-label>
+            <span matPrefix class="material-symbols-rounded prefix-icon">account_circle</span>
+            <input
+              matInput
+              type="text"
+              formControlName="username"
+              autocomplete="username"
+              placeholder="Enter username"
+              required
+            />
+            @if (loginForm.get('username')?.invalid && loginForm.get('username')?.touched) {
+              <mat-error>Username is required</mat-error>
+            }
+          </mat-form-field>
+        </div>
+
+        <!-- Password Field -->
+        <div class="form-field-wrapper">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Password</mat-label>
+            <span matPrefix class="material-symbols-rounded prefix-icon">lock</span>
+            <input
+              matInput
+              [type]="hidePassword() ? 'password' : 'text'"
+              formControlName="password"
+              autocomplete="current-password"
+              placeholder="Enter password"
+              required
+            />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              (click)="togglePasswordVisibility()"
+              class="suffix-btn"
+              [attr.aria-label]="hidePassword() ? 'Show password' : 'Hide password'"
+            >
+              <span class="material-symbols-rounded">
+                {{ hidePassword() ? 'visibility' : 'visibility_off' }}
+              </span>
+            </button>
+            @if (loginForm.get('password')?.invalid && loginForm.get('password')?.touched) {
+              <mat-error>Password is required</mat-error>
+            }
+          </mat-form-field>
+        </div>
+
+        <!-- Persistent Session Callout -->
+        <div class="session-callout">
+          <div class="callout-icon-wrap">
+            <span class="material-symbols-rounded callout-icon">verified_user</span>
+          </div>
+          <div class="callout-content">
+            <div class="callout-title">Persistent Session Active</div>
+            <div class="callout-desc">
+              Keeps you logged in indefinitely until you explicitly sign out or clear browser cache & cookies.
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button
+          mat-flat-button
+          color="primary"
+          type="submit"
+          class="submit-btn"
+          [disabled]="isLoading()"
+        >
+          <ng-container *ngIf="isLoading(); else defaultBtnContent">
+            <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+            <span>Signing In...</span>
+          </ng-container>
+          <ng-template #defaultBtnContent>
+            <span class="material-symbols-rounded">login</span>
+            <span>Sign In to Workspace</span>
+          </ng-template>
+        </button>
+      </form>
+    </div>
+
+    <!-- Security & Framework Footer -->
+    <div class="page-footer">
+      <span>Protected by <strong>scrypt</strong> key derivation &bull; HS256 Session Tokens</span>
+    </div>
+  </div>
+</div>
