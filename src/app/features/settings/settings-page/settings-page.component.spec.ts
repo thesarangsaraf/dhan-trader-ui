@@ -263,6 +263,37 @@ describe('SettingsPageComponent', () => {
     expect(el.textContent).not.toContain('Master Data Inspector & Explorer');
   });
 
+  it('should totally remove Google Cloud Firestore Infrastructure section from settings page', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('#firestore-section')).toBeNull();
+    expect(el.textContent).not.toContain('Google Cloud Firestore Infrastructure');
+  });
+
+  it('should only show new password option in #user-auth-section and omit overview/protocol info and old password', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const userAuthSec = el.querySelector('#user-auth-section');
+    expect(userAuthSec).toBeTruthy();
+
+    // Verify it only asks for new password, not old / current password
+    expect(userAuthSec?.textContent).toContain('New Password');
+    expect(userAuthSec?.textContent).not.toContain('Current Password');
+    expect(userAuthSec?.textContent).not.toContain('Enter current password');
+
+    // Verify it does not show overview info
+    expect(userAuthSec?.textContent).not.toContain('Active User');
+    expect(userAuthSec?.textContent).not.toContain('Session Persistence');
+    expect(userAuthSec?.textContent).not.toContain('Keeps you signed in until browser cache & cookies are cleared');
+    expect(userAuthSec?.textContent).not.toContain('Security Protocol');
+    expect(userAuthSec?.textContent).not.toContain('Hardware-resistant salted password derivation');
+
+    // Verify change password action
+    const changePwdSpy = vi.spyOn(component.userAuthService, 'changePassword').mockReturnValue(of({ success: true, message: 'Password updated' }));
+    component.newPasswordInput.set('mySecurePass123');
+    component.changeAppPassword();
+    expect(changePwdSpy).toHaveBeenCalledWith({ newPassword: 'mySecurePass123' });
+    expect(component.newPasswordInput()).toBe('');
+  });
+
   it('should render active sessions inside #user-crud-section and allow killing sessions', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const mockSessions = [

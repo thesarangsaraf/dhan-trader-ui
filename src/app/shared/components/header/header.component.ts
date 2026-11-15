@@ -49,6 +49,10 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
           <span class="material-symbols-rounded">dashboard</span>
           <span>Live Monitor</span>
         </a>
+        <a routerLink="/charts" class="nav-tab" routerLinkActive="active">
+          <span class="material-symbols-rounded">show_chart</span>
+          <span>Charts</span>
+        </a>
         <a routerLink="/trades" class="nav-tab" routerLinkActive="active">
           <span class="material-symbols-rounded">history</span>
           <span>Trade History</span>

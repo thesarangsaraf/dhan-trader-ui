@@ -118,85 +118,38 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             <div class="section-header">
               <div class="section-title-wrap">
                 <div class="icon-avatar token-avatar">
-                  <span class="material-symbols-rounded">admin_panel_settings</span>
+                  <span class="material-symbols-rounded">lock_reset</span>
                 </div>
                 <div>
                   <h2 class="section-heading">App User & Persistent Authentication</h2>
-                  <p class="section-subheading">Manage workspace login credentials and active persistent session (stored in Firestore config/auth_user)</p>
+                  <p class="section-subheading">Update application workspace login password</p>
                 </div>
-              </div>
-              <div class="section-actions">
-                <button
-                  mat-stroked-button
-                  color="warn"
-                  class="action-btn-danger"
-                  (click)="userAuthService.logout()"
-                  matTooltip="Sign out and revoke this session"
-                >
-                  <span class="material-symbols-rounded">logout</span>
-                  <span>Sign Out</span>
-                </button>
               </div>
             </div>
 
-            <div class="token-overview-grid">
-              <div class="metric-box">
-                <span class="m-label">Active User</span>
-                <span class="m-val highlight">{{ userAuthService.currentUser()?.username || 'admin' }}</span>
-                <span class="m-meta">Role: Administrator</span>
+            <!-- Password Update Form -->
+            <div class="password-update-row">
+              <div class="password-input-col">
+                <label class="compact-label">New Password</label>
+                <input
+                  type="password"
+                  [value]="newPasswordInput()"
+                  (input)="newPasswordInput.set($any($event.target).value)"
+                  (keydown.enter)="changeAppPassword()"
+                  placeholder="Enter new password (min 6 characters)"
+                  class="compact-password-input"
+                />
               </div>
-              <div class="metric-box">
-                <span class="m-label">Session Persistence</span>
-                <span class="m-val highlight" style="color: var(--color-profit)">Active (Permanent)</span>
-                <span class="m-meta">Keeps you signed in until browser cache & cookies are cleared</span>
-              </div>
-              <div class="metric-box">
-                <span class="m-label">Security Protocol</span>
-                <span class="m-val highlight">scrypt + HS256 JWT</span>
-                <span class="m-meta">Hardware-resistant salted password derivation</span>
-              </div>
-            </div>
-
-            <!-- Password Change Form -->
-            <div class="token-manual-card" style="margin-top: 16px;">
-              <div class="manual-header">
-                <span class="material-symbols-rounded">lock_reset</span>
-                <span>Change Workspace Password</span>
-              </div>
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 12px;">
-                <div>
-                  <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Current Password</label>
-                  <input
-                    type="password"
-                    [value]="currentPasswordInput()"
-                    (input)="currentPasswordInput.set($any($event.target).value)"
-                    placeholder="Enter current password"
-                    style="width: 100%; padding: 8px 12px; background: #0B0F19; border: 1px solid #1E293B; border-radius: 8px; color: #fff; font-size: 0.8125rem; outline: none; box-sizing: border-box;"
-                  />
-                </div>
-                <div>
-                  <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">New Password (min 6 characters)</label>
-                  <input
-                    type="password"
-                    [value]="newPasswordInput()"
-                    (input)="newPasswordInput.set($any($event.target).value)"
-                    placeholder="Enter new password"
-                    style="width: 100%; padding: 8px 12px; background: #0B0F19; border: 1px solid #1E293B; border-radius: 8px; color: #fff; font-size: 0.8125rem; outline: none; box-sizing: border-box;"
-                  />
-                </div>
-              </div>
-              <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
-                <button
-                  mat-flat-button
-                  color="primary"
-                  class="action-btn-primary"
-                  (click)="changeAppPassword()"
-                  [disabled]="isChangingPassword() || !currentPasswordInput() || !newPasswordInput()"
-                >
-                  <span class="material-symbols-rounded">{{ isChangingPassword() ? 'autorenew' : 'save' }}</span>
-                  <span>{{ isChangingPassword() ? 'Updating Password...' : 'Update Password' }}</span>
-                </button>
-              </div>
+              <button
+                mat-flat-button
+                color="primary"
+                class="action-btn-primary"
+                (click)="changeAppPassword()"
+                [disabled]="isChangingPassword() || !newPasswordInput() || newPasswordInput().length < 6"
+              >
+                <span class="material-symbols-rounded">{{ isChangingPassword() ? 'autorenew' : 'save' }}</span>
+                <span>{{ isChangingPassword() ? 'Updating...' : 'Update Password' }}</span>
+              </button>
             </div>
           </section>
 
@@ -1151,67 +1104,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
               </div>
             </div>
           </section>
-
-          <!-- SECTION 4: GOOGLE CLOUD FIRESTORE DIAGNOSTICS -->
-          <section class="settings-section-card" id="firestore-section">
-            <div class="section-header">
-              <div class="section-title-wrap">
-                <div class="icon-avatar fs-avatar">
-                  <span class="material-symbols-rounded">cloud</span>
-                </div>
-                <div>
-                  <h2 class="section-heading">Google Cloud Firestore Infrastructure</h2>
-                  <p class="section-subheading">Enterprise serverless database persistence for security master, Dhan token, and configuration</p>
-                </div>
-              </div>
-              <div class="section-actions">
-                <button
-                  mat-stroked-button
-                  class="action-btn"
-                  (click)="firestoreApi.testConnection().subscribe()"
-                  [disabled]="firestoreApi.isTesting()"
-                  matTooltip="Test live latency and connectivity to Google Cloud Firestore"
-                >
-                  <span class="material-symbols-rounded" [class.spinning]="firestoreApi.isTesting()">speed</span>
-                  {{ firestoreApi.isTesting() ? 'Testing...' : 'Test Connection' }}
-                </button>
-              </div>
-            </div>
-
-            <!-- Firestore Status Info Grid -->
-            <div class="fs-status-grid" *ngIf="firestoreApi.status() as fs">
-              <div class="fs-item">
-                <div class="fs-label">Project ID</div>
-                <div class="fs-val mono-val">{{ fs.projectId }}</div>
-              </div>
-              <div class="fs-item">
-                <div class="fs-label">Database ID</div>
-                <div class="fs-val mono-val">{{ fs.databaseId }}</div>
-              </div>
-              <div class="fs-item">
-                <div class="fs-label">Connection State</div>
-                <div class="fs-val status-val" [ngClass]="{ 'green': fs.configured }">
-                  <span class="pulse-dot"></span>
-                  {{ fs.configured ? 'Ready & Operational' : 'Not Configured' }}
-                </div>
-              </div>
-              <div class="fs-item" *ngIf="fs.clientEmail">
-                <div class="fs-label">Service Account</div>
-                <div class="fs-val mono-val truncate" [title]="fs.clientEmail">{{ fs.clientEmail }}</div>
-              </div>
-            </div>
-
-            <!-- Last Test Result Box -->
-            <div class="test-result-box" *ngIf="firestoreApi.lastTestResult() as t" [ngClass]="t.success ? 'success' : 'failure'">
-              <span class="material-symbols-rounded test-icon">{{ t.success ? 'cloud_done' : 'cloud_off' }}</span>
-              <div class="test-text">
-                <div class="test-title">{{ t.message }}</div>
-                <div class="test-meta mono-val" *ngIf="t.latencyMs !== undefined">
-                  Latency: <strong>{{ t.latencyMs }}ms</strong> &bull; Collections: {{ (t.collections || []).join(', ') }}
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
       </main>
     </div>
@@ -1382,7 +1274,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         &.token-avatar { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
         &.lots-avatar { background: rgba(0, 210, 196, 0.15); color: var(--dhan-cyan); }
         &.master-avatar { background: rgba(16, 185, 129, 0.15); color: var(--color-profit); }
-        &.fs-avatar { background: rgba(245, 158, 11, 0.15); color: var(--color-pending); }
       }
       .section-heading {
         font-size: 1.15rem;
@@ -1417,26 +1308,61 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: #0b0f19 !important;
         font-weight: 700;
       }
-      .token-details-grid, .fs-status-grid {
+      .password-update-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .password-input-col {
+        flex: 1;
+        min-width: 260px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .compact-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--text-muted);
+      }
+      .compact-password-input {
+        width: 100%;
+        padding: 9px 14px;
+        background: #0B0F19;
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        color: #fff;
+        font-size: 0.8125rem;
+        font-family: inherit;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s ease;
+        &:focus {
+          border-color: var(--dhan-cyan);
+        }
+      }
+      .token-details-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         gap: 14px;
         margin-bottom: 20px;
       }
-      .detail-box, .fs-item {
+      .detail-box {
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
         border-radius: 8px;
         padding: 12px 14px;
       }
-      .detail-label, .fs-label {
+      .detail-label {
         font-size: 0.72rem;
         color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.04em;
         margin-bottom: 4px;
       }
-      .detail-val, .fs-val {
+      .detail-val {
         font-size: 0.875rem;
         font-weight: 600;
         color: var(--text-primary);
@@ -2024,30 +1950,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         }
         .material-symbols-rounded { font-size: 16px; }
       }
-      .test-result-box {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        border-radius: 8px;
-        &.success {
-          background: rgba(16, 185, 129, 0.1);
-          border: 1px solid rgba(16, 185, 129, 0.3);
-          color: #10b981;
-        }
-        &.failure {
-          background: rgba(244, 63, 94, 0.1);
-          border: 1px solid rgba(244, 63, 94, 0.3);
-          color: #f43f5e;
-        }
-      }
-      .test-icon { font-size: 24px; flex-shrink: 0; }
-      .test-title { font-weight: 700; font-size: 0.875rem; }
-      .test-meta {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-        margin-top: 2px;
-      }
 
       /* Active Sessions Section Styles */
       .kill-others-btn {
@@ -2279,7 +2181,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         .section-header { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; }
         .section-actions { width: 100%; }
         .section-actions button, .action-btn-primary { width: 100%; justify-content: center; min-height: 40px; }
-        .token-details-grid, .fs-status-grid, .lot-sizes-inputs-grid { grid-template-columns: 1fr; gap: 10px; }
+        .token-details-grid, .lot-sizes-inputs-grid { grid-template-columns: 1fr; gap: 10px; }
         .inspector-controls-bar { flex-direction: column; align-items: stretch; gap: 8px; }
         .search-box { min-width: 0; width: 100%; }
         .filter-pills { flex-wrap: wrap; }
@@ -2303,7 +2205,6 @@ export class SettingsPageComponent implements OnInit {
   private readonly snackBar = inject(MatSnackBar);
 
   // App User Password Change
-  readonly currentPasswordInput = signal('');
   readonly newPasswordInput = signal('');
   readonly isChangingPassword = signal(false);
 
@@ -2521,11 +2422,10 @@ export class SettingsPageComponent implements OnInit {
   }
 
   changeAppPassword(): void {
-    const current = this.currentPasswordInput().trim();
     const newPwd = this.newPasswordInput().trim();
 
-    if (!current || !newPwd) {
-      this.snackBar.open('Please fill both current and new password', 'Dismiss', { duration: 3000 });
+    if (!newPwd) {
+      this.snackBar.open('Please enter a new password', 'Dismiss', { duration: 3000 });
       return;
     }
 
@@ -2536,17 +2436,15 @@ export class SettingsPageComponent implements OnInit {
 
     this.isChangingPassword.set(true);
     this.userAuthService.changePassword({
-      currentPassword: current,
       newPassword: newPwd,
     }).subscribe({
       next: () => {
         this.isChangingPassword.set(false);
-        this.currentPasswordInput.set('');
         this.newPasswordInput.set('');
       },
       error: (err) => {
         this.isChangingPassword.set(false);
-        const msg = err?.error?.message || 'Failed to change password. Please verify current password.';
+        const msg = err?.error?.message || 'Failed to change password.';
         this.snackBar.open(msg, 'Dismiss', { duration: 4000 });
       },
     });

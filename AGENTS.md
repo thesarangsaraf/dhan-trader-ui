@@ -149,6 +149,7 @@ This document provides operational context, architectural contracts, design rule
 | `/api/instruments/sync/options` | `POST` | Instruments | Synchronize traded index options to index_options |
 | `/api/instruments/sync/status` | `GET` | Instruments | Metadata and document status of sec_id_to_name_mapping |
 | `/api/instruments/sync/options/status` | `GET` | Instruments | Metadata and document status of index_options |
+| `/api/charts/candles` | `GET` | Charts | Historical & intraday OHLC candle data (timeframe & duration) |
 | `/api/telegram/status` | `GET` | Telegram | Telegram bot connection state |
 | `/api/telegram/test` | `POST` | Telegram | Dispatch test verification message |
 | `/api/telegram/update` | `POST` | Telegram | Update Bot Token and Chat ID dynamically |

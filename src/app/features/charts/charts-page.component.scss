@@ -1,0 +1,488 @@
+.charts-page-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 72px);
+  padding: 16px 24px;
+  background-color: #0b0f19;
+  color: #f1f5f9;
+  box-sizing: border-box;
+  gap: 12px;
+  overflow: hidden;
+}
+
+/* --- Top Toolbar --- */
+.charts-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background-color: #151c2c;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 10px 16px;
+}
+
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Symbol Selector & Custom Input */
+.symbols-section {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scrip-search-btn {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  border-radius: 6px;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #27354a;
+    color: #00d2c4;
+    border-color: #00d2c4;
+  }
+
+  .material-symbols-rounded {
+    font-size: 18px;
+  }
+}
+
+.symbol-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.symbol-chip {
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: #f8fafc;
+    background: #27354a;
+  }
+
+  &.active {
+    background: rgba(0, 210, 196, 0.15);
+    color: #00d2c4;
+    border-color: #00d2c4;
+    box-shadow: 0 0 10px rgba(0, 210, 196, 0.2);
+  }
+}
+
+.custom-symbol-form {
+  display: flex;
+  align-items: center;
+  background: #0b0f19;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  overflow: hidden;
+
+  .custom-symbol-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f8fafc;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    width: 120px;
+
+    &::placeholder {
+      color: #64748b;
+    }
+  }
+
+  .apply-symbol-btn {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    padding: 4px 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover:not(:disabled) {
+      color: #00d2c4;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .material-symbols-rounded {
+      font-size: 16px;
+    }
+  }
+}
+
+/* Timeframes & Range Controls */
+.timeframes-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .group-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    font-weight: 600;
+  }
+}
+
+.btn-group {
+  display: flex;
+  background: #0b0f19;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.control-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: #f8fafc;
+  }
+
+  &.active {
+    background: #6366f1;
+    color: #ffffff;
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  }
+}
+
+/* Action Section */
+.actions-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.feed-delay-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 100px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: help;
+
+  .delay-icon {
+    font-size: 14px;
+  }
+}
+
+.auto-refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  .material-symbols-rounded {
+    font-size: 16px;
+  }
+
+  &:hover {
+    color: #f8fafc;
+  }
+
+  &.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border-color: #10b981;
+
+    .material-symbols-rounded {
+      animation: spin 3s linear infinite;
+    }
+  }
+}
+
+.refresh-btn {
+  background: #1e293b;
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: #27354a;
+    color: #00d2c4;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .material-symbols-rounded {
+    font-size: 18px;
+  }
+}
+
+/* --- Summary & OHLC Banner --- */
+.chart-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  background-color: #151c2c;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  padding: 10px 18px;
+}
+
+.instrument-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+
+  .instrument-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: -0.3px;
+  }
+
+  .instrument-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    .exchange-tag {
+      background: #1e293b;
+      color: #00d2c4;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .interval-tag {
+      font-size: 11px;
+      color: #64748b;
+      font-family: 'JetBrains Mono', monospace;
+    }
+  }
+}
+
+.price-metrics-group {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+
+  .ltp-display {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+
+    &.positive {
+      color: #10b981;
+    }
+
+    &.negative {
+      color: #f43f5e;
+    }
+  }
+
+  .change-display {
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    gap: 4px;
+
+    &.positive {
+      color: #10b981;
+    }
+
+    &.negative {
+      color: #f43f5e;
+    }
+  }
+}
+
+.ohlc-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+
+  .ohlc-item {
+    display: flex;
+    gap: 4px;
+
+    .lbl {
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    .val {
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+
+    &.positive .val {
+      color: #10b981;
+    }
+
+    &.negative .val {
+      color: #f43f5e;
+    }
+  }
+
+  .ohlc-hint {
+    color: #64748b;
+    font-size: 11px;
+    font-style: italic;
+  }
+}
+
+/* --- Chart Card & Render Target --- */
+.chart-viewport-card {
+  position: relative;
+  flex: 1;
+  min-height: 480px;
+  background-color: #0b0f19;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.chart-render-target {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.history-loading-pill {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(21, 28, 44, 0.92);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #c7d2fe;
+  font-family: 'JetBrains Mono', monospace;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+.chart-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(11, 15, 25, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  z-index: 10;
+
+  .loading-text {
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    color: #94a3b8;
+  }
+}
+
+.chart-error-container {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  right: 24px;
+  z-index: 20;
+}
+
+/* Utility Animations */
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.mono-val {
+  font-family: 'JetBrains Mono', monospace;
+}

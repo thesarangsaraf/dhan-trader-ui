@@ -24,7 +24,7 @@ export interface RefreshResponse {
 }
 
 export interface ChangePasswordDto {
-  currentPassword: string;
+  currentPassword?: string;
   newPassword: string;
 }
 

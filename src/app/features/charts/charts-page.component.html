@@ -1,0 +1,180 @@
+<div class="charts-page-container">
+  <!-- Top Control Toolbar -->
+  <div class="charts-toolbar">
+    <!-- Left: Instrument Button Selection (Backed by Alert Composer Instrument List API) -->
+    <div class="toolbar-section symbols-section">
+      <!-- Instrument Selection Buttons -->
+      <div class="symbol-chips">
+        <button
+          *ngFor="let item of instruments()"
+          class="symbol-chip"
+          [class.active]="selectedSymbol() === item.symbol"
+          (click)="selectSymbol(item.symbol)"
+        >
+          {{ item.symbol }}
+        </button>
+      </div>
+
+      <button
+        type="button"
+        class="scrip-search-btn"
+        (click)="openScripSearchModal()"
+        matTooltip="Search across all 10,193 Equities & 9,809 Option Contracts (Ctrl+K)"
+      >
+        <span class="material-symbols-rounded">search</span>
+      </button>
+
+      <div class="custom-symbol-form">
+        <input
+          type="text"
+          placeholder="Symbol (e.g. TCS)"
+          [ngModel]="customSymbolInput()"
+          (ngModelChange)="customSymbolInput.set($event)"
+          (keyup.enter)="applyCustomSymbol()"
+          class="custom-symbol-input"
+        />
+        <button
+          class="apply-symbol-btn"
+          (click)="applyCustomSymbol()"
+          matTooltip="Search & chart symbol"
+          [disabled]="!customSymbolInput().trim()"
+        >
+          <span class="material-symbols-rounded">arrow_forward</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Middle: Timeframe (Interval) & Range (Duration) -->
+    <div class="toolbar-section timeframes-section">
+      <div class="control-group">
+        <span class="group-label">Interval:</span>
+        <div class="btn-group">
+          <button
+            *ngFor="let tf of timeframes"
+            class="control-btn"
+            [class.active]="selectedInterval() === tf.value"
+            (click)="selectInterval(tf.value)"
+          >
+            {{ tf.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <span class="group-label">Range:</span>
+        <div class="btn-group">
+          <button
+            *ngFor="let r of ranges"
+            class="control-btn"
+            [class.active]="selectedRange() === r.value"
+            (click)="selectRange(r.value)"
+          >
+            {{ r.label }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Feed Badge & Refresh Actions -->
+    <div class="toolbar-section actions-section">
+      <!-- 15m Delayed Feed Info Pill -->
+      <div
+        class="feed-delay-pill"
+        matTooltip="Data provided by Yahoo Finance. Subject to standard ~15-minute exchange delay during live market hours as per NSE regulations."
+      >
+        <span class="material-symbols-rounded delay-icon">info</span>
+        <span>15m Delayed Feed</span>
+      </div>
+
+      <!-- Auto Refresh Toggle -->
+      <button
+        class="auto-refresh-btn"
+        [class.active]="isAutoRefresh()"
+        (click)="toggleAutoRefresh()"
+        matTooltip="Auto-refresh candles every 15 seconds"
+      >
+        <span class="material-symbols-rounded">sync</span>
+        <span>Auto-sync</span>
+      </button>
+
+      <!-- Manual Refresh Button -->
+      <button
+        class="refresh-btn"
+        (click)="loadCandles()"
+        [disabled]="isLoading()"
+        matTooltip="Refresh chart data now"
+      >
+        <span class="material-symbols-rounded" [class.spinning]="isLoading()">refresh</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Price Summary & Hover Legend Banner -->
+  <div class="chart-summary-bar">
+    <div class="instrument-title-group">
+      <div class="instrument-name">{{ selectedSymbol() }}</div>
+      <div class="instrument-meta">
+        <span class="exchange-tag">{{ chartData()?.exchange || 'NSE' }}</span>
+        <span class="interval-tag">{{ selectedInterval() }} &bull; {{ selectedRange() }}</span>
+      </div>
+    </div>
+
+    <!-- Main LTP & Change Display -->
+    <div class="price-metrics-group" *ngIf="currentLtp() !== null">
+      <div class="ltp-display mono-val" [class.positive]="(priceChange()?.points || 0) >= 0" [class.negative]="(priceChange()?.points || 0) < 0">
+        {{ currentLtp() | currencyInr : false }}
+      </div>
+
+      <div class="change-display mono-val" *ngIf="priceChange() as chg" [class.positive]="chg.points >= 0" [class.negative]="chg.points < 0">
+        <span>{{ chg.points >= 0 ? '+' : '' }}{{ chg.points.toFixed(2) }}</span>
+        <span>({{ chg.percent >= 0 ? '+' : '' }}{{ chg.percent.toFixed(2) }}%)</span>
+      </div>
+    </div>
+
+    <!-- Dynamic Hover Legend / Current Candle OHLC -->
+    <div class="ohlc-legend mono-val">
+      <ng-container *ngIf="hoveredCandle() as hc; else defaultLegend">
+        <div class="ohlc-item"><span class="lbl">Time:</span> <span class="val">{{ formatEpochTime(hc.time) }}</span></div>
+        <div class="ohlc-item"><span class="lbl">O:</span> <span class="val">{{ hc.open.toFixed(2) }}</span></div>
+        <div class="ohlc-item"><span class="lbl">H:</span> <span class="val">{{ hc.high.toFixed(2) }}</span></div>
+        <div class="ohlc-item"><span class="lbl">L:</span> <span class="val">{{ hc.low.toFixed(2) }}</span></div>
+        <div class="ohlc-item" [class.positive]="hc.close >= hc.open" [class.negative]="hc.close < hc.open">
+          <span class="lbl">C:</span> <span class="val">{{ hc.close.toFixed(2) }}</span>
+        </div>
+        <div class="ohlc-item" *ngIf="hc.volume > 0"><span class="lbl">Vol:</span> <span class="val">{{ hc.volume | number }}</span></div>
+      </ng-container>
+
+      <ng-template #defaultLegend>
+        <div class="ohlc-item" *ngIf="dayOpen() !== null"><span class="lbl">Day Open:</span> <span class="val">{{ dayOpen()?.toFixed(2) }}</span></div>
+        <div class="ohlc-item" *ngIf="chartData() as cd"><span class="lbl">Total Candles:</span> <span class="val">{{ cd.count }}</span></div>
+        <div class="ohlc-hint">Hover over chart candles for detailed OHLC</div>
+      </ng-template>
+    </div>
+  </div>
+
+  <!-- Chart Viewport Card -->
+  <div class="chart-viewport-card">
+    <!-- Dynamic Older History Loading Indicator -->
+    <div *ngIf="isLoadingMoreHistory()" class="history-loading-pill">
+      <mat-spinner diameter="16"></mat-spinner>
+      <span>Loading historical candles...</span>
+    </div>
+
+    <!-- Section Error Display with Retry -->
+    <div *ngIf="errorMessage()" class="chart-error-container">
+      <app-section-error
+        [message]="errorMessage()!"
+        (retry)="loadCandles()"
+      ></app-section-error>
+    </div>
+
+    <!-- Loading Spinner Overlay -->
+    <div *ngIf="isLoading() && !errorMessage()" class="chart-loading-overlay">
+      <mat-spinner diameter="44"></mat-spinner>
+      <span class="loading-text">Fetching candlestick data for {{ selectedSymbol() }}...</span>
+    </div>
+
+    <!-- TradingView Lightweight Charts Container -->
+    <div #chartContainer class="chart-render-target"></div>
+  </div>
+</div>

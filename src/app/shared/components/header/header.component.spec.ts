@@ -84,10 +84,11 @@ describe('HeaderComponent', () => {
 
     expect(compiled.querySelector('.brand-name')?.textContent).toContain('DHAN TRADER PRO');
     const tabs = compiled.querySelectorAll('.nav-tab');
-    expect(tabs.length).toBe(3);
+    expect(tabs.length).toBe(4);
     expect(tabs[0].textContent).toContain('Live Monitor');
-    expect(tabs[1].textContent).toContain('Trade History');
-    expect(tabs[2].textContent).toContain('Settings');
+    expect(tabs[1].textContent).toContain('Charts');
+    expect(tabs[2].textContent).toContain('Trade History');
+    expect(tabs[3].textContent).toContain('Settings');
   });
 
   it('should render Available Balance placeholder when funds are not loaded', () => {
