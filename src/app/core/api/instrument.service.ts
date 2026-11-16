@@ -68,7 +68,10 @@ export class InstrumentService {
   /**
    * Fetch list of tradeable indices configured in Firestore for Conditional Alert Composer dropdown.
    */
-  fetchConfiguredIndices(): Observable<Instrument[]> {
+  fetchConfiguredIndices(force = false): Observable<Instrument[]> {
+    if (!force && this.configuredIndices().length > 0) {
+      return of(this.configuredIndices());
+    }
     return this.http.get<Instrument[]>('/api/instruments/indices').pipe(
       tap((res) => {
         if (res && res.length > 0) {
@@ -85,7 +88,10 @@ export class InstrumentService {
   /**
    * Fetch current index lot sizes configuration from Firestore.
    */
-  fetchLotSizes(): Observable<LotSizesResponse | null> {
+  fetchLotSizes(force = false): Observable<LotSizesResponse | null> {
+    if (!force && (this.lotSizes().indices?.length ?? 0) > 0) {
+      return of({ success: true, data: this.lotSizes() });
+    }
     return this.http.get<LotSizesResponse>('/api/instruments/lot-sizes').pipe(
       tap((res) => {
         if (res?.success && res.data) {
@@ -333,7 +339,6 @@ export class InstrumentService {
    * Fetch current status and document counts for sec_id_to_name_mapping from Firestore.
    */
   fetchSyncStatus(): Observable<SyncStatusResult | null> {
-    this.fetchOptionsSyncStatus().subscribe();
     return this.http.get<SyncStatusResult>('/api/instruments/sync/status').pipe(
       tap((res) => {
         if (res) {

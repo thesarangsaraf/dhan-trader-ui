@@ -120,8 +120,9 @@ export class OrderService {
         tap((res) => {
           this.refreshOrders();
           this.refreshPositions();
+          const displaySymbol = dto.customSymbol || dto.symbol;
           this.snackBar.open(
-            `Order Placed: ${dto.transactionType} ${dto.quantity}x ${dto.symbol} (ID: ${res.order.orderId})`,
+            `Order Placed: ${dto.transactionType} ${dto.quantity}x ${displaySymbol} (ID: ${res.order.orderId})`,
             'OK',
             { duration: 4000 }
           );
@@ -147,9 +148,11 @@ export class OrderService {
     const isLong = position.netQty > 0;
     const exitAction = isLong ? 'SELL' : 'BUY';
     const exitQty = Math.abs(position.netQty);
+    const posSymbol = position.customSymbol || position.symbol;
 
     return this.placeOrder({
-      symbol: position.symbol,
+      symbol: posSymbol,
+      customSymbol: posSymbol,
       securityId: position.securityId,
       exchangeSegment: position.exchangeSegment,
       transactionType: exitAction,

@@ -1,6 +1,7 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { forkJoin, of } from 'rxjs';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
@@ -181,23 +182,23 @@ import { environment } from '../../../../../environments/environment';
                     </mat-form-field>
                   </div>
 
-                  <!-- Option Strike Price Selection (3 strikes around target price) -->
+                  <!-- Option Strike Price Selection (3 strikes around target price, displayed vertically) -->
                   <div class="grid-col col-span-2 strike-selector-box" *ngIf="strikePairs().length > 0">
                     <div class="strike-loading-row" *ngIf="isLoadingOptions()">
                       <span class="loading-label">Loading strikes...</span>
                     </div>
                     <div class="strike-chips">
                       <div
-                        *ngFor="let strike of strikePairs(); let isFirst = first; let isLast = last"
+                        *ngFor="let strike of strikePairs()"
                         class="strike-chip"
-                        [ngClass]="{ 'selected': selectedStrikePrice === strike.strikePrice, 'row-first': isFirst, 'row-last': isLast }"
+                        [ngClass]="{ 'selected': selectedStrikePrice === strike.strikePrice }"
                         (click)="selectStrike(strike.strikePrice)"
                       >
-                        <span class="strike-val">{{ strike.strikePrice }} {{ orderAction === 'BUY' ? 'CE' : 'PE' }}</span>
-                        <span class="strike-ltp" *ngIf="orderAction === 'BUY'">
+                        <span class="strike-val mono-val">{{ getContractFullName(strike) }}</span>
+                        <span class="strike-ltp mono-val" *ngIf="orderAction === 'BUY'">
                           LTP: {{ strike.call.ltp | currencyInr : false }}
                         </span>
-                        <span class="strike-ltp" *ngIf="orderAction === 'SELL'">
+                        <span class="strike-ltp mono-val" *ngIf="orderAction === 'SELL'">
                           LTP: {{ strike.put.ltp | currencyInr : false }}
                         </span>
                       </div>
@@ -213,34 +214,41 @@ import { environment } from '../../../../../environments/environment';
                     </div>
                   </div>
 
-                  <!-- Fixed Lot Size Selection (5, 10, 15 Lots) -->
+                  <!-- Fixed Lot Size Selection with dynamic calculation & preferred badge -->
                   <div class="grid-col col-span-2 lots-selector-box">
-                    <label class="input-lbl">Order Lot Size</label>
+                    <div class="lots-header-row">
+                      <label class="input-lbl">Order Lot Size</label>
+                      <span class="preferred-indicator" *ngIf="preferredLots() > 0">
+                        Configured Preferred: <strong>{{ preferredLots() }} Lots</strong>
+                      </span>
+                    </div>
                     <div class="fixed-lots-group">
                       <button
+                        *ngFor="let lots of lotOptions()"
                         type="button"
                         class="lot-select-btn"
-                        [ngClass]="{ 'active-qty': orderLots === 5 }"
-                        (click)="setLots(5)"
+                        [ngClass]="{ 'active-qty': orderLots === lots }"
+                        (click)="setLots(lots)"
                       >
-                        5 Lots
+                        <span class="lot-btn-title">
+                          {{ lots }} Lots
+                          <span class="pref-pill" *ngIf="preferredLots() > 0 && lots === preferredLots()">Preferred</span>
+                        </span>
+                        <span class="lot-btn-calc mono-val">
+                          ({{ lots * currentContractLotSize() }} Qty)
+                        </span>
                       </button>
-                      <button
-                        type="button"
-                        class="lot-select-btn"
-                        [ngClass]="{ 'active-qty': orderLots === 10 }"
-                        (click)="setLots(10)"
-                      >
-                        10 Lots
-                      </button>
-                      <button
-                        type="button"
-                        class="lot-select-btn"
-                        [ngClass]="{ 'active-qty': orderLots === 15 }"
-                        (click)="setLots(15)"
-                      >
-                        15 Lots
-                      </button>
+                    </div>
+
+                    <!-- Dynamic Configured Order Quantity Summary Banner -->
+                    <div class="order-qty-summary-box mono-val">
+                      <div class="summary-line">
+                        <span class="summary-lbl">Total Order Quantity:</span>
+                        <span class="summary-val text-cyan font-bold">{{ totalOrderQuantity() }} Shares</span>
+                      </div>
+                      <span class="summary-calc text-muted">
+                        ({{ orderLots }} Lots &times; {{ currentContractLotSize() }} Qty/Lot)
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -482,23 +490,26 @@ import { environment } from '../../../../../environments/environment';
       }
       .strike-chips {
         display: flex;
-        gap: 8px;
+        flex-direction: column;
+        gap: 6px;
       }
       .strike-chip {
-        flex: 1;
+        width: 100%;
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
-        border-radius: 6px;
-        padding: 8px 4px;
+        border-radius: 8px;
+        padding: 8px 12px;
         cursor: pointer;
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
+        justify-content: space-between;
         align-items: center;
-        gap: 2px;
+        gap: 12px;
         transition: all 0.15s ease;
       }
       .strike-chip:hover {
         border-color: var(--dhan-cyan);
+        background: var(--bg-card-hover);
       }
       .strike-chip.selected {
         border-color: var(--dhan-cyan);
@@ -506,16 +517,18 @@ import { environment } from '../../../../../environments/environment';
         box-shadow: 0 0 0 1px var(--dhan-cyan);
       }
       .strike-val {
-        font-size: 0.875rem;
+        font-size: 0.8125rem;
         font-weight: 700;
         font-family: var(--font-mono);
         color: var(--text-primary);
+        letter-spacing: 0.02em;
       }
       .strike-ltp {
-        font-size: 0.6875rem;
+        font-size: 0.75rem;
         font-weight: 600;
         font-family: var(--font-mono);
         color: var(--dhan-cyan);
+        white-space: nowrap;
       }
       .lots-selector-box {
         grid-column: span 2;
@@ -525,7 +538,20 @@ import { environment } from '../../../../../environments/environment';
         padding: 10px 14px;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
+      }
+      .lots-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .preferred-indicator {
+        font-size: 0.6875rem;
+        color: var(--dhan-cyan);
+        background: rgba(0, 210, 196, 0.1);
+        border: 1px solid rgba(0, 210, 196, 0.25);
+        padding: 2px 6px;
+        border-radius: 4px;
       }
       .fixed-lots-group {
         display: flex;
@@ -536,7 +562,7 @@ import { environment } from '../../../../../environments/environment';
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
         color: var(--text-secondary);
-        padding: 8px 16px;
+        padding: 8px 12px;
         border-radius: 6px;
         font-size: 0.8125rem;
         font-family: var(--font-mono);
@@ -544,6 +570,11 @@ import { environment } from '../../../../../environments/environment';
         cursor: pointer;
         transition: all 0.15s ease;
         text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
       }
       .lot-select-btn:hover {
         border-color: var(--dhan-cyan);
@@ -555,6 +586,50 @@ import { environment } from '../../../../../environments/environment';
         background: rgba(0, 210, 196, 0.15);
         color: var(--dhan-cyan);
         box-shadow: 0 0 10px rgba(0, 210, 196, 0.2);
+      }
+      .lot-btn-title {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+      }
+      .pref-pill {
+        font-size: 0.5625rem;
+        padding: 1px 4px;
+        border-radius: 3px;
+        background: rgba(0, 210, 196, 0.25);
+        color: var(--dhan-cyan);
+        text-transform: uppercase;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        line-height: 1;
+      }
+      .lot-btn-calc {
+        font-size: 0.6875rem;
+        opacity: 0.8;
+      }
+      .order-qty-summary-box {
+        margin-top: 2px;
+        padding: 6px 10px;
+        background: rgba(0, 210, 196, 0.05);
+        border: 1px dashed rgba(0, 210, 196, 0.25);
+        border-radius: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.75rem;
+      }
+      .order-qty-summary-box .summary-line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .order-qty-summary-box .summary-val {
+        color: var(--dhan-cyan);
+        font-weight: 700;
+      }
+      .order-qty-summary-box .summary-calc {
+        font-size: 0.6875rem;
       }
       .stop-loss-section {
         margin-top: 10px;
@@ -712,13 +787,13 @@ import { environment } from '../../../../../environments/environment';
           gap: 4px;
         }
         .strike-chip {
-          padding: 6px 2px;
+          padding: 6px 10px;
         }
         .strike-val {
           font-size: 0.75rem;
         }
         .strike-ltp {
-          font-size: 0.625rem;
+          font-size: 0.6875rem;
         }
       }
     `,
@@ -738,8 +813,22 @@ export class AlertComposerComponent implements OnInit {
   readonly strikePairs = signal<StrikeOptionPair[]>([]);
   readonly isLoadingOptions = signal<boolean>(false);
 
-  selectedInstrumentSymbol = 'NIFTY 50';
-  selectedInstrument: Instrument | null = null;
+  private readonly _selectedInstrumentSymbol = signal<string>('');
+  get selectedInstrumentSymbol(): string {
+    return this._selectedInstrumentSymbol();
+  }
+  set selectedInstrumentSymbol(val: string) {
+    this._selectedInstrumentSymbol.set(val || '');
+  }
+
+  private readonly _selectedInstrument = signal<Instrument | null>(null);
+  get selectedInstrument(): Instrument | null {
+    return this._selectedInstrument();
+  }
+  set selectedInstrument(val: Instrument | null) {
+    this._selectedInstrument.set(val);
+  }
+
   private readonly _currentLtp = signal<number | null>(null);
   get currentLtp(): number | null {
     return this._currentLtp();
@@ -773,16 +862,50 @@ export class AlertComposerComponent implements OnInit {
   orderExchangeSegment = 'NSE_FNO';
   productType: 'INTRADAY' | 'CNC' | 'MARGIN' = 'INTRADAY';
   orderType: 'MARKET' | 'LIMIT' = 'MARKET';
-  orderLots = 5;
+
+  private readonly _orderLots = signal<number>(0);
+  get orderLots(): number {
+    return this._orderLots();
+  }
+  set orderLots(val: number) {
+    this._orderLots.set(val);
+  }
 
   // Automated Stop Loss Form Fields
   enableStopLoss = signal<boolean>(true);
   stopLossPoints = signal<number>(12);
 
+  userManuallyChangedLots = false;
+
   readonly isBankNifty = computed(() => {
     const sym = (this.selectedInstrumentSymbol || '').toUpperCase();
     return sym.includes('BANK');
   });
+
+  readonly preferredLots = computed<number>(() => {
+    return this.getPreferredLotsForInstrument(this.selectedInstrument);
+  });
+
+  readonly lotOptions = computed(() => {
+    const pref = this.preferredLots();
+    const standard = [5, 10, 15];
+    const set = new Set<number>();
+    if (pref && pref > 0) {
+      set.add(pref);
+    }
+    standard.forEach((l) => set.add(l));
+    return Array.from(set).sort((a, b) => a - b);
+  });
+
+  constructor() {
+    effect(() => {
+      // Whenever preferred lots changes and user hasn't manually overridden it, update orderLots
+      const pref = this.preferredLots();
+      if (!this.userManuallyChangedLots && pref && pref > 0) {
+        this.orderLots = pref;
+      }
+    });
+  }
 
   readonly targetPointsDiff = computed<string>(() => {
     const target = this._targetPrice();
@@ -821,19 +944,38 @@ export class AlertComposerComponent implements OnInit {
 
   retryConnection(): void {
     this.authService.refreshStatus();
-    this.instrumentService.fetchLotSizes().subscribe();
     this.loadInstruments();
   }
 
   loadInstruments(): void {
-    // 1. Fetch configured tradeable indices dynamically from Firestore
-    this.instrumentService.fetchConfiguredIndices().subscribe((indicesList) => {
-      let activeIndices: Instrument[] = [];
-      if (indicesList && indicesList.length > 0) {
-        activeIndices = indicesList;
-      } else {
+    // 1. Fetch configured lot sizes & tradeable indices dynamically from Firestore
+    forkJoin({
+      lotSizes: this.instrumentService.fetchLotSizes(),
+      indicesList: this.instrumentService.fetchConfiguredIndices(),
+    }).subscribe({
+      next: ({ indicesList }) => {
         const cfg = this.instrumentService.lotSizes();
-        if (cfg?.indices && cfg.indices.length > 0) {
+        let activeIndices: Instrument[] = [];
+        if (indicesList && indicesList.length > 0) {
+          activeIndices = indicesList.map((idx) => {
+            const sym = idx.symbol.toUpperCase();
+            const matchedCfg = cfg.indices?.find(
+              (c) => c.symbol.toUpperCase() === sym || sym.includes(c.symbol.toUpperCase())
+            );
+            const defLotSize = idx.defaultLotSize || idx.defaultLots || matchedCfg?.defaultLotSize || matchedCfg?.defaultLots || 0;
+            const defQtyInLot = idx.defaultQuantityInOneLot || idx.lotSize || matchedCfg?.defaultQuantityInOneLot || matchedCfg?.lotSize || 0;
+            const slPts = idx.stopLossPoints ?? matchedCfg?.stopLossPoints ?? (sym.includes('BANK') ? 20 : sym.includes('SENSEX') ? 30 : sym.includes('MID') ? 15 : 12);
+            return {
+              ...idx,
+              defaultLotSize: defLotSize,
+              defaultLots: defLotSize,
+              defaultQuantityInOneLot: defQtyInLot,
+              lotSize: defQtyInLot,
+              defaultQuantity: defLotSize * defQtyInLot,
+              stopLossPoints: slPts,
+            };
+          });
+        } else if (cfg?.indices && cfg.indices.length > 0) {
           activeIndices = cfg.indices
             .filter((i) => i.enabled !== false)
             .map((i) => ({
@@ -842,30 +984,106 @@ export class AlertComposerComponent implements OnInit {
               securityId: i.securityId,
               exchangeSegment: i.exchangeSegment,
               instrumentType: 'INDEX',
-              lotSize: i.lotSize,
+              lotSize: i.defaultQuantityInOneLot || i.lotSize || 0,
+              defaultLotSize: i.defaultLotSize || i.defaultLots || 0,
+              defaultQuantityInOneLot: i.defaultQuantityInOneLot || i.lotSize || 0,
+              defaultLots: i.defaultLotSize || i.defaultLots || 0,
+              defaultQuantity: (i.defaultLotSize || 0) * (i.defaultQuantityInOneLot || 0),
+              stopLossPoints: i.stopLossPoints,
               ltp: 0,
             }));
         }
-      }
 
-      this.instruments.set(activeIndices);
-      if (activeIndices.length > 0) {
-        const nifty = activeIndices.find((i) => i.symbol === 'NIFTY 50') || activeIndices[0];
-        if (nifty) {
-          this.onInstrumentChange(nifty.symbol);
+        this.instruments.set(activeIndices);
+        if (activeIndices.length > 0) {
+          const current = this.selectedInstrumentSymbol;
+          const matched = current ? activeIndices.find((i) => i.symbol === current) : null;
+          const target = matched || activeIndices.find((i) => i.symbol === 'NIFTY 50') || activeIndices[0];
+          if (target) {
+            this.onInstrumentChange(target.symbol);
+          }
+        } else {
+          this.selectedInstrumentSymbol = '';
+          this.selectedInstrument = null;
+          this.currentLtp = null;
+          this.targetPrice = null;
+          this.expiries.set([]);
+          this.strikePairs.set([]);
+          this.selectedStrikePrice = null;
+          this.orderSymbol = '';
+          this.orderSecurityId = '';
         }
-      } else {
-        this.selectedInstrumentSymbol = '';
-        this.selectedInstrument = null;
-        this.currentLtp = null;
-        this.targetPrice = null;
-        this.expiries.set([]);
-        this.strikePairs.set([]);
-        this.selectedStrikePrice = null;
-        this.orderSymbol = '';
-        this.orderSecurityId = '';
-      }
+      },
+      error: () => {
+        this.instrumentService.fetchConfiguredIndices().subscribe((indicesList) => {
+          const cfg = this.instrumentService.lotSizes();
+          if (indicesList && indicesList.length > 0) {
+            const enriched = indicesList.map((idx) => {
+              const sym = idx.symbol.toUpperCase();
+              const matchedCfg = cfg.indices?.find(
+                (c) => c.symbol.toUpperCase() === sym || sym.includes(c.symbol.toUpperCase())
+              );
+              const defLotSize = idx.defaultLotSize || idx.defaultLots || matchedCfg?.defaultLotSize || matchedCfg?.defaultLots || 0;
+              const defQtyInLot = idx.defaultQuantityInOneLot || idx.lotSize || matchedCfg?.defaultQuantityInOneLot || matchedCfg?.lotSize || 0;
+              return {
+                ...idx,
+                defaultLotSize: defLotSize,
+                defaultLots: defLotSize,
+                defaultQuantityInOneLot: defQtyInLot,
+                lotSize: defQtyInLot,
+                defaultQuantity: defLotSize * defQtyInLot,
+              };
+            });
+            this.instruments.set(enriched);
+            const target = enriched.find((i) => i.symbol === 'NIFTY 50') || enriched[0];
+            if (target) this.onInstrumentChange(target.symbol);
+          }
+        });
+      },
     });
+  }
+
+  getPreferredLotsForInstrument(inst: Instrument | null): number {
+    const sym = (inst?.symbol || this.selectedInstrumentSymbol || '').toUpperCase();
+    if (!sym) return 0;
+    const cfg = this.instrumentService.lotSizes();
+
+    if (inst?.defaultLotSize && inst.defaultLotSize > 0) return inst.defaultLotSize;
+    if (inst?.defaultLots && inst.defaultLots > 0) return inst.defaultLots;
+
+    const matched = cfg.indices?.find(
+      (i) => i.symbol.toUpperCase() === sym || sym.includes(i.symbol.toUpperCase())
+    );
+    if (matched && (matched.defaultLotSize || matched.defaultLots)) {
+      return matched.defaultLotSize || matched.defaultLots || 0;
+    }
+    if (sym.includes('BANK') && cfg.bankNiftyLots) return cfg.bankNiftyLots;
+    if ((sym.includes('MIDCAP') || sym.includes('MIDCP')) && cfg.midcapNiftyLots) return cfg.midcapNiftyLots;
+    if (sym.includes('SENSEX') && cfg.sensexLots) return cfg.sensexLots;
+    if (sym.includes('NIFTY') && cfg.nifty50Lots) return cfg.nifty50Lots;
+    return 0;
+  }
+
+  getLotSizeForInstrument(inst: Instrument | null): number {
+    const sym = (inst?.symbol || this.selectedInstrumentSymbol || '').toUpperCase();
+    const cfg = this.instrumentService.lotSizes();
+    const matched = cfg.indices?.find(
+      (i) => i.symbol.toUpperCase() === sym || sym.includes(i.symbol.toUpperCase())
+    );
+    if (matched && (matched.defaultQuantityInOneLot || matched.lotSize)) {
+      return matched.defaultQuantityInOneLot || matched.lotSize || 0;
+    }
+    if (inst?.defaultQuantityInOneLot && inst.defaultQuantityInOneLot > 0) {
+      return inst.defaultQuantityInOneLot;
+    }
+    if (inst?.lotSize && inst.lotSize > 0) {
+      return inst.lotSize;
+    }
+    if (sym.includes('BANK') && cfg.bankNifty) return cfg.bankNifty;
+    if ((sym.includes('MIDCAP') || sym.includes('MIDCP')) && cfg.midcapNifty) return cfg.midcapNifty;
+    if (sym.includes('SENSEX') && cfg.sensex) return cfg.sensex;
+    if (sym.includes('NIFTY') && cfg.nifty50) return cfg.nifty50;
+    return 0;
   }
 
   getDefinedSlPoints(symbol: string): number {
@@ -881,6 +1099,7 @@ export class AlertComposerComponent implements OnInit {
   }
 
   onInstrumentChange(symbol: string): void {
+    this.userManuallyChangedLots = false;
     this.selectedInstrumentSymbol = symbol;
     const upper = (symbol || '').toUpperCase();
     const found = this.instruments().find(
@@ -900,23 +1119,11 @@ export class AlertComposerComponent implements OnInit {
     this.selectedInstrument = found;
     this.selectedInstrumentSymbol = found.symbol;
 
-    // Resolve configured lots from Firestore config
-    const cfg = this.instrumentService.lotSizes();
-    const matchedIdx = cfg.indices?.find((i) => i.symbol.toUpperCase() === upper);
-    let configuredLots = this.orderLots || 5;
-    if (matchedIdx && (matchedIdx.defaultLotSize || matchedIdx.defaultLots)) {
-      configuredLots = matchedIdx.defaultLotSize || matchedIdx.defaultLots || configuredLots;
-    } else if (upper.includes('BANK') && cfg.bankNiftyLots) {
-      configuredLots = cfg.bankNiftyLots;
-    } else if ((upper.includes('MIDCAP') || upper.includes('MIDCP')) && cfg.midcapNiftyLots) {
-      configuredLots = cfg.midcapNiftyLots;
-    } else if (upper.includes('SENSEX') && cfg.sensexLots) {
-      configuredLots = cfg.sensexLots;
-    } else if (upper.includes('NIFTY') && cfg.nifty50Lots) {
-      configuredLots = cfg.nifty50Lots;
+    // Resolve configured preferred lots from Firestore database
+    const pref = this.getPreferredLotsForInstrument(found);
+    if (pref > 0) {
+      this.orderLots = pref;
     }
-
-    this.orderLots = configuredLots;
 
     // Set defined Stop Loss points based on instrument
     this.stopLossPoints.set(this.getDefinedSlPoints(symbol));
@@ -1102,6 +1309,23 @@ export class AlertComposerComponent implements OnInit {
     this.updateSelectedOrderContract();
   }
 
+  getContractFullName(strike: StrikeOptionPair): string {
+    const contract = this.orderAction === 'BUY' ? strike?.call : strike?.put;
+    // Show exact contract name fetched from NSE (customSymbol) without modifications
+    if (contract?.customSymbol) {
+      return contract.customSymbol;
+    }
+    if (contract?.symbol) {
+      return contract.symbol;
+    }
+    if (contract?.tradingSymbol) {
+      return contract.tradingSymbol;
+    }
+    const inst = this.selectedInstrumentSymbol || '';
+    const type = this.orderAction === 'BUY' ? 'CALL' : 'PUT';
+    return `${inst} ${strike.strikePrice} ${type}`.trim();
+  }
+
   updateSelectedOrderContract(): void {
     const pair = this.strikePairs().find((s) => s.strikePrice === this.selectedStrikePrice);
     if (!pair) return;
@@ -1109,7 +1333,7 @@ export class AlertComposerComponent implements OnInit {
     // If BUY action -> CALL (CE); If SELL action -> PUT (PE)
     const contract = this.orderAction === 'BUY' ? pair.call : pair.put;
     if (contract) {
-      this.orderSymbol = contract.symbol;
+      this.orderSymbol = contract.customSymbol || contract.symbol;
       this.orderSecurityId = contract.securityId;
       this.orderExchangeSegment = contract.exchangeSegment;
     }
@@ -1121,6 +1345,12 @@ export class AlertComposerComponent implements OnInit {
   }
 
   currentContractLotSize(): number {
+    // 1. Prioritize Firestore database lot size configuration for the instrument
+    const configLotSize = this.getLotSizeForInstrument(this.selectedInstrument);
+    if (configLotSize && configLotSize > 0) {
+      return configLotSize;
+    }
+    // 2. Option contract lotSize
     const pair = this.strikePairs().find((s) => s.strikePrice === this.selectedStrikePrice);
     if (pair) {
       const contract = this.orderAction === 'BUY' ? pair.call : pair.put;
@@ -1128,21 +1358,16 @@ export class AlertComposerComponent implements OnInit {
         return contract.lotSize;
       }
     }
-    const sizes = this.instrumentService.lotSizes();
-    const sym = (this.selectedInstrumentSymbol || this.selectedInstrument?.symbol || '').toUpperCase();
-    if (sym.includes('BANK')) return sizes.bankNifty;
-    if (sym.includes('MIDCAP') || sym.includes('MIDCP')) return sizes.midcapNifty;
-    if (sym.includes('SENSEX')) return sizes.sensex;
-    if (sym.includes('NIFTY')) return sizes.nifty50;
-    return this.selectedInstrument?.lotSize || 1;
+    return this.selectedInstrument?.lotSize || 0;
   }
 
   totalOrderQuantity(): number {
-    const lots = Math.max(1, Number(this.orderLots) || 1);
+    const lots = Number(this.orderLots) || 0;
     return lots * this.currentContractLotSize();
   }
 
   setLots(lots: number): void {
+    this.userManuallyChangedLots = true;
     this.orderLots = lots;
   }
 
@@ -1178,8 +1403,17 @@ export class AlertComposerComponent implements OnInit {
       return;
     }
 
-    const secId = this.selectedInstrument?.securityId || '13';
-    const exSeg = this.selectedInstrument?.exchangeSegment || 'IDX_I';
+    const secId = this.selectedInstrument?.securityId;
+    const exSeg = this.selectedInstrument?.exchangeSegment;
+    if (!secId || !exSeg) {
+      this.isSubmitting.set(false);
+      this.snackBar.open(
+        'Cannot place alert: Selected instrument data is not loaded.',
+        'Dismiss',
+        { duration: 6000 }
+      );
+      return;
+    }
     const priceNum = Number(this.targetPrice);
     const totalQty = this.totalOrderQuantity();
 
@@ -1300,6 +1534,7 @@ export class AlertComposerComponent implements OnInit {
         ? {
             action: 'BUY',
             symbol: this.orderSymbol,
+            customSymbol: this.orderSymbol,
             securityId: this.orderSecurityId,
             exchangeSegment: this.orderExchangeSegment || 'NSE_FNO',
             productType: this.productType,
@@ -1324,15 +1559,14 @@ export class AlertComposerComponent implements OnInit {
       panelClass: 'alert-preview-dialog-panel',
     });
 
-    dialogRef.afterClosed().subscribe((res: boolean | { confirmed: boolean; password?: string }) => {
+    dialogRef.afterClosed().subscribe((res: boolean | { confirmed: boolean }) => {
       if (res) {
-        const password = typeof res === 'object' ? res.password : undefined;
-        this.executeCreateAlert(operator, password);
+        this.executeCreateAlert(operator);
       }
     });
   }
 
-  private executeCreateAlert(operator: AlertOperator, password?: string): void {
+  private executeCreateAlert(operator: AlertOperator): void {
     if (this.executeOrderOnTrigger && (!this.orderSecurityId || !this.orderSymbol)) {
       this.snackBar.open(
         'Cannot place alert: Option contract data is not found in database. Please sync master data from Settings.',
@@ -1344,8 +1578,17 @@ export class AlertComposerComponent implements OnInit {
 
     this.isSubmitting.set(true);
 
-    const secId = this.selectedInstrument?.securityId || '13';
-    const exSeg = this.selectedInstrument?.exchangeSegment || 'IDX_I';
+    const secId = this.selectedInstrument?.securityId;
+    const exSeg = this.selectedInstrument?.exchangeSegment;
+    if (!secId || !exSeg) {
+      this.isSubmitting.set(false);
+      this.snackBar.open(
+        'Cannot place alert: Selected instrument data is not loaded.',
+        'Dismiss',
+        { duration: 6000 }
+      );
+      return;
+    }
     const totalQty = this.totalOrderQuantity();
     const pair = this.strikePairs().find((s) => s.strikePrice === this.selectedStrikePrice);
     const contract = pair ? (this.orderAction === 'BUY' ? pair.call : pair.put) : null;
@@ -1392,7 +1635,6 @@ export class AlertComposerComponent implements OnInit {
         remarks: `Alert for ${this.selectedInstrumentSymbol} @ ₹${this.targetPrice}`,
         conditionalOrder,
         stopLoss,
-        password,
         attachedOrder: conditionalOrder
           ? {
               enabled: true,

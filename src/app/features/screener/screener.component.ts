@@ -196,7 +196,7 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
                 <span class="custom-checkbox"></span>
               </label>
               <div class="ticker-info" (click)="screenerService.toggleStock(stock.symbol)">
-                <div class="ticker-symbol">{{ stock.symbol }}</div>
+                <div class="ticker-symbol">{{ stock.customSymbol || stock.symbol }}</div>
                 <div class="ticker-name" [matTooltip]="stock.name">{{ stock.name }}</div>
                 <div *ngIf="stock.sector" class="ticker-sector">{{ stock.sector }}</div>
               </div>
@@ -387,7 +387,7 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
                   <!-- Stock Ticker & Name (No .NS clutter) -->
                   <td class="stock-cell">
                     <div class="ticker-box">
-                      <span class="ticker-symbol mono-val">{{ match.symbol }}</span>
+                      <span class="ticker-symbol mono-val">{{ match.customSymbol || match.symbol }}</span>
                       <span class="ticker-fullname">{{ match.name }}</span>
                     </div>
                   </td>

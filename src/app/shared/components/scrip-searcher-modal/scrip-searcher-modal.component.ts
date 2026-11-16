@@ -55,7 +55,7 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
           (mouseenter)="selectedIndex.set(i)"
         >
           <div class="col-symbol">
-            <span class="symbol-name">{{ item.symbol }}</span>
+            <span class="symbol-name">{{ item.customSymbol || item.symbol }}</span>
             <span class="full-name">{{ item.name }}</span>
           </div>
 

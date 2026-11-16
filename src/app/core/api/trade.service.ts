@@ -39,7 +39,7 @@ export class TradeService {
     if (query) {
       list = list.filter(
         (t) =>
-          (t.symbol || '').toLowerCase().includes(query) ||
+          (t.customSymbol || t.symbol || '').toLowerCase().includes(query) ||
           String(t.securityId || '').includes(query) ||
           String(t.tradeId || '').toLowerCase().includes(query),
       );
@@ -127,30 +127,35 @@ export class TradeService {
     // Check if the trades are already paired (has status and buyPrice/sellPrice)
     const isAlreadyPaired = rawList.some((t) => t.status && (t.buyPrice !== undefined || t.sellPrice !== undefined));
     if (isAlreadyPaired) {
-      return rawList.map((t, idx) => ({
-        tradeId: String(t.tradeId || `PAIR-${idx + 1}`),
-        symbol: String(t.symbol || t.customSymbol || (t.securityId ? `Security #${t.securityId}` : 'UNKNOWN')),
-        securityId: String(t.securityId || ''),
-        quantity: Number(t.quantity || t.tradedQuantity || 0),
-        buyPrice: t.buyPrice !== undefined && t.buyPrice !== null ? Number(t.buyPrice) : null,
-        sellPrice: t.sellPrice !== undefined && t.sellPrice !== null ? Number(t.sellPrice) : null,
-        pnl: t.pnl !== undefined && t.pnl !== null ? Number(t.pnl) : null,
-        pnlPercentage: t.pnlPercentage !== undefined && t.pnlPercentage !== null ? Number(t.pnlPercentage) : null,
-        totalCharges: t.totalCharges !== undefined && t.totalCharges !== null ? Number(t.totalCharges) : null,
-        netPnL: t.netPnL !== undefined && t.netPnL !== null ? Number(t.netPnL) : (t.pnl !== undefined && t.pnl !== null ? Number(t.pnl) : null),
-        status: t.status || 'CLOSED',
-        isProfit: t.isProfit ?? (t.pnl !== null && t.pnl !== undefined ? t.pnl >= 0 : null),
-        tradeDate: t.tradeDate || '',
-        executionTime: String(t.executionTime || t.exchangeTime || t.createTime || t.tradeDate || ''),
-        buyTime: t.buyTime || '',
-        sellTime: t.sellTime || '',
-      }));
+      return rawList.map((t, idx) => {
+        const sym = String(t.customSymbol || t.symbol || (t.securityId ? `Security #${t.securityId}` : 'UNKNOWN'));
+        return {
+          tradeId: String(t.tradeId || `PAIR-${idx + 1}`),
+          symbol: sym,
+          customSymbol: t.customSymbol || t.symbol || undefined,
+          tradingSymbol: t.tradingSymbol || undefined,
+          securityId: String(t.securityId || ''),
+          quantity: Number(t.quantity || t.tradedQuantity || 0),
+          buyPrice: t.buyPrice !== undefined && t.buyPrice !== null ? Number(t.buyPrice) : null,
+          sellPrice: t.sellPrice !== undefined && t.sellPrice !== null ? Number(t.sellPrice) : null,
+          pnl: t.pnl !== undefined && t.pnl !== null ? Number(t.pnl) : null,
+          pnlPercentage: t.pnlPercentage !== undefined && t.pnlPercentage !== null ? Number(t.pnlPercentage) : null,
+          totalCharges: t.totalCharges !== undefined && t.totalCharges !== null ? Number(t.totalCharges) : null,
+          netPnL: t.netPnL !== undefined && t.netPnL !== null ? Number(t.netPnL) : (t.pnl !== undefined && t.pnl !== null ? Number(t.pnl) : null),
+          status: t.status || 'CLOSED',
+          isProfit: t.isProfit ?? (t.pnl !== null && t.pnl !== undefined ? t.pnl >= 0 : null),
+          tradeDate: t.tradeDate || '',
+          executionTime: String(t.executionTime || t.exchangeTime || t.createTime || t.tradeDate || ''),
+          buyTime: t.buyTime || '',
+          sellTime: t.sellTime || '',
+        };
+      });
     }
 
     // Client-side fallback pairing if raw un-paired fills were returned
     const grouped = new Map<string, any[]>();
     for (const t of rawList) {
-      const key = String(t.securityId || t.symbol || 'UNKNOWN');
+      const key = String(t.securityId || t.customSymbol || t.symbol || 'UNKNOWN');
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key)!.push(t);
     }
@@ -184,9 +189,12 @@ export class TradeService {
               ? Math.round(((sellItem.price - fillPrice) / sellItem.price) * 10000) / 100
               : 0;
 
+            const sym = String(fill.customSymbol || fill.symbol || (fill.securityId ? `Security #${fill.securityId}` : 'UNKNOWN'));
             pairedResults.push({
               tradeId: `PAIR-${pairCounter++}`,
-              symbol: String(fill.symbol || fill.customSymbol || (fill.securityId ? `Security #${fill.securityId}` : 'UNKNOWN')),
+              symbol: sym,
+              customSymbol: fill.customSymbol || fill.symbol || undefined,
+              tradingSymbol: fill.tradingSymbol || undefined,
               securityId: String(fill.securityId || ''),
               quantity: matchedQty,
               buyPrice: fillPrice,
@@ -218,9 +226,12 @@ export class TradeService {
               ? Math.round(((fillPrice - buyItem.price) / buyItem.price) * 10000) / 100
               : 0;
 
+            const sym = String(fill.customSymbol || fill.symbol || (fill.securityId ? `Security #${fill.securityId}` : 'UNKNOWN'));
             pairedResults.push({
               tradeId: `PAIR-${pairCounter++}`,
-              symbol: String(fill.symbol || fill.customSymbol || (fill.securityId ? `Security #${fill.securityId}` : 'UNKNOWN')),
+              symbol: sym,
+              customSymbol: fill.customSymbol || fill.symbol || undefined,
+              tradingSymbol: fill.tradingSymbol || undefined,
               securityId: String(fill.securityId || ''),
               quantity: matchedQty,
               buyPrice: buyItem.price,
@@ -247,9 +258,12 @@ export class TradeService {
       }
 
       for (const buyItem of buyQueue) {
+        const sym = String(buyItem.fill.customSymbol || buyItem.fill.symbol || (buyItem.fill.securityId ? `Security #${buyItem.fill.securityId}` : 'UNKNOWN'));
         pairedResults.push({
           tradeId: `PAIR-${pairCounter++}`,
-          symbol: String(buyItem.fill.symbol || buyItem.fill.customSymbol || (buyItem.fill.securityId ? `Security #${buyItem.fill.securityId}` : 'UNKNOWN')),
+          symbol: sym,
+          customSymbol: buyItem.fill.customSymbol || buyItem.fill.symbol || undefined,
+          tradingSymbol: buyItem.fill.tradingSymbol || undefined,
           securityId: String(buyItem.fill.securityId || ''),
           quantity: buyItem.qty,
           buyPrice: buyItem.price,
@@ -265,9 +279,12 @@ export class TradeService {
       }
 
       for (const sellItem of sellQueue) {
+        const sym = String(sellItem.fill.customSymbol || sellItem.fill.symbol || (sellItem.fill.securityId ? `Security #${sellItem.fill.securityId}` : 'UNKNOWN'));
         pairedResults.push({
           tradeId: `PAIR-${pairCounter++}`,
-          symbol: String(sellItem.fill.symbol || sellItem.fill.customSymbol || (sellItem.fill.securityId ? `Security #${sellItem.fill.securityId}` : 'UNKNOWN')),
+          symbol: sym,
+          customSymbol: sellItem.fill.customSymbol || sellItem.fill.symbol || undefined,
+          tradingSymbol: sellItem.fill.tradingSymbol || undefined,
           securityId: String(sellItem.fill.securityId || ''),
           quantity: sellItem.qty,
           buyPrice: null,

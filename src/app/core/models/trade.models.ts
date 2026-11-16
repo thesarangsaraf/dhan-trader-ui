@@ -9,6 +9,8 @@ export interface FinancialYearOption {
 export interface HistoricalTradeItem {
   tradeId: string;
   symbol: string; // Human-readable symbol (e.g. "NIFTY 28 NOV 24500 CALL", "RELIANCE")
+  customSymbol?: string;
+  tradingSymbol?: string;
   securityId: string;
   quantity: number;
   buyPrice: number | null;

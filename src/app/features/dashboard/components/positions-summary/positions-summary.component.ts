@@ -86,7 +86,7 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
           <div *ngFor="let pos of orderService.positions(); let isEven = even; let isOdd = odd" class="position-row" [ngClass]="{ 'closed': pos.netQty === 0, 'row-even': isEven, 'row-odd': isOdd }">
             <div class="pos-info">
               <div class="sym-row">
-                <span class="sym-name">{{ pos.symbol }}</span>
+                <span class="sym-name">{{ pos.customSymbol || pos.symbol }}</span>
                 <span class="qty-pill mono-val" [ngClass]="pos.netQty > 0 ? 'long' : (pos.netQty < 0 ? 'short' : '')">
                   {{ pos.netQty > 0 ? '+' : '' }}{{ pos.netQty }} Qty
                 </span>
@@ -308,7 +308,7 @@ export class PositionsSummaryComponent {
     const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
       data: {
         title: 'Exit & Square Off Position',
-        message: `Square off ${Math.abs(pos.netQty)} Qty of ${pos.symbol} at current market price?`,
+        message: `Square off ${Math.abs(pos.netQty)} Qty of ${pos.customSymbol || pos.symbol} at current market price?`,
         confirmText: 'Square Off',
         isDestructive: true,
       },

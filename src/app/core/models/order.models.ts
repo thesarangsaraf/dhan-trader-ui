@@ -7,6 +7,8 @@ export interface DhanOrder {
   orderId: string;
   dhanClientId?: string;
   symbol: string;
+  customSymbol?: string;
+  tradingSymbol?: string;
   securityId: string;
   exchangeSegment: string;
   transactionType: TransactionType;
@@ -23,6 +25,8 @@ export interface DhanOrder {
 
 export interface PlaceOrderDto {
   symbol: string;
+  customSymbol?: string;
+  tradingSymbol?: string;
   securityId?: string;
   exchangeSegment?: string;
   transactionType: TransactionType;
@@ -36,6 +40,8 @@ export interface PlaceOrderDto {
 export interface DhanPosition {
   positionId: string;
   symbol: string;
+  customSymbol?: string;
+  tradingSymbol?: string;
   securityId: string;
   exchangeSegment: string;
   productType: string;

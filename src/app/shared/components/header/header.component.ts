@@ -520,23 +520,14 @@ export class HeaderComponent implements OnInit, OnDestroy {
   readonly telegramService = inject(TelegramApiService);
   private readonly dialog = inject(MatDialog);
 
-  private fundsPollInterval: ReturnType<typeof setInterval> | null = null;
-
   ngOnInit(): void {
-    // Refresh funds periodically every 45 seconds to keep available balance fresh
-    this.fundsPollInterval = setInterval(() => {
-      if (this.authService.isBackendOnline()) {
-        this.orderService.refreshFunds();
-      }
-    }, 45000);
-  }
-
-  ngOnDestroy(): void {
-    if (this.fundsPollInterval) {
-      clearInterval(this.fundsPollInterval);
-      this.fundsPollInterval = null;
+    // Initial fetch of account funds on mount (background polling interval disabled)
+    if (this.authService.isBackendOnline()) {
+      this.orderService.refreshFunds();
     }
   }
+
+  ngOnDestroy(): void {}
 
   openAuthModal(): void {
     this.dialog.open(AuthModalComponent, {

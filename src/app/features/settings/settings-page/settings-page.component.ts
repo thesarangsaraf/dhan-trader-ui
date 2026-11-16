@@ -1013,7 +1013,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                     <div class="stat-lbl">Benchmark Indices (IDX_I)</div>
                   </div>
                   <div class="stat-card">
-                    <div class="stat-val mono-val">{{ meta.documentsCount || 7 }}</div>
+                    <div class="stat-val mono-val">{{ meta.documentsCount ? (meta.documentsCount | number) : '--' }}</div>
                     <div class="stat-lbl">Modular Documents</div>
                   </div>
                 </div>
@@ -1069,15 +1069,15 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                     <div class="stat-lbl">Total Option Contracts</div>
                   </div>
                   <div class="stat-card">
-                    <div class="stat-val mono-val">{{ (optMeta.documentIds?.length || optMeta.totalChunks || 4) | number }}</div>
+                    <div class="stat-val mono-val">{{ (optMeta.documentIds?.length || optMeta.totalChunks) ? ((optMeta.documentIds?.length || optMeta.totalChunks) | number) : '--' }}</div>
                     <div class="stat-lbl">Index Documents</div>
                   </div>
                   <div class="stat-card">
-                    <div class="stat-val mono-val">{{ (optMeta.maxExpiriesPerIndex || 2) | number }}</div>
+                    <div class="stat-val mono-val">{{ optMeta.maxExpiriesPerIndex ? (optMeta.maxExpiriesPerIndex | number) : '--' }}</div>
                     <div class="stat-lbl">Max Expiries / Index</div>
                   </div>
                   <div class="stat-card">
-                    <div class="stat-val mono-val">{{ (instrumentService.optionsSyncStatus()?.tradedIndices?.length || 4) }}</div>
+                    <div class="stat-val mono-val">{{ (instrumentService.optionsSyncStatus()?.tradedIndices?.length ?? '--') }}</div>
                     <div class="stat-lbl">Traded Indices</div>
                   </div>
                 </div>
@@ -1086,7 +1086,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 <div class="documents-breakdown-box" *ngIf="instrumentService.optionsSyncStatus()?.metadata as optMeta">
                   <div class="breakdown-title">Dedicated Index Documents in Firestore:</div>
                   <div class="doc-chips">
-                    <span class="traded-index-pill" *ngFor="let idx of (optMeta.documentIds || instrumentService.optionsSyncStatus()?.tradedIndices || ['NIFTY', 'BANKNIFTY', 'MIDCPNIFTY', 'SENSEX'])">
+                    <span class="traded-index-pill" *ngFor="let idx of (optMeta.documentIds || instrumentService.optionsSyncStatus()?.tradedIndices || [])">
                       <span class="material-symbols-rounded">description</span>
                       {{ idx }} (Current & Next Expiry)
                     </span>

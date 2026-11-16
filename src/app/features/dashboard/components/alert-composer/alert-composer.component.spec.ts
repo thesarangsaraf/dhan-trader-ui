@@ -56,6 +56,7 @@ describe('AlertComposerComponent', () => {
               call: {
                 symbol: 'NIFTY 12 NOV 25000 CALL',
                 tradingSymbol: 'NIFTY-12Nov2026-25000-CE',
+                customSymbol: 'NIFTY 12 NOV 25000 CALL',
                 instrumentName: 'NIFTY 50',
                 strikePrice: 25000,
                 optionType: 'CE',
@@ -70,6 +71,7 @@ describe('AlertComposerComponent', () => {
               put: {
                 symbol: 'NIFTY 12 NOV 25000 PUT',
                 tradingSymbol: 'NIFTY-12Nov2026-25000-PE',
+                customSymbol: 'NIFTY 12 NOV 25000 PUT',
                 instrumentName: 'NIFTY 50',
                 strikePrice: 25000,
                 optionType: 'PE',
@@ -337,10 +339,179 @@ describe('AlertComposerComponent', () => {
     const strikeTags = compiled.querySelectorAll('.strike-tag');
     expect(strikeTags.length).toBe(0);
 
-    // None of the strike chips should contain 'ATM' text
+    // None of the strike chips should contain 'ATM' text, and should display exact contract name without modification
     strikeChips.forEach((chip) => {
       expect(chip.textContent).not.toContain('ATM');
-      expect(chip.textContent).toContain('25000 CE');
+      expect(chip.textContent).toContain('NIFTY 12 NOV 25000 CALL');
     });
+  });
+
+  it('should render 3 option contracts vertically with exact customSymbol from NSE and LTP', () => {
+    component.executeOrderOnTrigger = true;
+    component.selectedInstrumentSymbol = 'NIFTY 50';
+    component.orderAction = 'BUY';
+    component.targetPrice = 25000;
+    component.loadOptionContracts();
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const strikeList = compiled.querySelector('.strike-chips');
+    expect(strikeList).not.toBeNull();
+
+    const chips = compiled.querySelectorAll('.strike-chip');
+    expect(chips.length).toBe(1);
+    expect(chips[0].textContent).toContain('NIFTY 12 NOV 25000 CALL');
+    expect(chips[0].textContent).toContain('120');
+  });
+
+  it('should display exact contract name fetched from NSE using customSymbol without any modifications', () => {
+    const pair: any = {
+      strikePrice: 25000,
+      call: {
+        customSymbol: 'NIFTY 28 NOV 25000 CALL',
+        tradingSymbol: 'NIFTY-28Nov2026-25000-CE',
+        symbol: 'NIFTY 28 NOV 25000 CALL',
+      },
+      put: {
+        customSymbol: 'NIFTY 28 NOV 25000 PUT',
+        tradingSymbol: 'NIFTY-28Nov2026-25000-PE',
+        symbol: 'NIFTY 28 NOV 25000 PUT',
+      },
+    };
+
+    component.orderAction = 'BUY';
+    expect(component.getContractFullName(pair)).toBe('NIFTY 28 NOV 25000 CALL');
+
+    component.orderAction = 'SELL';
+    expect(component.getContractFullName(pair)).toBe('NIFTY 28 NOV 25000 PUT');
+  });
+
+  it('should reflect preferred lot size and lot size configured in Firestore config when changing instruments', () => {
+    // BANK NIFTY configured with defaultLotSize: 10, lotSize: 30
+    const bankNiftyInstrument = {
+      symbol: 'BANK NIFTY',
+      name: 'Bank Nifty Index',
+      securityId: '25',
+      exchangeSegment: 'IDX_I',
+      instrumentType: 'INDEX',
+      lotSize: 30,
+      defaultLotSize: 10,
+      defaultQuantityInOneLot: 30,
+      defaultLots: 10,
+      defaultQuantity: 300,
+      ltp: 52000.0,
+    };
+
+    component.instruments.set([bankNiftyInstrument]);
+    component.onInstrumentChange('BANK NIFTY');
+    fixture.detectChanges();
+
+    expect(component.selectedInstrumentSymbol).toBe('BANK NIFTY');
+    expect(component.orderLots).toBe(10); // Reflects preferred lot size
+    expect(component.currentContractLotSize()).toBe(30); // Reflects configured lot size
+    expect(component.totalOrderQuantity()).toBe(300); // 10 lots * 30 qty = 300 shares
+  });
+
+  it('should render preferred badge on preferred lot button and show total quantity summary banner', () => {
+    component.instruments.set([
+      {
+        symbol: 'NIFTY 50',
+        name: 'Nifty 50 Index',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        instrumentType: 'INDEX',
+        lotSize: 65,
+        defaultLotSize: 5,
+        defaultQuantityInOneLot: 65,
+        defaultLots: 5,
+        defaultQuantity: 325,
+        ltp: 25030.0,
+      },
+    ]);
+    component.onInstrumentChange('NIFTY 50');
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const prefPill = compiled.querySelector('.pref-pill');
+    expect(prefPill).not.toBeNull();
+    expect(prefPill?.textContent?.trim()).toBe('Preferred');
+
+    const summaryBox = compiled.querySelector('.order-qty-summary-box');
+    expect(summaryBox).not.toBeNull();
+    expect(summaryBox?.textContent).toContain('Total Order Quantity:');
+    expect(summaryBox?.textContent).toContain('325 Shares');
+  });
+
+  it('should dynamically reflect 15 lots preferred from Firestore for NIFTY 50 with badge on 15 Lots', () => {
+    // Mock Firestore configuration returning defaultLotSize: 15 for NIFTY 50
+    mockInstService.lotSizes.mockReturnValue({
+      nifty50: 65,
+      bankNifty: 30,
+      midcapNifty: 120,
+      sensex: 20,
+      nifty50Lots: 15,
+      bankNiftyLots: 5,
+      midcapNiftyLots: 5,
+      sensexLots: 5,
+      indices: [
+        {
+          symbol: 'NIFTY 50',
+          name: 'Nifty 50 Index',
+          securityId: '13',
+          exchangeSegment: 'IDX_I',
+          defaultLotSize: 15,
+          defaultQuantityInOneLot: 65,
+          lotSize: 65,
+          defaultLots: 15,
+          defaultQuantity: 975,
+          stopLossPoints: 12,
+          enabled: true,
+          order: 1,
+        },
+      ],
+    });
+
+    component.instruments.set([
+      {
+        symbol: 'NIFTY 50',
+        name: 'Nifty 50 Index',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        instrumentType: 'INDEX',
+        lotSize: 65,
+        defaultLotSize: 15,
+        defaultQuantityInOneLot: 65,
+        defaultLots: 15,
+        defaultQuantity: 975,
+        ltp: 25300.0,
+      },
+    ]);
+    component.onInstrumentChange('NIFTY 50');
+    fixture.detectChanges();
+
+    expect(component.preferredLots()).toBe(15);
+    expect(component.orderLots).toBe(15);
+    expect(component.totalOrderQuantity()).toBe(975);
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const prefIndicator = compiled.querySelector('.preferred-indicator');
+    expect(prefIndicator?.textContent).toContain('Configured Preferred: 15 Lots');
+
+    // Button containing '15 Lots' must have the 'pref-pill'
+    const lotButtons = Array.from(compiled.querySelectorAll('.lot-select-btn'));
+    const btn15 = lotButtons.find((btn) => btn.textContent?.includes('15 Lots'));
+    expect(btn15).toBeDefined();
+    expect(btn15?.querySelector('.pref-pill')).not.toBeNull();
+    expect(btn15?.querySelector('.pref-pill')?.textContent?.trim()).toBe('Preferred');
+
+    const btn5 = lotButtons.find((btn) => btn.textContent?.includes('5 Lots'));
+    expect(btn5?.querySelector('.pref-pill')).toBeNull();
+
+    // When user manually selects 10 lots:
+    component.setLots(10);
+    fixture.detectChanges();
+    expect(component.orderLots).toBe(10);
+    expect(component.preferredLots()).toBe(15); // Stays configured as 15 Lots
+    expect(component.totalOrderQuantity()).toBe(650);
   });
 });

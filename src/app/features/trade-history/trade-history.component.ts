@@ -248,7 +248,7 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
 
                   <!-- Instrument Name (Human Readable) -->
                   <td class="symbol-cell">
-                    <div class="symbol-name">{{ t.symbol }}</div>
+                    <div class="symbol-name">{{ t.customSymbol || t.symbol }}</div>
                   </td>
 
                   <!-- Quantity -->

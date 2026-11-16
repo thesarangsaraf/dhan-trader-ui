@@ -22,6 +22,7 @@ export interface LinkedStopLossDetails {
   status?: string;
   action: 'BUY' | 'SELL';
   symbol?: string;
+  customSymbol?: string;
   quantity?: number;
   orderType?: string;
   orderId?: string | null;
@@ -289,11 +290,11 @@ export function isClaimedByAnother(
               </div>
             </div>
 
-            <div class="sl-order-card" *ngIf="sl.symbol">
+            <div class="sl-order-card" *ngIf="sl.customSymbol || sl.symbol">
               <div class="sl-contract-row">
                 <span class="ord-side-chip sell">{{ sl.action }}</span>
                 <span class="sl-contract-label">Square Off:</span>
-                <span class="sl-contract-symbol mono-val">{{ sl.symbol }}</span>
+                <span class="sl-contract-symbol mono-val">{{ sl.customSymbol || sl.symbol }}</span>
                 <span class="sl-spec-dot">&bull;</span>
                 <span class="sl-spec-qty mono-val">Qty: {{ sl.quantity }}</span>
                 <span class="sl-spec-dot" *ngIf="sl.orderType && sl.orderType !== 'MARKET'">&bull;</span>
@@ -820,6 +821,7 @@ export class AlertListComponent {
         : parentOrder
         ? this.getDisplaySymbol(parentOrder, alert)
         : undefined;
+      const customSymbol = childOrder?.customSymbol || parentOrder?.customSymbol || symbol;
       const quantity = childOrder?.quantity || parentOrder?.quantity || 0;
       const orderType = childOrder?.orderType || 'MARKET';
       const orderId = childOrder?.orderId || null;
@@ -832,6 +834,7 @@ export class AlertListComponent {
         status: child.status,
         action,
         symbol,
+        customSymbol,
         quantity,
         orderType,
         orderId,
@@ -848,6 +851,7 @@ export class AlertListComponent {
       const rawAction = alert.stopLoss.action || 'SELL';
       const action = rawAction.toUpperCase() as 'BUY' | 'SELL';
       const symbol = parentOrder ? this.getDisplaySymbol(parentOrder, alert) : undefined;
+      const customSymbol = parentOrder?.customSymbol || symbol;
       const quantity = parentOrder?.quantity || 0;
 
       return {
@@ -858,6 +862,7 @@ export class AlertListComponent {
         status: alert.stopLossAlertPlaced ? 'ACTIVE' : 'ARMED',
         action,
         symbol,
+        customSymbol,
         quantity,
         orderType: 'MARKET',
         isPlaced: Boolean(alert.stopLossAlertPlaced && alert.status === 'TRIGGERED'),
@@ -1154,7 +1159,7 @@ export class AlertListComponent {
         targetPrice: sl.targetPrice,
         points: sl.points,
         action: sl.action,
-        symbol: sl.symbol,
+        symbol: sl.customSymbol || sl.symbol,
         quantity: sl.quantity,
         status: sl.status || (sl.isPlaced ? 'PLACED' : 'PENDING'),
         orderId: sl.orderId,

@@ -1,11 +1,18 @@
 export interface Instrument {
   symbol: string;
+  customSymbol?: string;
+  tradingSymbol?: string;
   name: string;
   securityId: string;
   exchangeSegment: string;
   instrumentType: 'INDEX' | 'OPTIDX' | 'EQUITY' | 'FUTIDX' | string;
   ltp: number;
   lotSize?: number;
+  defaultLotSize?: number;           // Preferred lot size (e.g. 5, 10, 15 lots)
+  defaultQuantityInOneLot?: number;  // Quantity in 1 lot (e.g. 65, 30)
+  defaultLots?: number;              // Compatibility alias for defaultLotSize
+  defaultQuantity?: number;          // Compatibility alias for defaultLots * defaultQuantityInOneLot
+  stopLossPoints?: number;
 }
 
 export interface OptionExpiryItem {

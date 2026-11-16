@@ -64,7 +64,7 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
                 <span class="action-tag" [ngClass]="order.transactionType === 'BUY' ? 'buy' : 'sell'">
                   {{ order.transactionType }}
                 </span>
-                <span class="symbol-name">{{ order.symbol }}</span>
+                <span class="symbol-name">{{ order.customSymbol || order.symbol }}</span>
               </div>
               <span class="order-id mono-val">ID: {{ order.orderId }} &bull; {{ order.productType }} / {{ order.orderType }}</span>
             </div>
@@ -236,7 +236,7 @@ export class OrderBookComponent {
     const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
       data: {
         title: 'Cancel Live Order',
-        message: `Cancel ${order.transactionType} ${order.quantity}x ${order.symbol} (Order ID: ${order.orderId})?`,
+        message: `Cancel ${order.transactionType} ${order.quantity}x ${order.customSymbol || order.symbol} (Order ID: ${order.orderId})?`,
         confirmText: 'Cancel Order',
         isDestructive: true,
       },

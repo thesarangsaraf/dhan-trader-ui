@@ -8,6 +8,7 @@ export type ScreenerSignalType = 'BUY' | 'SELL';
 
 export interface ScreenerMatch {
   symbol: string;             // NSE Symbol without .NS (e.g., RELIANCE)
+  customSymbol?: string;      // NSE Custom Symbol
   name: string;               // Company Name
   cmp: number;                // Current Market Price (₹)
   strategy: ScreenerStrategyType;
@@ -42,6 +43,7 @@ export interface ScreenerScanResponse {
 
 export interface WatchlistStockItem {
   symbol: string;
+  customSymbol?: string;
   name: string;
   sector?: string;
   enabled: boolean;

@@ -39,12 +39,12 @@ This document provides operational context, architectural contracts, design rule
 
 ### Rule 1: Always Show Real Data — No Mock / Fake Fallbacks & Zero Secret Leaks
 - **Never inject hardcoded mock data or static fallback values** (e.g., fake LTPs, static positions, simulated orders, hardcoded fallback passwords) into services, components, or API calls.
-- All metrics (P&L, funds, orders, positions, alerts, lot sizes, trade password verification) must originate dynamically from the backend and Google Cloud Firestore.
+- All metrics (P&L, funds, orders, positions, alerts, lot sizes) must originate dynamically from the backend and Google Cloud Firestore.
 - If an endpoint has not returned data yet or is offline, display `--` or `Unavailable`, or throw an explicit section error with a Retry button; do not fall back to synthetic or fake values.
 - **Strict Zero Secret Leaks & No Credential Display on UI (CRITICAL)**:
   - **Never display, hint, pre-fill, or output usernames, passwords, default credentials, PINs, or tokens anywhere in the UI.**
   - **The login page and dialogs must NEVER display default credentials chips, helper text with passwords, or pre-filled hints** (e.g. NEVER display `admin / admin123` or default credentials anywhere on screen). This is a critical financial trading platform.
-  - Input placeholders must remain strictly generic: `"Enter username"`, `"Enter password"`, `"Enter trade password"`. Never include example credentials (e.g. never show `(e.g. admin)` or `(e.g. 3646)` in placeholders or labels).
+  - Input placeholders must remain strictly generic: `"Enter username"`, `"Enter password"`. Never include example credentials (e.g. never show `(e.g. admin)` in placeholders or labels).
 
 ### Rule 2: Graceful Section-Level Error Handling
 - **Never crash or show an error across the entire page.** The application shell, navigation, and other functional panels must remain intact.

@@ -197,11 +197,11 @@ Open either URL in your browser to verify that the UI loads and connects directl
 
 1. **No Static Fallback Credentials or Mock Data**:
    - The UI codebase contains zero hardcoded fallback passwords, static security PINs, fake market data, or mock instruments.
-   - All authorization verifications (including trade password checks) communicate directly with the live backend API and Google Cloud Firestore.
+   - All authorization verifications communicate directly with the live backend API and Google Cloud Firestore.
    - If security services or database endpoints are unavailable, the UI cleanly renders error states rather than falling back to hardcoded static values.
 
 2. **Zero Secret Exposure in UI**:
-   - Passwords, access tokens, and PINs are strictly masked and never revealed in placeholders, helper text, labels, or error messages (e.g. placeholders are generic, such as `"Enter trade password"`).
+   - Passwords, access tokens, and PINs are strictly masked and never revealed in placeholders, helper text, labels, or error messages (e.g. placeholders are generic, such as `"Enter password"`).
 
 ---
 

@@ -129,10 +129,6 @@ describe('InstrumentService', () => {
       metadata: { totalInstruments: 10189, totalEquities: 10070, totalIndices: 119 },
     });
 
-    const optStatusReq = httpTesting.expectOne('/api/instruments/sync/options/status');
-    expect(optStatusReq.request.method).toBe('GET');
-    optStatusReq.flush({ storedInFirestore: true, metadata: null });
-
     expect(result?.success).toBe(true);
     expect(result?.totalInstruments).toBe(10189);
   });

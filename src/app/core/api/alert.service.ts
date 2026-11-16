@@ -87,12 +87,6 @@ export class AlertService {
     );
   }
 
-  verifyOrderPassword(password: string) {
-    return this.http.post<{ valid: boolean; message: string }>('/api/alerts/verify-order-password', {
-      password,
-    });
-  }
-
   updateAlert(id: string, dto: UpdateAlertDto) {
     return this.http.put<{ success: boolean; alert: DhanAlert }>(`/api/alerts/${id}`, dto).pipe(
       tap(() => {
