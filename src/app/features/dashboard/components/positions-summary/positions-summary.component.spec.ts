@@ -176,4 +176,61 @@ describe('PositionsSummaryComponent', () => {
     expect(component.getEntryPrice(shortPos)).toBe(200);
     expect(component.getExitPrice(shortPos)).toBeNull();
   });
+
+  it('should restrict non-admin users from squaring off positions', () => {
+    component.userAuthService.currentUser.set({
+      username: 'trader_bob',
+      role: 'trader',
+    });
+    mockDialog.open.mockClear();
+
+    const openPos: DhanPosition = {
+      positionId: '1',
+      symbol: 'NIFTY 24500 CE',
+      securityId: '45021',
+      exchangeSegment: 'NSE_FNO',
+      productType: 'INTRADAY',
+      netQty: 50,
+      buyQty: 50,
+      sellQty: 0,
+      buyAvg: 100,
+      sellAvg: 0,
+      ltp: 110,
+      realizedPnL: 0,
+      unrealizedPnL: 500,
+    };
+
+    component.confirmSquareOff(openPos);
+    expect(mockDialog.open).not.toHaveBeenCalled();
+  });
+
+  it('should allow admin users to square off positions via confirmation dialog', () => {
+    component.userAuthService.currentUser.set({
+      username: 'sarang',
+      role: 'admin',
+    });
+    mockDialog.open.mockClear();
+    mockDialog.open.mockReturnValue({
+      afterClosed: () => ({ subscribe: vi.fn() }),
+    });
+
+    const openPos: DhanPosition = {
+      positionId: '1',
+      symbol: 'NIFTY 24500 CE',
+      securityId: '45021',
+      exchangeSegment: 'NSE_FNO',
+      productType: 'INTRADAY',
+      netQty: 50,
+      buyQty: 50,
+      sellQty: 0,
+      buyAvg: 100,
+      sellAvg: 0,
+      ltp: 110,
+      realizedPnL: 0,
+      unrealizedPnL: 500,
+    };
+
+    component.confirmSquareOff(openPos);
+    expect(mockDialog.open).toHaveBeenCalled();
+  });
 });

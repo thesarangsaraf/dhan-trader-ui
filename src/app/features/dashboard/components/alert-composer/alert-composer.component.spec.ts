@@ -148,6 +148,10 @@ describe('AlertComposerComponent', () => {
     fixture = TestBed.createComponent(AlertComposerComponent);
     component = fixture.componentInstance;
     (component as any).dialog = mockDialog;
+    component.userAuthService.currentUser.set({
+      username: 'sarang',
+      role: 'admin',
+    });
     fixture.detectChanges();
   });
 
@@ -513,5 +517,42 @@ describe('AlertComposerComponent', () => {
     expect(component.orderLots).toBe(10);
     expect(component.preferredLots()).toBe(15); // Stays configured as 15 Lots
     expect(component.totalOrderQuantity()).toBe(650);
+  });
+
+  it('should restrict non-admin users from placing conditional alerts and show warning snackbar', () => {
+    component.userAuthService.currentUser.set({
+      username: 'trader_bob',
+      role: 'trader',
+    });
+    fixture.detectChanges();
+
+    expect(component.userAuthService.isAdmin()).toBe(false);
+    component.targetPrice = 25000;
+    component.orderSecurityId = '40038';
+    component.orderSymbol = 'NIFTY 12 NOV 25000 CALL';
+
+    component.submitAlert();
+    expect(mockDialog.open).not.toHaveBeenCalled();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const banner = compiled.querySelector('.admin-restriction-banner');
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('Order Placement Restricted');
+  });
+
+  it('should allow admin user to open preview dialog and submit conditional alert', () => {
+    component.userAuthService.currentUser.set({
+      username: 'admin',
+      role: 'admin',
+    });
+    fixture.detectChanges();
+
+    expect(component.userAuthService.isAdmin()).toBe(true);
+    component.targetPrice = 25100;
+    component.orderSecurityId = '40038';
+    component.orderSymbol = 'NIFTY 12 NOV 25000 CALL';
+
+    component.submitAlert();
+    expect(mockDialog.open).toHaveBeenCalled();
   });
 });

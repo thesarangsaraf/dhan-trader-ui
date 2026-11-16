@@ -4,7 +4,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { OrderService } from '../../../../core/api/order.service';
+import { UserAuthService } from '../../../../core/api/user-auth.service';
 import { DhanOrder } from '../../../../core/models/order.models';
 import { ConfirmationDialogComponent } from '../../../../shared/components/confirmation-dialog/confirmation-dialog.component';
 import { SectionErrorComponent } from '../../../../shared/components/section-error/section-error.component';
@@ -81,8 +83,9 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
               <button
                 *ngIf="order.status === 'PENDING' || order.status === 'TRANSIT'"
                 class="cancel-btn"
+                [disabled]="!userAuthService.isAdmin()"
                 (click)="confirmCancel(order)"
-                matTooltip="Cancel Open Order"
+                [matTooltip]="userAuthService.isAdmin() ? 'Cancel Open Order' : 'Order cancellation restricted to Admin users'"
               >
                 <span class="material-symbols-rounded">cancel</span>
               </button>
@@ -192,6 +195,11 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
       .cancel-btn span {
         font-size: 18px;
       }
+      .cancel-btn[disabled] {
+        opacity: 0.35;
+        cursor: not-allowed;
+        color: var(--text-muted);
+      }
       .order-bottom {
         display: flex;
         justify-content: space-between;
@@ -230,9 +238,20 @@ import { IstDatePipe } from '../../../../shared/pipes/ist-date.pipe';
 })
 export class OrderBookComponent {
   readonly orderService = inject(OrderService);
+  readonly userAuthService = inject(UserAuthService);
   private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
 
   confirmCancel(order: DhanOrder): void {
+    if (!this.userAuthService.isAdmin()) {
+      this.snackBar.open(
+        'Order cancellation is restricted to users with the Admin role.',
+        'Dismiss',
+        { duration: 4000 }
+      );
+      return;
+    }
+
     const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
       data: {
         title: 'Cancel Live Order',

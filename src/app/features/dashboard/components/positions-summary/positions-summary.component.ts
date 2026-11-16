@@ -4,7 +4,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { OrderService } from '../../../../core/api/order.service';
+import { UserAuthService } from '../../../../core/api/user-auth.service';
 import { DhanPosition } from '../../../../core/models/order.models';
 import { ConfirmationDialogComponent } from '../../../../shared/components/confirmation-dialog/confirmation-dialog.component';
 import { PriceBadgeComponent } from '../../../../shared/components/price-badge/price-badge.component';
@@ -105,8 +107,9 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
               <button
                 *ngIf="pos.netQty !== 0"
                 class="exit-btn"
+                [disabled]="!userAuthService.isAdmin()"
                 (click)="confirmSquareOff(pos)"
-                matTooltip="Square-off position immediately at Market"
+                [matTooltip]="userAuthService.isAdmin() ? 'Square-off position immediately at Market' : 'Order placement restricted to Admin users'"
               >
                 Exit
               </button>
@@ -225,6 +228,13 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
         background: var(--color-loss);
         color: #FFFFFF;
       }
+      .exit-btn[disabled] {
+        opacity: 0.4;
+        cursor: not-allowed;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-muted);
+        border-color: var(--border-subtle);
+      }
 
       /* Mobile Optimizations for Positions */
       @media (max-width: 768px) {
@@ -273,7 +283,9 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
 })
 export class PositionsSummaryComponent {
   readonly orderService = inject(OrderService);
+  readonly userAuthService = inject(UserAuthService);
   private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
 
   getEntryPrice(pos: DhanPosition): number | null {
     if (pos.entryPrice && pos.entryPrice > 0) return pos.entryPrice;
@@ -305,6 +317,15 @@ export class PositionsSummaryComponent {
   }
 
   confirmSquareOff(pos: DhanPosition): void {
+    if (!this.userAuthService.isAdmin()) {
+      this.snackBar.open(
+        'Order placement is restricted to users with the Admin role.',
+        'Dismiss',
+        { duration: 4000 }
+      );
+      return;
+    }
+
     const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
       data: {
         title: 'Exit & Square Off Position',

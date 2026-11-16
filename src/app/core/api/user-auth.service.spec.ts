@@ -96,7 +96,7 @@ describe('UserAuthService', () => {
       service.currentUser.set({ username: 'john_admin', role: 'admin' });
       expect(service.isAdmin()).toBe(true);
 
-      service.currentUser.set({ username: 'sarang', role: 'admin' });
+      service.currentUser.set({ username: 'alex_admin', role: 'admin' });
       expect(service.isAdmin()).toBe(true);
     });
 
@@ -109,24 +109,6 @@ describe('UserAuthService', () => {
 
       service.currentUser.set(null);
       expect(service.isAdmin()).toBe(false);
-    });
-  });
-
-  describe('isSarang computed signal', () => {
-    it('should be true when current user username is sarang (case-insensitive)', () => {
-      service.currentUser.set({ username: 'sarang', role: 'admin' });
-      expect(service.isSarang()).toBe(true);
-
-      service.currentUser.set({ username: 'SARANG', role: 'admin' });
-      expect(service.isSarang()).toBe(true);
-    });
-
-    it('should be false when user is not sarang or null', () => {
-      service.currentUser.set({ username: 'admin', role: 'admin' });
-      expect(service.isSarang()).toBe(false);
-
-      service.currentUser.set(null);
-      expect(service.isSarang()).toBe(false);
     });
   });
 

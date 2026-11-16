@@ -31,11 +31,10 @@ export class UserAuthService {
 
   readonly currentUser = signal<UserProfile | null>(this.loadStoredUser());
   readonly isAuthenticated = computed(() => !!this.currentUser());
-  readonly isSarang = computed(() => this.currentUser()?.username?.trim().toLowerCase() === 'sarang');
   readonly isAdmin = computed(() => {
     const user = this.currentUser();
     if (!user) return false;
-    return (user.role || '').trim().toLowerCase() === 'admin' || user.username?.trim().toLowerCase() === 'sarang';
+    return (user.role || '').trim().toLowerCase() === 'admin';
   });
   readonly isLoading = signal<boolean>(false);
 

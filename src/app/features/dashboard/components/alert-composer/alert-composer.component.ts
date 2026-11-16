@@ -12,6 +12,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AlertService } from '../../../../core/api/alert.service';
 import { AuthService } from '../../../../core/api/auth.service';
+import { UserAuthService } from '../../../../core/api/user-auth.service';
 import { InstrumentService } from '../../../../core/api/instrument.service';
 import { AlertOperator } from '../../../../core/models/alert.models';
 import {
@@ -271,6 +272,15 @@ import { environment } from '../../../../../environments/environment';
           </div>
         </div>
 
+        <!-- Admin Restriction Warning Banner for Non-Admin Users -->
+        <div class="admin-restriction-banner" *ngIf="!userAuthService.isAdmin()">
+          <span class="material-symbols-rounded">shield</span>
+          <div class="restriction-text">
+            <strong>Order Placement Restricted:</strong>
+            Only users with the <strong>Admin</strong> role can place live orders or conditional alerts. You are signed in with the role <em>'{{ userAuthService.currentUser()?.role || "trader" }}'</em>.
+          </div>
+        </div>
+
         <!-- 4. Submit Button -->
         <div class="composer-submit-row">
           <button
@@ -278,7 +288,8 @@ import { environment } from '../../../../../environments/environment';
             color="primary"
             type="submit"
             class="submit-btn"
-            [disabled]="isSubmitting() || !selectedInstrumentSymbol || !targetPrice || !authService.isBackendOnline() || !orderSecurityId"
+            [disabled]="!userAuthService.isAdmin() || isSubmitting() || !selectedInstrumentSymbol || !targetPrice || !authService.isBackendOnline() || !orderSecurityId"
+            [matTooltip]="!userAuthService.isAdmin() ? 'Order placement is restricted to Administrator accounts' : ''"
           >
             <span class="material-symbols-rounded">notifications_active</span>
             Create Conditional Alert
@@ -713,6 +724,32 @@ import { environment } from '../../../../../environments/environment';
       .mb-12 {
         margin-bottom: 12px;
       }
+      .admin-restriction-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255, 171, 0, 0.12);
+        border: 1px solid rgba(255, 171, 0, 0.35);
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin-bottom: 12px;
+        color: #ffab00;
+        font-size: 0.8125rem;
+        line-height: 1.4;
+      }
+      .admin-restriction-banner .material-symbols-rounded {
+        font-size: 1.25rem;
+        flex-shrink: 0;
+      }
+      .admin-restriction-banner .restriction-text strong {
+        color: #ffc107;
+      }
+      .admin-restriction-banner .restriction-text em {
+        color: #fff;
+        font-style: normal;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
       .submit-btn {
         width: 100%;
         padding: 10px;
@@ -802,6 +839,7 @@ import { environment } from '../../../../../environments/environment';
 export class AlertComposerComponent implements OnInit {
   readonly alertService = inject(AlertService);
   readonly authService = inject(AuthService);
+  readonly userAuthService = inject(UserAuthService);
   private readonly instrumentService = inject(InstrumentService);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
@@ -1393,6 +1431,15 @@ export class AlertComposerComponent implements OnInit {
 
   submitAlert(): void {
     if (!this.selectedInstrumentSymbol || !this.targetPrice) return;
+
+    if (!this.userAuthService.isAdmin()) {
+      this.snackBar.open(
+        'Order placement is restricted to users with the Admin role.',
+        'Dismiss',
+        { duration: 5000 }
+      );
+      return;
+    }
 
     if (this.executeOrderOnTrigger && (!this.orderSecurityId || !this.orderSymbol)) {
       this.snackBar.open(
