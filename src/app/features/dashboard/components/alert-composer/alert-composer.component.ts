@@ -5,7 +5,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -38,7 +37,6 @@ import { environment } from '../../../../../environments/environment';
     MatInputModule,
     MatButtonModule,
     MatButtonToggleModule,
-    MatCheckboxModule,
     MatSelectModule,
     MatTooltipModule,
     MatDialogModule,
@@ -75,214 +73,189 @@ import { environment } from '../../../../../environments/environment';
           </div>
         </div>
 
-        <!-- 1. Instrument Dropdown Selector & Scrip Search Modal Trigger -->
-        <div class="form-row instrument-select-row">
-          <mat-form-field appearance="outline" class="instrument-select-field">
-            <mat-label>Select Instrument</mat-label>
-            <mat-select
-              [(ngModel)]="selectedInstrumentSymbol"
-              name="selectedInstrumentSymbol"
-              (selectionChange)="onInstrumentChange($event.value)"
-              panelClass="instrument-select-panel"
-              required
-            >
-              <mat-option *ngFor="let item of instruments()" [value]="item.symbol">
-                {{ item.symbol }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-          <button
-            type="button"
-            class="scrip-search-btn"
-            (click)="openScripSearchModal()"
-            matTooltip="Search across all 10,193 Equities & 9,809 Option Contracts (Ctrl+K)"
-          >
-            <span class="material-symbols-rounded">search</span>
-          </button>
-        </div>
-
-        <!-- 2. Target Trigger Price (Exact price directly, operator decided automatically by backend) -->
-        <div class="condition-box">
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Target Trigger Price (₹)</mat-label>
-            <input
-              matInput
-              type="number"
-              step="0.05"
-              [(ngModel)]="targetPrice"
-              name="targetPrice"
-              (ngModelChange)="onTargetPriceChange()"
-              placeholder="e.g. 24650.00"
-              required
-            />
-          </mat-form-field>
-        </div>
-
-        <!-- 3. Conditional Execution Toggle ("Attach Order with Alert") -->
-        <div class="action-box" [ngClass]="{ 'enabled': executeOrderOnTrigger }">
-          <div class="action-toggle-row">
-            <mat-checkbox [(ngModel)]="executeOrderOnTrigger" name="executeOrderOnTrigger" color="primary">
-              <span class="toggle-text">Attach Order with Alert</span>
-            </mat-checkbox>
-          </div>
-
-          <!-- Inline Order Form when toggle is enabled -->
-          <div *ngIf="executeOrderOnTrigger" class="inline-order-form">
-            <div class="order-inputs-grid">
-              <!-- Action: BUY (Call) / SELL (Put) -->
-              <div class="grid-col col-span-2">
-                <label class="input-lbl">Action (Directional Option Trigger)</label>
-                <mat-button-toggle-group
-                  [(ngModel)]="orderAction"
-                  name="orderAction"
-                  (change)="onActionChange($event.value)"
-                  class="action-toggle"
-                >
-                  <mat-button-toggle value="BUY" class="btn-buy">
-                    BUY CALL (Bullish Breakout)
-                  </mat-button-toggle>
-                  <mat-button-toggle value="SELL" class="btn-sell">
-                    BUY PUT (Bearish Breakdown)
-                  </mat-button-toggle>
-                </mat-button-toggle-group>
-              </div>
-
-              <!-- Option Expiry Selection Dropdown -->
-              <div class="grid-col col-span-2">
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Option Expiry Date</mat-label>
-                  <mat-select
-                    [(ngModel)]="selectedExpiry"
-                    name="selectedExpiry"
-                    (selectionChange)="onExpiryChange($event.value)"
-                  >
-                    <mat-option *ngFor="let exp of expiries()" [value]="exp.expiryDate">
-                      {{ exp.displayExpiry }}
-                    </mat-option>
-                  </mat-select>
-                </mat-form-field>
-              </div>
-
-              <!-- Option Strike Price Selection (Maximum 3 strikes around selected price; shows CALL for BUY, PUT for SELL) -->
-              <div class="grid-col col-span-2 strike-selector-box" *ngIf="strikePairs().length > 0">
-                <div class="strike-header">
-                  <label class="input-lbl">
-                    Select Strike Price ({{ orderAction === 'BUY' ? 'CALL contracts' : 'PUT contracts' }} around ₹{{ targetPrice || currentLtp }})
-                  </label>
-                  <span class="loading-label" *ngIf="isLoadingOptions()">Loading strikes...</span>
-                </div>
-                <div class="strike-chips">
-                  <div
-                    *ngFor="let strike of strikePairs(); let isFirst = first; let isLast = last"
-                    class="strike-chip"
-                    [ngClass]="{ 'selected': selectedStrikePrice === strike.strikePrice, 'row-first': isFirst, 'row-last': isLast }"
-                    (click)="selectStrike(strike.strikePrice)"
-                  >
-                    <span class="strike-val">{{ strike.strikePrice }} {{ orderAction === 'BUY' ? 'CE' : 'PE' }}</span>
-                    <span class="strike-ltp" *ngIf="orderAction === 'BUY'">
-                      LTP: {{ strike.call.ltp | currencyInr : false }}
-                    </span>
-                    <span class="strike-ltp" *ngIf="orderAction === 'SELL'">
-                      LTP: {{ strike.put.ltp | currencyInr : false }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Warning when Option chain data is not found in database -->
-              <div class="grid-col col-span-2 db-not-found-warning" *ngIf="strikePairs().length === 0 && !isLoadingOptions()">
-                <span class="material-symbols-rounded warn-icon">database_off</span>
-                <div class="warn-content">
-                  <span class="warn-title">Data is not found in database</span>
-                  <span class="warn-msg">Option contracts for {{ selectedInstrumentSymbol }} are not found in Firestore. Please sync security master from Settings.</span>
-                </div>
-              </div>
-
-              <!-- Selected Contract Summary Display -->
-              <div class="grid-col col-span-2" *ngIf="orderSymbol">
-                <div class="selected-contract-banner mono-val">
-                  <span class="label">Instant Trigger Order:</span>
-                  <span class="symbol-name">BUY {{ orderSymbol }}</span>
-                </div>
-              </div>
-
-              <!-- Fixed Lot Size Selection (5, 10, 15 Lots) -->
-              <div class="grid-col col-span-2 lots-selector-box">
-                <div class="lots-header-line">
-                  <span class="lots-title">Order Lot Size:</span>
-                  <span class="lots-qty-summary mono-val">
-                    Total: <strong>{{ totalOrderQuantity() }} Qty</strong> ({{ orderLots }} lots &times; {{ currentContractLotSize() }}/lot &bull; INTRADAY MARKET)
-                  </span>
-                </div>
-                <div class="fixed-lots-group">
-                  <button
-                    type="button"
-                    class="lot-select-btn"
-                    [ngClass]="{ 'active-qty': orderLots === 5 }"
-                    (click)="setLots(5)"
-                  >
-                    5 Lots
-                  </button>
-                  <button
-                    type="button"
-                    class="lot-select-btn"
-                    [ngClass]="{ 'active-qty': orderLots === 10 }"
-                    (click)="setLots(10)"
-                  >
-                    10 Lots
-                  </button>
-                  <button
-                    type="button"
-                    class="lot-select-btn"
-                    [ngClass]="{ 'active-qty': orderLots === 15 }"
-                    (click)="setLots(15)"
-                  >
-                    15 Lots
-                  </button>
-                </div>
-              </div>
+        <div class="composer-columns-grid">
+          <!-- COLUMN 1: INSTRUMENT & TARGET TRIGGER PRICE -->
+          <div class="composer-col trigger-col">
+            <div class="section-title-line">
+              <span class="material-symbols-rounded col-icon">my_location</span>
+              <span class="col-heading">1. Trigger Condition</span>
             </div>
 
-            <!-- Stop Loss Configuration Section -->
-            <div class="stop-loss-section">
-              <div class="sl-header-row">
-                <mat-checkbox
-                  [checked]="enableStopLoss()"
-                  (change)="enableStopLoss.set($event.checked)"
-                  name="enableStopLoss"
-                  color="accent"
+            <!-- 1. Instrument Dropdown Selector -->
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Select Instrument</mat-label>
+                <mat-select
+                  [(ngModel)]="selectedInstrumentSymbol"
+                  name="selectedInstrumentSymbol"
+                  (selectionChange)="onInstrumentChange($event.value)"
+                  panelClass="instrument-select-panel"
+                  required
                 >
-                  <span class="sl-toggle-text">🛡️ Attach Automated Stop Loss Alert Order</span>
-                </mat-checkbox>
-                <span class="sl-badge" *ngIf="enableStopLoss()">
-                  {{ stopLossPoints() }} pts SL ({{ selectedInstrumentSymbol }})
+                  <mat-option *ngFor="let item of instruments()" [value]="item.symbol">
+                    {{ item.symbol }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+
+            <!-- 2. Target Trigger Price (Exact price directly, operator decided automatically by backend) -->
+            <div class="condition-box">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Target Trigger Price (₹)</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  step="0.05"
+                  [(ngModel)]="targetPrice"
+                  name="targetPrice"
+                  (ngModelChange)="onTargetPriceChange()"
+                  placeholder="e.g. 24650.00"
+                  required
+                />
+              </mat-form-field>
+            </div>
+
+            <!-- Live Trigger Status & Direction Card -->
+            <div class="trigger-info-card mono-val" *ngIf="currentLtp || targetPrice">
+              <div class="info-row">
+                <span class="info-lbl">Spot LTP:</span>
+                <span class="info-val">₹{{ (currentLtp || 0) | currencyInr : false }}</span>
+              </div>
+              <div class="info-row" *ngIf="targetPrice && currentLtp">
+                <span class="info-lbl">Trigger Direction:</span>
+                <span
+                  class="info-val"
+                  [ngClass]="targetPrice >= currentLtp ? 'bullish-val' : 'bearish-val'"
+                >
+                  {{ targetPrice >= currentLtp ? '≥ Crossing Up' : '< Crossing Down' }}
+                  <span *ngIf="targetPointsDiff()" class="diff-tag">({{ targetPointsDiff() }} pts)</span>
                 </span>
               </div>
+            </div>
+          </div>
 
-              <div class="sl-details-box" *ngIf="enableStopLoss()">
-                <!-- Defined Stop Loss Index Points Pill -->
-                <div class="sl-defined-info-row mono-val">
-                  <span class="sl-defined-tag">
-                    <span class="material-symbols-rounded tag-icon">rule</span>
-                    Defined SL Distance: <strong>{{ stopLossPoints() }} Points</strong> for {{ selectedInstrumentSymbol }}
-                  </span>
+          <!-- COLUMN 2: INSTANT ORDER EXECUTION & PROTECTION -->
+          <div class="composer-col order-col">
+            <div class="section-title-line">
+              <span class="material-symbols-rounded col-icon">bolt</span>
+              <span class="col-heading">2. Order Placement</span>
+            </div>
+
+            <!-- 3. Conditional Order Execution (Option Contract & Lots) -->
+            <div class="action-box enabled">
+              <div class="inline-order-form">
+                <div class="order-inputs-grid">
+                  <!-- Action: BUY (Call) / SELL (Put) -->
+                  <div class="grid-col col-span-2">
+                    <label class="input-lbl">Action (Directional Option Trigger)</label>
+                    <mat-button-toggle-group
+                      [(ngModel)]="orderAction"
+                      name="orderAction"
+                      (change)="onActionChange($event.value)"
+                      class="action-toggle"
+                      hideSingleSelectionIndicator
+                    >
+                      <mat-button-toggle value="BUY" class="btn-buy">
+                        CALL
+                      </mat-button-toggle>
+                      <mat-button-toggle value="SELL" class="btn-sell">
+                        PUT
+                      </mat-button-toggle>
+                    </mat-button-toggle-group>
+                  </div>
+
+                  <!-- Option Expiry Selection Dropdown -->
+                  <div class="grid-col col-span-2">
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Option Expiry Date</mat-label>
+                      <mat-select
+                        [(ngModel)]="selectedExpiry"
+                        name="selectedExpiry"
+                        (selectionChange)="onExpiryChange($event.value)"
+                      >
+                        <mat-option *ngFor="let exp of expiries()" [value]="exp.expiryDate">
+                          {{ exp.displayExpiry }}
+                        </mat-option>
+                      </mat-select>
+                    </mat-form-field>
+                  </div>
+
+                  <!-- Option Strike Price Selection (3 strikes around target price) -->
+                  <div class="grid-col col-span-2 strike-selector-box" *ngIf="strikePairs().length > 0">
+                    <div class="strike-loading-row" *ngIf="isLoadingOptions()">
+                      <span class="loading-label">Loading strikes...</span>
+                    </div>
+                    <div class="strike-chips">
+                      <div
+                        *ngFor="let strike of strikePairs(); let isFirst = first; let isLast = last"
+                        class="strike-chip"
+                        [ngClass]="{ 'selected': selectedStrikePrice === strike.strikePrice, 'row-first': isFirst, 'row-last': isLast }"
+                        (click)="selectStrike(strike.strikePrice)"
+                      >
+                        <span class="strike-val">{{ strike.strikePrice }} {{ orderAction === 'BUY' ? 'CE' : 'PE' }}</span>
+                        <span class="strike-ltp" *ngIf="orderAction === 'BUY'">
+                          LTP: {{ strike.call.ltp | currencyInr : false }}
+                        </span>
+                        <span class="strike-ltp" *ngIf="orderAction === 'SELL'">
+                          LTP: {{ strike.put.ltp | currencyInr : false }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Warning when Option chain data is not found in database -->
+                  <div class="grid-col col-span-2 db-not-found-warning" *ngIf="strikePairs().length === 0 && !isLoadingOptions()">
+                    <span class="material-symbols-rounded warn-icon">database_off</span>
+                    <div class="warn-content">
+                      <span class="warn-title">Data is not found in database</span>
+                      <span class="warn-msg">Option contracts for {{ selectedInstrumentSymbol }} are not found in Firestore. Please sync security master from Settings.</span>
+                    </div>
+                  </div>
+
+                  <!-- Fixed Lot Size Selection (5, 10, 15 Lots) -->
+                  <div class="grid-col col-span-2 lots-selector-box">
+                    <label class="input-lbl">Order Lot Size</label>
+                    <div class="fixed-lots-group">
+                      <button
+                        type="button"
+                        class="lot-select-btn"
+                        [ngClass]="{ 'active-qty': orderLots === 5 }"
+                        (click)="setLots(5)"
+                      >
+                        5 Lots
+                      </button>
+                      <button
+                        type="button"
+                        class="lot-select-btn"
+                        [ngClass]="{ 'active-qty': orderLots === 10 }"
+                        (click)="setLots(10)"
+                      >
+                        10 Lots
+                      </button>
+                      <button
+                        type="button"
+                        class="lot-select-btn"
+                        [ngClass]="{ 'active-qty': orderLots === 15 }"
+                        (click)="setLots(15)"
+                      >
+                        15 Lots
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <!-- Stop Loss Realtime Calculation Card -->
-                <div class="sl-preview-banner mono-val" *ngIf="stopLossPrice() !== null">
-                  <div class="sl-preview-line">
-                    <span class="sl-calc-label">Calculated SL Alert Price:</span>
-                    <span class="sl-calc-val">₹{{ stopLossPrice() | currencyInr : false }}</span>
-                    <span class="sl-calc-diff">
-                      ({{ orderAction === 'BUY' ? '-' : '+' }}{{ stopLossPoints() }} pts from entry ₹{{ targetPrice || currentLtp }})
-                    </span>
-                  </div>
-                  <div class="sl-action-line">
-                    <span class="material-symbols-rounded sl-icon">shield</span>
-                    <span>
-                      Trigger Logic: <strong>{{ orderAction === 'BUY' ? '≤ Drops to/below' : '≥ Rises to/above' }} ₹{{ stopLossPrice() | currencyInr : false }}</strong>
-                      &bull; Action: <strong>SELL {{ totalOrderQuantity() }} Qty</strong> of {{ orderSymbol }}
-                    </span>
+                <!-- Stop Loss Section (Compulsory) -->
+                <div class="stop-loss-section">
+                  <div class="sl-summary-row mono-val">
+                    <div class="sl-defined-tag">
+                      <span class="material-symbols-rounded tag-icon">shield</span>
+                      <span>Stop Loss: <strong>{{ stopLossPoints() }} Points</strong></span>
+                    </div>
+                    <div class="sl-calc-box" *ngIf="stopLossPrice() !== null">
+                      <span class="sl-calc-label">SL Price:</span>
+                      <span class="sl-calc-val">₹{{ stopLossPrice() | currencyInr : false }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -297,7 +270,7 @@ import { environment } from '../../../../../environments/environment';
             color="primary"
             type="submit"
             class="submit-btn"
-            [disabled]="isSubmitting() || !selectedInstrumentSymbol || !targetPrice || !authService.isBackendOnline() || (executeOrderOnTrigger && !orderSecurityId)"
+            [disabled]="isSubmitting() || !selectedInstrumentSymbol || !targetPrice || !authService.isBackendOnline() || !orderSecurityId"
           >
             <span class="material-symbols-rounded">notifications_active</span>
             Create Conditional Alert
@@ -363,39 +336,92 @@ import { environment } from '../../../../../environments/environment';
       .scrip-search-btn .material-symbols-rounded {
         font-size: 22px;
       }
+      .composer-columns-grid {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) minmax(360px, 1.45fr);
+        gap: 16px;
+        align-items: start;
+        margin-bottom: 14px;
+      }
+      .composer-col {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .section-title-line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding-bottom: 2px;
+      }
+      .col-icon {
+        font-size: 17px;
+        color: var(--dhan-cyan);
+      }
+      .col-heading {
+        color: var(--text-primary);
+      }
+      .trigger-info-card {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        font-size: 0.75rem;
+      }
+      .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .info-lbl {
+        color: var(--text-muted);
+      }
+      .info-val {
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+      .bullish-val {
+        color: var(--color-profit);
+      }
+      .bearish-val {
+        color: var(--color-loss);
+      }
+      .diff-tag {
+        font-size: 0.6875rem;
+        margin-left: 4px;
+        opacity: 0.85;
+      }
       .condition-box {
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
         border-radius: 10px;
         padding: 12px;
-        margin-bottom: 14px;
+        margin-bottom: 0;
       }
       .action-box {
         background: var(--bg-surface);
-        border: 1px dashed var(--border-subtle);
+        border: 1px solid var(--border-subtle);
         border-radius: 10px;
         padding: 12px;
-        margin-bottom: 14px;
+        margin-bottom: 0;
         transition: border-color 0.2s ease;
       }
       .action-box.enabled {
         border: 1px solid var(--dhan-cyan);
         background: rgba(0, 210, 196, 0.03);
       }
-      .action-toggle-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      .toggle-text {
-        font-weight: 600;
-        font-size: 0.875rem;
-        color: var(--text-primary);
-      }
       .inline-order-form {
-        margin-top: 12px;
-        padding-top: 12px;
-        border-top: 1px solid var(--border-subtle);
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
       }
       .order-inputs-grid {
         display: grid;
@@ -421,6 +447,16 @@ import { environment } from '../../../../../environments/environment';
         flex: 1;
         font-weight: 700;
         font-size: 0.75rem;
+        letter-spacing: 0.04em;
+        text-align: center;
+      }
+      .action-toggle ::ng-deep .mat-button-toggle-checkmark,
+      .action-toggle ::ng-deep .mat-pseudo-checkbox {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
       .btn-buy.mat-button-toggle-checked {
         background-color: var(--color-buy) !important;
@@ -437,10 +473,7 @@ import { environment } from '../../../../../environments/environment';
         padding: 8px;
         margin-bottom: 4px;
       }
-      .strike-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+      .strike-loading-row {
         margin-bottom: 6px;
       }
       .loading-label {
@@ -484,23 +517,6 @@ import { environment } from '../../../../../environments/environment';
         font-family: var(--font-mono);
         color: var(--dhan-cyan);
       }
-      .selected-contract-banner {
-        background: rgba(99, 102, 241, 0.08);
-        border: 1px solid rgba(99, 102, 241, 0.25);
-        border-radius: 6px;
-        padding: 6px 10px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 0.75rem;
-      }
-      .selected-contract-banner .label {
-        color: var(--text-muted);
-      }
-      .selected-contract-banner .symbol-name {
-        color: var(--dhan-indigo, #6366f1);
-        font-weight: 700;
-      }
       .lots-selector-box {
         grid-column: span 2;
         background: var(--bg-card);
@@ -509,25 +525,7 @@ import { environment } from '../../../../../environments/environment';
         padding: 10px 14px;
         display: flex;
         flex-direction: column;
-        gap: 8px;
-      }
-      .lots-header-line {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
         gap: 6px;
-      }
-      .lots-title {
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-      .lots-qty-summary {
-        font-size: 0.75rem;
-        color: var(--dhan-cyan, #00d2c4);
       }
       .fixed-lots-group {
         display: flex;
@@ -560,37 +558,17 @@ import { environment } from '../../../../../environments/environment';
       }
       .stop-loss-section {
         margin-top: 10px;
-        padding: 10px 12px;
+        padding: 8px 12px;
         background: rgba(244, 63, 94, 0.05);
         border: 1px solid rgba(244, 63, 94, 0.25);
         border-radius: 8px;
       }
-      .sl-header-row {
+      .sl-summary-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-      }
-      .sl-toggle-text {
-        font-weight: 600;
-        font-size: 0.8125rem;
-        color: #fca5a5;
-      }
-      .sl-badge {
-        font-size: 0.6875rem;
-        font-weight: 700;
-        color: #f43f5e;
-        background: rgba(244, 63, 94, 0.15);
-        padding: 2px 8px;
-        border-radius: 4px;
-        border: 1px solid rgba(244, 63, 94, 0.3);
-      }
-      .sl-details-box {
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px dashed rgba(244, 63, 94, 0.2);
-      }
-      .sl-defined-info-row {
-        margin-bottom: 8px;
+        gap: 12px;
+        flex-wrap: wrap;
       }
       .sl-defined-tag {
         display: inline-flex;
@@ -610,22 +588,11 @@ import { environment } from '../../../../../environments/environment';
       .sl-defined-tag strong {
         color: #fff;
       }
-      .sl-preview-banner {
-        margin-top: 8px;
-        padding: 8px 10px;
-        background: rgba(15, 23, 42, 0.8);
-        border: 1px solid rgba(244, 63, 94, 0.25);
-        border-radius: 6px;
-        font-size: 0.75rem;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-      .sl-preview-line {
-        display: flex;
+      .sl-calc-box {
+        display: inline-flex;
         align-items: center;
         gap: 6px;
-        flex-wrap: wrap;
+        font-size: 0.75rem;
       }
       .sl-calc-label {
         color: var(--text-muted);
@@ -634,21 +601,6 @@ import { environment } from '../../../../../environments/environment';
         color: #f43f5e;
         font-weight: 700;
         font-size: 0.875rem;
-      }
-      .sl-calc-diff {
-        color: #fda4af;
-        font-size: 0.6875rem;
-      }
-      .sl-action-line {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        color: var(--text-secondary);
-        font-size: 0.6875rem;
-      }
-      .sl-icon {
-        font-size: 16px;
-        color: #f43f5e;
       }
       .composer-submit-row {
         margin-top: 8px;
@@ -698,7 +650,14 @@ import { environment } from '../../../../../environments/environment';
         gap: 8px;
       }
 
-      /* Mobile Layout Optimizations */
+      /* Responsive Layout Optimizations */
+      @media (max-width: 900px) {
+        .composer-columns-grid {
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }
+      }
+
       @media (max-width: 600px) {
         .composer-card {
           padding: 12px;
@@ -797,8 +756,8 @@ export class AlertComposerComponent implements OnInit {
     this._targetPrice.set(val !== null && val !== undefined ? Number(val) : null);
   }
 
-  // Conditional Order Form Fields
-  executeOrderOnTrigger = false;
+  // Conditional Order Form Fields (Always active as Dhan mandates orders for alerts)
+  executeOrderOnTrigger = true;
   private readonly _orderAction = signal<'BUY' | 'SELL'>('BUY');
   get orderAction(): 'BUY' | 'SELL' {
     return this._orderAction();
@@ -823,6 +782,14 @@ export class AlertComposerComponent implements OnInit {
   readonly isBankNifty = computed(() => {
     const sym = (this.selectedInstrumentSymbol || '').toUpperCase();
     return sym.includes('BANK');
+  });
+
+  readonly targetPointsDiff = computed<string>(() => {
+    const target = this._targetPrice();
+    const ltp = this._currentLtp();
+    if (!target || !ltp) return '';
+    const diff = Math.round((target - ltp) * 100) / 100;
+    return diff >= 0 ? `+${diff}` : `${diff}`;
   });
 
   readonly stopLossPrice = computed(() => {

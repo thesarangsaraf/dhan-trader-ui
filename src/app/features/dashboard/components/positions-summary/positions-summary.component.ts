@@ -87,13 +87,13 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
             <div class="pos-info">
               <div class="sym-row">
                 <span class="sym-name">{{ pos.symbol }}</span>
-                <span class="prod-tag">{{ pos.productType }}</span>
                 <span class="qty-pill mono-val" [ngClass]="pos.netQty > 0 ? 'long' : (pos.netQty < 0 ? 'short' : '')">
                   {{ pos.netQty > 0 ? '+' : '' }}{{ pos.netQty }} Qty
                 </span>
               </div>
               <div class="prices-sub mono-val">
-                <span>Avg: {{ pos.buyAvg | currencyInr : false }}</span>
+                <span *ngIf="getEntryPrice(pos) as entry">Entry: {{ entry | currencyInr : false }}</span>
+                <span *ngIf="getExitPrice(pos) as exit">Exit: {{ exit | currencyInr : false }}</span>
                 <span>LTP: {{ pos.ltp | currencyInr : false }}</span>
               </div>
             </div>
@@ -185,13 +185,6 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
         font-weight: 700;
         font-size: 0.875rem;
       }
-      .prod-tag {
-        font-size: 0.625rem;
-        padding: 1px 4px;
-        border-radius: 3px;
-        background: rgba(255, 255, 255, 0.08);
-        color: var(--text-secondary);
-      }
       .qty-pill {
         font-size: 0.6875rem;
         font-weight: 700;
@@ -281,6 +274,35 @@ import { CurrencyInrPipe } from '../../../../shared/pipes/currency-inr.pipe';
 export class PositionsSummaryComponent {
   readonly orderService = inject(OrderService);
   private readonly dialog = inject(MatDialog);
+
+  getEntryPrice(pos: DhanPosition): number | null {
+    if (pos.entryPrice && pos.entryPrice > 0) return pos.entryPrice;
+    if (pos.netQty < 0) {
+      if (pos.sellQty > 0 && pos.sellAvg > 0) return pos.sellAvg;
+      if (pos.sellAvg > 0) return pos.sellAvg;
+    } else {
+      if (pos.buyQty > 0 && pos.buyAvg > 0) return pos.buyAvg;
+      if (pos.buyAvg > 0) return pos.buyAvg;
+      if (pos.costPrice && pos.costPrice > 0) return pos.costPrice;
+    }
+    return pos.buyAvg || pos.sellAvg || null;
+  }
+
+  getExitPrice(pos: DhanPosition): number | null {
+    if (pos.exitPrice && pos.exitPrice > 0) return pos.exitPrice;
+    if (pos.netQty > 0) {
+      // Long position: exit occurs when sell shares > 0
+      return pos.sellQty > 0 && pos.sellAvg > 0 ? pos.sellAvg : null;
+    }
+    if (pos.netQty < 0) {
+      // Short position: exit occurs when buy to cover > 0
+      return pos.buyQty > 0 && pos.buyAvg > 0 ? pos.buyAvg : null;
+    }
+    // Net qty === 0 (closed position)
+    if (pos.sellAvg > 0) return pos.sellAvg;
+    if (pos.buyAvg > 0) return pos.buyAvg;
+    return null;
+  }
 
   confirmSquareOff(pos: DhanPosition): void {
     const dialogRef = this.dialog.open(ConfirmationDialogComponent, {

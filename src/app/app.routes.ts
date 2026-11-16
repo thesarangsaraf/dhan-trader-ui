@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { DashboardComponent } from './features/dashboard/dashboard.component';
+import { PositionsPageComponent } from './features/positions/positions-page.component';
 import { TradeHistoryComponent } from './features/trade-history/trade-history.component';
 import { ScreenerComponent } from './features/screener/screener.component';
 import { SettingsPageComponent } from './features/settings/settings-page/settings-page.component';
@@ -16,6 +17,16 @@ export const routes: Routes = [
     path: '',
     component: DashboardComponent,
     canActivate: [authGuard],
+  },
+  {
+    path: 'positions',
+    component: PositionsPageComponent,
+    canActivate: [authGuard],
+  },
+  {
+    path: 'portfolio',
+    redirectTo: 'positions',
+    pathMatch: 'full',
   },
   {
     path: 'trades',

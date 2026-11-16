@@ -44,6 +44,9 @@ export interface DhanPosition {
   sellQty: number;
   buyAvg: number;
   sellAvg: number;
+  costPrice?: number;
+  entryPrice?: number;
+  exitPrice?: number;
   ltp: number;
   realizedPnL: number;
   unrealizedPnL: number;

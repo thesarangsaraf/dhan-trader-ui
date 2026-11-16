@@ -76,14 +76,17 @@ describe('DashboardComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should render the 3-zone dashboard body', () => {
+  it('should render only conditional alert composer and live alert monitor on the front page', () => {
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.dashboard-body')).toBeTruthy();
     expect(compiled.querySelector('.left-panel app-alert-composer')).toBeTruthy();
     expect(compiled.querySelector('.center-panel app-alert-list')).toBeTruthy();
-    expect(compiled.querySelector('.right-panel .right-tab-group')).toBeTruthy();
+    // Positions and Order Book must not be present on the front page
+    expect(compiled.querySelector('.right-panel')).toBeNull();
+    expect(compiled.querySelector('app-positions-summary')).toBeNull();
+    expect(compiled.querySelector('app-order-book')).toBeNull();
   });
 
   it('should not render the bottom dock bar', () => {

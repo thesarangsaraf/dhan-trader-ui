@@ -1,14 +1,10 @@
 import { Component, HostListener, ViewChild, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatTabsModule } from '@angular/material/tabs';
 import { MatDialog } from '@angular/material/dialog';
-import { OrderService } from '../../core/api/order.service';
 import { AlertService } from '../../core/api/alert.service';
 import { Instrument } from '../../core/models/instrument.models';
 import { AlertComposerComponent } from './components/alert-composer/alert-composer.component';
 import { AlertListComponent } from './components/alert-list/alert-list.component';
-import { OrderBookComponent } from './components/order-book/order-book.component';
-import { PositionsSummaryComponent } from './components/positions-summary/positions-summary.component';
 import { ScripSearcherModalComponent } from '../../shared/components/scrip-searcher-modal/scrip-searcher-modal.component';
 
 @Component({
@@ -16,11 +12,8 @@ import { ScripSearcherModalComponent } from '../../shared/components/scrip-searc
   standalone: true,
   imports: [
     CommonModule,
-    MatTabsModule,
     AlertComposerComponent,
     AlertListComponent,
-    OrderBookComponent,
-    PositionsSummaryComponent,
   ],
   template: `
     <div class="dashboard-root">
@@ -48,67 +41,19 @@ import { ScripSearcherModalComponent } from '../../shared/components/scrip-searc
             {{ alertService.alerts().length }}
           </span>
         </button>
-
-        <button
-          type="button"
-          class="zone-btn"
-          [class.active]="activeMobileZone() === 'portfolio'"
-          (click)="activeMobileZone.set('portfolio')"
-        >
-          <span class="material-symbols-rounded">pie_chart</span>
-          <span>Portfolio</span>
-          <span class="zone-badge" *ngIf="orderService.summary()?.openPositionsCount">
-            {{ orderService.summary()?.openPositionsCount }}
-          </span>
-        </button>
       </nav>
 
-      <!-- 3-ZONE DASHBOARD MAIN BODY -->
+      <!-- 2-PANEL DASHBOARD MAIN BODY -->
       <main class="dashboard-body">
-        <!-- ZONE 1: LEFT PANEL (35%) -->
+        <!-- ZONE 1: CONDITIONAL ALERT COMPOSER -->
         <aside class="panel left-panel" [class.mobile-active]="activeMobileZone() === 'composer'">
-          <!-- Alert Composer & Conditional Order Creator -->
           <app-alert-composer #composer></app-alert-composer>
         </aside>
 
-        <!-- ZONE 2: CENTER PANEL (40%) -->
-        <section class="panel center-panel" [class.mobile-active]="activeMobileZone() === 'alerts'">
-          <!-- Live Alerts & Triggers Monitor -->
+        <!-- ZONE 2: LIVE ALERT MONITOR -->
+        <section class="panel center-panel flex-grow" [class.mobile-active]="activeMobileZone() === 'alerts'">
           <app-alert-list class="flex-grow"></app-alert-list>
         </section>
-
-        <!-- ZONE 3: RIGHT PANEL (25%) -->
-        <aside class="panel right-panel" [class.mobile-active]="activeMobileZone() === 'portfolio'">
-          <mat-tab-group class="right-tab-group" animationDuration="150ms">
-            <!-- Tab 1: Positions -->
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <span class="material-symbols-rounded tab-icon">pie_chart</span>
-                <span>Positions</span>
-                <span class="tab-badge" *ngIf="orderService.summary()?.openPositionsCount">
-                  {{ orderService.summary()?.openPositionsCount }}
-                </span>
-              </ng-template>
-              <div class="tab-content">
-                <app-positions-summary></app-positions-summary>
-              </div>
-            </mat-tab>
-
-            <!-- Tab 2: Order Book -->
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <span class="material-symbols-rounded tab-icon">receipt_long</span>
-                <span>Order Book</span>
-                <span class="tab-badge pending" *ngIf="orderService.openOrders().length > 0">
-                  {{ orderService.openOrders().length }}
-                </span>
-              </ng-template>
-              <div class="tab-content">
-                <app-order-book></app-order-book>
-              </div>
-            </mat-tab>
-          </mat-tab-group>
-        </aside>
       </main>
     </div>
   `,
@@ -118,86 +63,62 @@ import { ScripSearcherModalComponent } from '../../shared/components/scrip-searc
         display: flex;
         flex-direction: column;
         flex: 1;
-        height: 100%;
-        min-height: 0;
         width: 100%;
       }
 
       .dashboard-root {
         display: flex;
         flex-direction: column;
-        height: 100%;
-        min-height: calc(100vh - 56px);
+        min-height: 100%;
         width: 100%;
         background-color: var(--bg-primary);
         color: var(--text-primary);
-        overflow: hidden;
       }
 
       .mobile-zone-nav {
         display: none;
       }
 
-      /* 3-ZONE MAIN LAYOUT (Desktop >= 1024px) */
+      /* 2-PANEL MAIN LAYOUT (Desktop >= 1024px) */
       .dashboard-body {
         flex: 1;
         display: flex;
-        padding: 12px;
-        gap: 12px;
-        overflow: hidden;
-        min-height: 0;
+        align-items: flex-start;
+        padding: 14px 18px;
+        gap: 16px;
+        min-height: auto;
       }
+
       .panel {
         display: flex;
         flex-direction: column;
         gap: 12px;
-        overflow-y: auto;
-        min-height: 0;
       }
+
       .left-panel {
-        flex: 0 0 35%;
-        max-width: 35%;
+        flex: 0 0 62%;
+        max-width: 920px;
+        min-width: 560px;
+        overflow: visible;
+        height: auto;
       }
+
       .center-panel {
-        flex: 0 0 40%;
-        max-width: 40%;
+        flex: 1;
+        min-width: 360px;
+        overflow: visible;
+        height: auto;
       }
-      .right-panel {
-        flex: 0 0 25%;
-        max-width: 25%;
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 16px;
-        padding: 12px;
-      }
+
       .flex-grow {
         flex: 1;
       }
-      .right-tab-group {
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-      }
-      .tab-icon {
-        font-size: 18px;
-        margin-right: 6px;
-      }
-      .tab-badge {
-        font-size: 0.625rem;
-        background: var(--dhan-cyan);
-        color: #0b0f19;
-        font-weight: 800;
-        padding: 1px 6px;
-        border-radius: 999px;
-        margin-left: 6px;
-      }
-      .tab-badge.pending {
-        background: var(--color-pending);
-      }
-      .tab-content {
-        padding-top: 12px;
-        height: calc(100vh - 120px);
-        overflow-y: auto;
+
+      @media (min-width: 1024px) and (max-width: 1280px) {
+        .left-panel {
+          flex: 0 0 58%;
+          min-width: 540px;
+        }
       }
 
       /* Mobile & Tablet Layout (<= 1023px) */
@@ -205,8 +126,6 @@ import { ScripSearcherModalComponent } from '../../shared/components/scrip-searc
         .dashboard-root {
           height: auto;
           min-height: 100%;
-          overflow-y: auto;
-          overflow-x: hidden;
         }
 
         .mobile-zone-nav {
@@ -290,29 +209,16 @@ import { ScripSearcherModalComponent } from '../../shared/components/scrip-searc
         .panel.mobile-active {
           display: flex !important;
         }
-
-        .right-panel {
-          background: transparent;
-          border: none;
-          padding: 0;
-        }
-
-        .tab-content {
-          height: auto;
-          min-height: 280px;
-          overflow-y: visible;
-        }
       }
     `,
   ],
 })
 export class DashboardComponent {
   @ViewChild('composer') composer!: AlertComposerComponent;
-  readonly orderService = inject(OrderService);
   readonly alertService = inject(AlertService);
   private readonly dialog = inject(MatDialog);
 
-  readonly activeMobileZone = signal<'alerts' | 'composer' | 'portfolio'>('alerts');
+  readonly activeMobileZone = signal<'alerts' | 'composer'>('alerts');
 
   @HostListener('window:keydown', ['$event'])
   handleGlobalShortcuts(event: KeyboardEvent): void {

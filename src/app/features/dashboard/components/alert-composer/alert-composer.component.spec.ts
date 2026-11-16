@@ -317,8 +317,10 @@ describe('AlertComposerComponent', () => {
     // Sub-millisecond Local Bridge text must not exist
     expect(compiled.textContent).not.toContain('Sub-millisecond Local Bridge');
 
-    // Attach Order with Alert text must be present
-    expect(compiled.querySelector('.toggle-text')?.textContent).toContain('Attach Order with Alert');
+    // Search button and toggle checkbox must not exist since orders are always attached
+    expect(compiled.querySelector('.scrip-search-btn')).toBeNull();
+    expect(compiled.querySelector('.action-toggle-row')).toBeNull();
+    expect(compiled.querySelector('.action-toggle')).toBeTruthy();
   });
 
   it('should not show ATM - 1, ATM, or relative strike tags when selecting option contracts', () => {

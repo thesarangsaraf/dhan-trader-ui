@@ -101,7 +101,7 @@ export function isClaimedByAnother(
           <div>
             <h3 class="card-title">Live Alert Monitor</h3>
             <span class="sub-status" *ngIf="!alertService.alertsError()">
-              {{ displayAlerts().length }} {{ displayAlerts().length === 1 ? 'order' : 'orders' }} &bull; Polling every 1.5s
+              {{ displayAlerts().length }} {{ displayAlerts().length === 1 ? 'order' : 'orders' }}
             </span>
             <span class="sub-status error-text" *ngIf="alertService.alertsError()">
               Server Unreachable
@@ -356,23 +356,8 @@ export function isClaimedByAnother(
         display: flex;
         flex-direction: column;
         gap: 6px;
-        max-height: 620px;
-        overflow-y: auto;
-        padding-right: 4px;
-        -webkit-overflow-scrolling: touch;
-      }
-      .alerts-scroll-area::-webkit-scrollbar {
-        width: 6px;
-      }
-      .alerts-scroll-area::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.2);
-      }
-      .alerts-scroll-area::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 4px;
-      }
-      .alerts-scroll-area::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.35);
+        max-height: none;
+        overflow: visible;
       }
       .alert-item {
         background: var(--bg-surface);

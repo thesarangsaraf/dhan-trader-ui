@@ -84,11 +84,12 @@ describe('HeaderComponent', () => {
 
     expect(compiled.querySelector('.brand-name')?.textContent).toContain('DHAN TRADER PRO');
     const tabs = compiled.querySelectorAll('.nav-tab');
-    expect(tabs.length).toBe(4);
+    expect(tabs.length).toBe(5);
     expect(tabs[0].textContent).toContain('Live Monitor');
-    expect(tabs[1].textContent).toContain('Stock Screener');
-    expect(tabs[2].textContent).toContain('Trade History');
-    expect(tabs[3].textContent).toContain('Settings');
+    expect(tabs[1].textContent).toContain('Positions');
+    expect(tabs[2].textContent).toContain('Stock Screener');
+    expect(tabs[3].textContent).toContain('Trade History');
+    expect(tabs[4].textContent).toContain('Settings');
   });
 
   it('should render Available Balance placeholder when funds are not loaded', () => {
@@ -178,14 +179,11 @@ describe('HeaderComponent', () => {
     expect(screenerLink?.textContent).toContain('Stock Screener');
   });
 
-  it('should open TelegramModalComponent when clicking on telegram chip', () => {
+  it('should not render TG Bot button on the top app bar', () => {
     fixture.detectChanges();
-
-    const tgChip = fixture.nativeElement.querySelector('.telegram-chip') as HTMLElement;
-    tgChip.click();
-    expect(mockDialog.open).toHaveBeenCalledWith(TelegramModalComponent, {
-      width: '520px',
-    });
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('.telegram-chip')).toBeNull();
+    expect(compiled.textContent).not.toContain('TG Bot');
   });
 
   it('should not render sound toggle or chime test buttons in header', () => {

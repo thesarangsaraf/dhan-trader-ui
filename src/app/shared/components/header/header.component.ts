@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,12 +9,10 @@ import { AuthService } from '../../../core/api/auth.service';
 import { AlertService } from '../../../core/api/alert.service';
 import { OrderService } from '../../../core/api/order.service';
 import { TelegramApiService } from '../../../core/api/telegram.service';
-import { InstrumentService } from '../../../core/api/instrument.service';
 import { UserAuthService } from '../../../core/api/user-auth.service';
 import { AuthModalComponent } from '../../../features/settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../../../features/settings/telegram-modal/telegram-modal.component';
 import { FundsModalComponent } from '../../../features/settings/funds-modal/funds-modal.component';
-import { ScripSearcherModalComponent } from '../scrip-searcher-modal/scrip-searcher-modal.component';
 import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
 @Component({
@@ -48,6 +46,10 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         <a routerLink="/" class="nav-tab" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
           <span class="material-symbols-rounded">dashboard</span>
           <span>Live Monitor</span>
+        </a>
+        <a routerLink="/positions" class="nav-tab" routerLinkActive="active">
+          <span class="material-symbols-rounded">account_balance_wallet</span>
+          <span>Positions</span>
         </a>
         <a routerLink="/screener" class="nav-tab" routerLinkActive="active">
           <span class="material-symbols-rounded">radar</span>
@@ -85,17 +87,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
           </button>
         </div>
 
-        <!-- Telegram Bot Status Pill -->
-        <div
-          class="telegram-chip"
-          [ngClass]="{ 'configured': telegramService.status().configured }"
-          (click)="openTelegramModal()"
-          matTooltip="Click to manage Telegram Bot alerts & test connection"
-        >
-          <span class="material-symbols-rounded tg-icon">send</span>
-          <span>TG Bot: {{ telegramService.status().configured ? telegramService.status().chatId : 'Disabled' }}</span>
-        </div>
-
         <!-- Available Balance Option (Strict Real Backend Data) -->
         <div
           class="funds-chip"
@@ -122,26 +113,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
       <!-- Right: Quick Actions -->
       <div class="header-quick-actions">
-        <!-- Search Spotlight Scrip & Options (Ctrl+K) -->
-        <button
-          class="action-btn search-spotlight-btn"
-          (click)="openScripSearcher()"
-          matTooltip="Search Equities, Indices & Options (Ctrl+K)"
-        >
-          <span class="material-symbols-rounded">search</span>
-        </button>
-
-        <!-- Sync Scrip Master & Options to Firestore -->
-        <button
-          class="action-btn"
-          [ngClass]="{ 'active': instrumentService.isSyncing() }"
-          (click)="instrumentService.syncMaster().subscribe()"
-          [disabled]="instrumentService.isSyncing()"
-          matTooltip="Sync NSE Scrip Master & Options into Firestore (sec_id_to_name_mapping)"
-        >
-          <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncing()">cloud_sync</span>
-        </button>
-
         <!-- Settings Page Link -->
         <a
           routerLink="/settings"
@@ -308,24 +279,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
       }
 
       .mini-renew-btn span {
-        font-size: 15px;
-      }
-
-      .telegram-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        background: rgba(34, 158, 217, 0.1);
-        color: #229ed9;
-        cursor: pointer;
-        border: 1px solid rgba(34, 158, 217, 0.25);
-      }
-
-      .tg-icon {
         font-size: 15px;
       }
 
@@ -526,10 +479,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
           gap: 6px;
         }
 
-        .telegram-chip {
-          display: none;
-        }
-
         .token-expiry-chip {
           padding: 3px 6px;
           font-size: 0.6875rem;
@@ -569,7 +518,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
   readonly alertService = inject(AlertService);
   readonly orderService = inject(OrderService);
   readonly telegramService = inject(TelegramApiService);
-  readonly instrumentService = inject(InstrumentService);
   private readonly dialog = inject(MatDialog);
 
   private fundsPollInterval: ReturnType<typeof setInterval> | null = null;
@@ -605,22 +553,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
   openFundsModal(): void {
     this.dialog.open(FundsModalComponent, {
       width: '520px',
-    });
-  }
-
-  @HostListener('window:keydown', ['$event'])
-  handleGlobalShortcuts(event: KeyboardEvent): void {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-      event.preventDefault();
-      this.openScripSearcher();
-    }
-  }
-
-  openScripSearcher(): void {
-    this.dialog.open(ScripSearcherModalComponent, {
-      width: 'min(96vw, 640px)',
-      maxWidth: '96vw',
-      panelClass: 'dhan-spotlight-dialog',
     });
   }
 }
