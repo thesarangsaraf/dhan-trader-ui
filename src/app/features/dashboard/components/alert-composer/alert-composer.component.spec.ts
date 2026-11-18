@@ -555,4 +555,160 @@ describe('AlertComposerComponent', () => {
     component.submitAlert();
     expect(mockDialog.open).toHaveBeenCalled();
   });
+
+  describe('Price Direction Warning & Auto-Selected Dhan Condition Display', () => {
+    it('should show warning message when placing BUY (CALL) order with target price higher than live price', () => {
+      component.currentLtp = 25030;
+      component.orderAction = 'BUY';
+      component.targetPrice = 25100; // higher than LTP
+      fixture.detectChanges();
+
+      const warn = component.priceDirectionWarning();
+      expect(warn).not.toBeNull();
+      expect(warn?.type).toBe('BUY_ABOVE_LTP');
+      expect(warn?.diffPoints).toBe(70);
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const warnEl = compiled.querySelector('.price-direction-warning');
+      expect(warnEl).not.toBeNull();
+      expect(warnEl?.textContent).toContain('Buy (CALL) price is higher than live price');
+      expect(warnEl?.textContent).toContain('+70 pts');
+
+      // Also passed into confirmation preview dialog
+      component.orderSecurityId = '40037';
+      component.orderSymbol = 'NIFTY 12 NOV 25000 CALL';
+      component.submitAlert();
+      expect(mockDialog.open).toHaveBeenCalled();
+      const passedData = mockDialog.open.mock.calls[0][1].data;
+      expect(passedData.priceWarning).toBeDefined();
+      expect(passedData.priceWarning.title).toContain('Buy (CALL) price is higher than live price');
+    });
+
+    it('should not show warning message when placing BUY (CALL) order with target price below or equal to live price', () => {
+      component.currentLtp = 25030;
+      component.orderAction = 'BUY';
+      component.targetPrice = 24980; // below LTP
+      fixture.detectChanges();
+
+      expect(component.priceDirectionWarning()).toBeNull();
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.price-direction-warning')).toBeNull();
+
+      // Equal to LTP -> no warning
+      component.targetPrice = 25030;
+      fixture.detectChanges();
+      expect(component.priceDirectionWarning()).toBeNull();
+      expect(compiled.querySelector('.price-direction-warning')).toBeNull();
+    });
+
+    it('should show warning message when placing SELL (PUT) order with target price lower than live price', () => {
+      component.currentLtp = 25030;
+      component.orderAction = 'SELL';
+      component.targetPrice = 24950; // lower than LTP
+      fixture.detectChanges();
+
+      const warn = component.priceDirectionWarning();
+      expect(warn).not.toBeNull();
+      expect(warn?.type).toBe('SELL_BELOW_LTP');
+      expect(warn?.diffPoints).toBe(80);
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const warnEl = compiled.querySelector('.price-direction-warning');
+      expect(warnEl).not.toBeNull();
+      expect(warnEl?.textContent).toContain('Sell (PUT) price is lower than live price');
+      expect(warnEl?.textContent).toContain('-80 pts');
+
+      // Also passed into confirmation preview dialog
+      component.orderSecurityId = '40038';
+      component.orderSymbol = 'NIFTY 12 NOV 25000 PUT';
+      component.submitAlert();
+      expect(mockDialog.open).toHaveBeenCalled();
+      const passedData = mockDialog.open.mock.calls[0][1].data;
+      expect(passedData.priceWarning).toBeDefined();
+      expect(passedData.priceWarning.title).toContain('Sell (PUT) price is lower than live price');
+    });
+
+    it('should not show warning message when placing SELL (PUT) order with target price above or equal to live price', () => {
+      component.currentLtp = 25030;
+      component.orderAction = 'SELL';
+      component.targetPrice = 25100; // above LTP
+      fixture.detectChanges();
+
+      expect(component.priceDirectionWarning()).toBeNull();
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.price-direction-warning')).toBeNull();
+
+      // Equal to LTP -> no warning
+      component.targetPrice = 25030;
+      fixture.detectChanges();
+      expect(component.priceDirectionWarning()).toBeNull();
+      expect(compiled.querySelector('.price-direction-warning')).toBeNull();
+    });
+
+    it('should display auto-selected Dhan condition Crossing Up (GREATER_THAN) when target >= LTP', () => {
+      component.currentLtp = 25030;
+      component.targetPrice = 25100;
+      fixture.detectChanges();
+
+      const cond = component.autoConditionInfo();
+      expect(cond?.operator).toBe('GREATER_THAN');
+      expect(cond?.dhanCondition).toBe('Crossing Up');
+      expect(cond?.isCrossingUp).toBe(true);
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const panel = compiled.querySelector('.auto-condition-panel');
+      expect(panel).not.toBeNull();
+      expect(panel?.classList.contains('cond-up')).toBe(true);
+      expect(panel?.textContent).toContain('Dhan Alert Condition');
+      expect(panel?.textContent).toContain('AUTO');
+      expect(panel?.textContent).toContain('Crossing Up');
+      expect(panel?.textContent).toContain('GREATER_THAN');
+    });
+
+    it('should display auto-selected Dhan condition Crossing Down (LESS_THAN) when target < LTP', () => {
+      component.currentLtp = 25030;
+      component.targetPrice = 24980;
+      fixture.detectChanges();
+
+      const cond = component.autoConditionInfo();
+      expect(cond?.operator).toBe('LESS_THAN');
+      expect(cond?.dhanCondition).toBe('Crossing Down');
+      expect(cond?.isCrossingUp).toBe(false);
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const panel = compiled.querySelector('.auto-condition-panel');
+      expect(panel).not.toBeNull();
+      expect(panel?.classList.contains('cond-down')).toBe(true);
+      expect(panel?.textContent).toContain('Dhan Alert Condition');
+      expect(panel?.textContent).toContain('AUTO');
+      expect(panel?.textContent).toContain('Crossing Down');
+      expect(panel?.textContent).toContain('LESS_THAN');
+    });
+
+    it('should initialize Target Trigger Price to exact Spot live price without adding artificial offsets', () => {
+      mockInstService.getLtp.mockReturnValueOnce(of({ symbol: 'NIFTY 50', ltp: 25045.75 }));
+      component.onInstrumentChange('NIFTY 50');
+      fixture.detectChanges();
+
+      expect(component.currentLtp).toBe(25045.75);
+      expect(component.targetPrice).toBe(25045.75);
+      expect(component.priceDirectionWarning()).toBeNull();
+
+      mockInstService.getLtp.mockReturnValueOnce(of({ symbol: 'BANK NIFTY', ltp: 52123.5 }));
+      component.onInstrumentChange('BANK NIFTY');
+      fixture.detectChanges();
+
+      expect(component.currentLtp).toBe(52123.5);
+      expect(component.targetPrice).toBe(52123.5);
+    });
+
+    it('should preserve preset target price when provided on instrument change while updating live Spot LTP', () => {
+      mockInstService.getLtp.mockReturnValueOnce(of({ symbol: 'NIFTY 50', ltp: 25045.75 }));
+      component.onInstrumentChange('NIFTY 50', 24950);
+      fixture.detectChanges();
+
+      expect(component.currentLtp).toBe(25045.75);
+      expect(component.targetPrice).toBe(24950);
+    });
+  });
 });

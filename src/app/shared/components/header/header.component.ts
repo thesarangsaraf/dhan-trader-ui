@@ -391,12 +391,51 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         border-color: #f43f5e !important;
       }
 
-      /* Mobile Responsive Top App Bar & Mobile Bottom Nav */
+      /* Tablet Responsive App Bar (769px to 1023px) */
+      @media (min-width: 769px) and (max-width: 1023px) {
+        .top-app-bar {
+          padding: 0 10px;
+          gap: 8px;
+        }
+
+        .brand-badge {
+          display: none;
+        }
+
+        .header-nav-tabs {
+          gap: 2px;
+          padding: 2px;
+        }
+
+        .nav-tab {
+          padding: 4px 8px;
+          font-size: 0.75rem;
+          gap: 4px;
+        }
+
+        .nav-tab span.material-symbols-rounded {
+          font-size: 15px;
+        }
+
+        .funds-label {
+          display: none;
+        }
+
+        .user-chip .user-name {
+          max-width: 60px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+
+      /* Mobile Responsive Top App Bar & Mobile Bottom Nav (<= 768px) */
       @media (max-width: 768px) {
         .top-app-bar {
           height: 52px;
           flex: 0 0 52px;
           padding: 0 8px;
+          overflow: hidden;
         }
 
         .header-brand {
@@ -476,7 +515,7 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         }
 
         .header-status-group {
-          gap: 6px;
+          gap: 4px;
         }
 
         .token-expiry-chip {
@@ -507,6 +546,30 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
         .action-btn.settings {
           display: none; /* Accessible in bottom nav */
+        }
+
+        .user-chip {
+          padding: 4px;
+          border-radius: 50%;
+        }
+
+        .user-chip .user-name {
+          display: none;
+        }
+      }
+
+      /* Small Phone screens (<= 420px) */
+      @media (max-width: 420px) {
+        .brand-name {
+          display: none;
+        }
+
+        .token-expiry-chip .mono-val {
+          font-size: 0.65rem;
+        }
+
+        .funds-chip .mono-val {
+          font-size: 0.65rem;
         }
       }
     `,

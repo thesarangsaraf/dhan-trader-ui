@@ -38,12 +38,10 @@ export const userAuthInterceptor: HttpInterceptorFn = (req, next) => {
                 });
                 return next(retriedReq);
               }
-              authService.logout(true);
+              // Refresh did not return a new token (e.g. backend was temporarily offline / restarting).
+              // Do NOT logout; authService.refreshToken() handles logout only if 401/403 was received from backend.
+              // Rethrow error so UI handles it gracefully without wiping the session.
               return throwError(() => error);
-            }),
-            catchError((refreshErr) => {
-              authService.logout(true);
-              return throwError(() => refreshErr);
             }),
           );
         } else {

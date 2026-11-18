@@ -190,4 +190,17 @@ describe('ScreenerComponent', () => {
       },
     });
   });
+
+  it('should render mobile setup cards for mobile viewport compatibility', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const mobileCards = compiled.querySelectorAll('.results-cards-list .setup-mobile-card');
+    expect(mobileCards.length).toBe(2);
+
+    const firstCard = mobileCards[0];
+    expect(firstCard.querySelector('.sm-symbol')?.textContent?.trim()).toBe('RELIANCE');
+    expect(firstCard.querySelector('.strategy-badge')?.textContent).toContain('Demand OB (Bullish)');
+    expect(firstCard.querySelector('.entry-price')?.textContent).toContain('2,495');
+    expect(firstCard.querySelector('.sl-price')?.textContent).toContain('2,480');
+    expect(firstCard.querySelector('.sm-action-btn')?.textContent).toContain('Create Conditional Alert');
+  });
 });

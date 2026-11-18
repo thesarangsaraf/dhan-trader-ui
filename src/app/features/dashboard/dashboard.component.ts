@@ -1,5 +1,6 @@
-import { Component, HostListener, ViewChild, inject, signal } from '@angular/core';
+import { Component, HostListener, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { AlertService } from '../../core/api/alert.service';
 import { Instrument } from '../../core/models/instrument.models';
@@ -201,9 +202,17 @@ import { ScripSearcherModalComponent } from '../../shared/components/scrip-searc
         .panel {
           display: none !important;
           flex: 1 0 auto;
+          min-width: 0 !important;
           max-width: 100% !important;
           width: 100% !important;
           overflow: visible;
+        }
+
+        .left-panel,
+        .center-panel {
+          min-width: 0 !important;
+          max-width: 100% !important;
+          width: 100% !important;
         }
 
         .panel.mobile-active {
@@ -213,12 +222,21 @@ import { ScripSearcherModalComponent } from '../../shared/components/scrip-searc
     `,
   ],
 })
-export class DashboardComponent {
+export class DashboardComponent implements OnInit {
   @ViewChild('composer') composer!: AlertComposerComponent;
   readonly alertService = inject(AlertService);
   private readonly dialog = inject(MatDialog);
+  private readonly route = inject(ActivatedRoute);
 
   readonly activeMobileZone = signal<'alerts' | 'composer'>('alerts');
+
+  ngOnInit(): void {
+    this.route.queryParams.subscribe((params) => {
+      if (params['symbol'] || params['targetPrice'] || params['strategy'] || params['zone'] === 'composer') {
+        this.activeMobileZone.set('composer');
+      }
+    });
+  }
 
   @HostListener('window:keydown', ['$event'])
   handleGlobalShortcuts(event: KeyboardEvent): void {

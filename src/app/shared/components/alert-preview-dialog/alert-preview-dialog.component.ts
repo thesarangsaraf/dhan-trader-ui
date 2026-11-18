@@ -61,6 +61,10 @@ export interface AlertPreviewData {
   slDhanPayload?: Record<string, any>;
   rawJsonTitle?: string;
   slRawJsonTitle?: string;
+  priceWarning?: {
+    title: string;
+    message: string;
+  };
 }
 
 @Component({
@@ -104,6 +108,15 @@ export interface AlertPreviewData {
             </ng-template>
 
             <div class="tab-content summary-content">
+              <!-- Price vs Live Price Direction Warning Banner -->
+              <div class="preview-price-warning" *ngIf="data.priceWarning && !isViewMode" role="alert">
+                <span class="material-symbols-rounded preview-warn-icon">warning</span>
+                <div class="preview-warn-body">
+                  <div class="preview-warn-title">{{ data.priceWarning.title }}</div>
+                  <div class="preview-warn-msg">{{ data.priceWarning.message }}</div>
+                </div>
+              </div>
+
               <!-- Section 1: Trigger Condition -->
               <div class="detail-card">
                 <div class="card-section-header">
@@ -703,6 +716,43 @@ export interface AlertPreviewData {
         margin-left: 6px;
       }
 
+      .preview-price-warning {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        background: rgba(245, 158, 11, 0.12);
+        border: 1px solid rgba(245, 158, 11, 0.45);
+        border-left: 4px solid #f59e0b;
+        border-radius: 8px;
+      }
+
+      .preview-warn-icon {
+        font-size: 20px;
+        color: #f59e0b;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+
+      .preview-warn-body {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+      }
+
+      .preview-warn-title {
+        font-size: 0.8125rem;
+        font-weight: 700;
+        color: #fbbf24;
+      }
+
+      .preview-warn-msg {
+        font-size: 0.75rem;
+        color: var(--text-primary);
+        line-height: 1.45;
+      }
+
       /* Mobile Optimizations for Alert Preview Dialog */
       @media (max-width: 600px) {
         .dialog-header {
@@ -786,15 +836,15 @@ export class AlertPreviewDialogComponent {
       case 'GREATER_THAN_EQUAL':
       case 'GREATER_THAN_OR_EQUAL':
       case 'CROSSING_UP':
-        return '≥ Breakout (Price Rises to/above)';
+        return '≥ Crossing Up (Price rises to/above)';
       case 'GREATER_THAN':
-        return '> Breakout (Price strictly above)';
+        return '> Crossing Up (GREATER_THAN)';
       case 'LESS_THAN_EQUAL':
       case 'LESS_THAN_OR_EQUAL':
       case 'CROSSING_DOWN':
-        return '≤ Breakdown (Price Drops to/below)';
+        return '≤ Crossing Down (Price drops to/below)';
       case 'LESS_THAN':
-        return '< Breakdown (Price strictly below)';
+        return '< Crossing Down (LESS_THAN)';
       case 'CROSSING_ANY_SIDE':
         return '⇋ Any Side Crossover';
       default:

@@ -102,13 +102,14 @@ import { CurrencyInrPipe } from '../../shared/pipes/currency-inr.pipe';
   styles: [
     `
       .positions-page-root {
-        height: 100%;
-        overflow-y: auto;
-        padding: 16px 20px;
+        min-height: 100%;
+        width: 100%;
+        padding: 16px 20px 24px;
         background: var(--bg-body);
         display: flex;
         flex-direction: column;
         align-items: center;
+        box-sizing: border-box;
       }
 
       .positions-page-container {
@@ -255,7 +256,7 @@ import { CurrencyInrPipe } from '../../shared/pipes/currency-inr.pipe';
 
       @media (max-width: 768px) {
         .positions-page-root {
-          padding: 8px;
+          padding: 8px 8px 32px;
         }
 
         .page-header {

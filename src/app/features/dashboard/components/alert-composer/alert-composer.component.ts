@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -118,21 +119,38 @@ import { environment } from '../../../../../environments/environment';
               </mat-form-field>
             </div>
 
-            <!-- Live Trigger Status & Direction Card -->
+            <!-- Live Trigger Status & Auto-Selected Dhan Price Condition Card -->
             <div class="trigger-info-card mono-val" *ngIf="currentLtp || targetPrice">
               <div class="info-row">
                 <span class="info-lbl">Spot LTP:</span>
-                <span class="info-val">₹{{ (currentLtp || 0) | currencyInr : false }}</span>
-              </div>
-              <div class="info-row" *ngIf="targetPrice && currentLtp">
-                <span class="info-lbl">Trigger Direction:</span>
-                <span
-                  class="info-val"
-                  [ngClass]="targetPrice >= currentLtp ? 'bullish-val' : 'bearish-val'"
-                >
-                  {{ targetPrice >= currentLtp ? '≥ Crossing Up' : '< Crossing Down' }}
-                  <span *ngIf="targetPointsDiff()" class="diff-tag">({{ targetPointsDiff() }} pts)</span>
+                <span class="info-val">
+                  {{ currentLtp !== null ? ('₹' + (currentLtp | currencyInr : false)) : '--' }}
                 </span>
+              </div>
+
+              <!-- Auto-Selected Dhan Price Condition (Read-Only Info) -->
+              <div
+                class="auto-condition-panel"
+                *ngIf="autoConditionInfo() as cond"
+                [ngClass]="cond.isCrossingUp ? 'cond-up' : 'cond-down'"
+              >
+                <div class="auto-condition-header">
+                  <span class="auto-condition-label">Dhan Alert Condition</span>
+                  <span class="auto-badge">AUTO</span>
+                </div>
+                <div class="auto-condition-value-row">
+                  <span class="auto-condition-pill">
+                    <span class="material-symbols-rounded cond-icon">
+                      {{ cond.isCrossingUp ? 'trending_up' : 'trending_down' }}
+                    </span>
+                    <span class="cond-name">{{ cond.dhanCondition }}</span>
+                    <span class="cond-op-code">({{ cond.operator }})</span>
+                  </span>
+                  <span *ngIf="targetPointsDiff()" class="diff-tag">({{ targetPointsDiff() }} pts)</span>
+                </div>
+                <div class="auto-condition-hint">
+                  {{ cond.description }} (₹{{ targetPrice | currencyInr : false }})
+                </div>
               </div>
             </div>
           </div>
@@ -269,6 +287,19 @@ import { environment } from '../../../../../environments/environment';
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Price Direction Warning Banner (Buy above LTP or Sell below LTP) -->
+        <div
+          class="price-direction-warning"
+          *ngIf="priceDirectionWarning() as warn"
+          role="alert"
+        >
+          <span class="material-symbols-rounded warn-icon">warning</span>
+          <div class="warn-content">
+            <span class="warn-title">{{ warn.title }}</span>
+            <span class="warn-msg">{{ warn.message }}</span>
           </div>
         </div>
 
@@ -416,7 +447,120 @@ import { environment } from '../../../../../environments/environment';
       .diff-tag {
         font-size: 0.6875rem;
         margin-left: 4px;
-        opacity: 0.85;
+        opacity: 0.9;
+        white-space: nowrap;
+      }
+      .auto-condition-panel {
+        border-radius: 8px;
+        padding: 9px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        border: 1px solid var(--border-subtle);
+        background: rgba(15, 23, 42, 0.55);
+      }
+      .auto-condition-panel.cond-up {
+        border-color: rgba(16, 185, 129, 0.35);
+        background: rgba(16, 185, 129, 0.08);
+      }
+      .auto-condition-panel.cond-down {
+        border-color: rgba(244, 63, 94, 0.35);
+        background: rgba(244, 63, 94, 0.08);
+      }
+      .auto-condition-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+      }
+      .auto-condition-label {
+        font-family: var(--font-sans);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .auto-badge {
+        font-family: var(--font-mono);
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        color: var(--dhan-cyan);
+        background: rgba(0, 210, 196, 0.14);
+        border: 1px solid rgba(0, 210, 196, 0.3);
+        padding: 1px 6px;
+        border-radius: 4px;
+      }
+      .auto-condition-value-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .auto-condition-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-weight: 700;
+        font-size: 0.8125rem;
+      }
+      .cond-up .auto-condition-pill {
+        color: var(--color-profit);
+      }
+      .cond-down .auto-condition-pill {
+        color: var(--color-loss);
+      }
+      .cond-icon {
+        font-size: 17px;
+      }
+      .cond-op-code {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        opacity: 0.82;
+      }
+      .auto-condition-hint {
+        font-family: var(--font-sans);
+        font-size: 0.6875rem;
+        color: var(--text-secondary);
+        line-height: 1.35;
+      }
+      .price-direction-warning {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 11px 14px;
+        margin-bottom: 12px;
+        background: rgba(245, 158, 11, 0.12);
+        border: 1px solid rgba(245, 158, 11, 0.45);
+        border-left: 4px solid #f59e0b;
+        border-radius: 8px;
+        color: var(--text-primary);
+      }
+      .price-direction-warning .warn-icon {
+        font-size: 20px;
+        color: #f59e0b;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      .price-direction-warning .warn-content {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+      }
+      .price-direction-warning .warn-title {
+        font-size: 0.8125rem;
+        font-weight: 700;
+        color: #fbbf24;
+        line-height: 1.3;
+      }
+      .price-direction-warning .warn-msg {
+        font-size: 0.75rem;
+        color: var(--text-primary);
+        line-height: 1.45;
+        overflow-wrap: break-word;
       }
       .condition-box {
         background: var(--bg-surface);
@@ -763,7 +907,7 @@ import { environment } from '../../../../../environments/environment';
       }
 
       /* Responsive Layout Optimizations */
-      @media (max-width: 900px) {
+      @media (max-width: 1023px) {
         .composer-columns-grid {
           grid-template-columns: 1fr;
           gap: 12px;
@@ -776,61 +920,117 @@ import { environment } from '../../../../../environments/environment';
         }
 
         .action-toggle {
-          flex-direction: column;
+          display: flex;
+          flex-direction: row;
           gap: 6px;
         }
 
         .action-toggle mat-button-toggle {
-          width: 100%;
+          flex: 1;
           border-radius: 8px !important;
-          border: 1px solid var(--border-subtle) !important;
-          min-height: 40px;
+          min-height: 42px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
 
-        .lots-header-line {
-          flex-direction: column;
-          align-items: flex-start;
+        .lots-header-row {
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
           gap: 4px;
         }
 
         .lot-select-btn {
-          min-height: 44px;
-          padding: 8px 6px;
-          font-size: 0.8125rem;
-        }
-
-        .sl-header-row {
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-
-        .sl-preview-line {
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 2px;
-        }
-
-        .sl-action-line {
-          flex-wrap: wrap;
-          gap: 4px;
+          min-height: 40px;
+          padding: 6px 4px;
+          font-size: 0.75rem;
+          min-width: 0;
         }
       }
 
-      @media (max-width: 440px) {
-        .strike-chips {
+      @media (max-width: 480px) {
+        .composer-card {
+          padding: 10px;
+        }
+
+        .fixed-lots-group {
           gap: 4px;
         }
-        .strike-chip {
-          padding: 6px 10px;
+
+        .lot-btn-title {
+          font-size: 0.75rem;
+          flex-direction: column;
+          gap: 2px;
         }
+
+        .pref-pill {
+          font-size: 0.5rem;
+          padding: 1px 3px;
+        }
+
+        .lot-btn-calc {
+          font-size: 0.625rem;
+        }
+
+        .strike-chips {
+          gap: 6px;
+        }
+
+        .strike-chip {
+          padding: 8px 10px;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
         .strike-val {
           font-size: 0.75rem;
+          flex: 1 1 180px;
+          word-break: break-word;
         }
+
         .strike-ltp {
-          font-size: 0.6875rem;
+          font-size: 0.75rem;
+          margin-left: auto;
+        }
+
+        .order-qty-summary-box {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
+        }
+
+        .sl-summary-row {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 6px;
+        }
+
+        .sl-calc-box {
+          width: 100%;
+          justify-content: space-between;
+        }
+
+        .admin-restriction-banner,
+        .price-direction-warning {
+          font-size: 0.75rem;
+          padding: 9px 10px;
+        }
+
+        .auto-condition-value-row {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 3px;
+        }
+
+        .auto-condition-pill {
+          font-size: 0.75rem;
+          flex-wrap: wrap;
+        }
+
+        .submit-btn {
+          font-size: 0.875rem;
+          min-height: 44px;
         }
       }
     `,
@@ -843,6 +1043,7 @@ export class AlertComposerComponent implements OnInit {
   private readonly instrumentService = inject(InstrumentService);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly route = inject(ActivatedRoute, { optional: true });
   readonly backendUrl = environment.apiUrl;
 
   readonly isSubmitting = signal<boolean>(false);
@@ -880,7 +1081,9 @@ export class AlertComposerComponent implements OnInit {
     return this._targetPrice();
   }
   set targetPrice(val: number | null) {
-    this._targetPrice.set(val !== null && val !== undefined ? Number(val) : null);
+    this._targetPrice.set(
+      val !== null && val !== undefined && (val as unknown) !== '' ? Number(val) : null
+    );
   }
 
   // Conditional Order Form Fields (Always active as Dhan mandates orders for alerts)
@@ -914,6 +1117,7 @@ export class AlertComposerComponent implements OnInit {
   stopLossPoints = signal<number>(12);
 
   userManuallyChangedLots = false;
+  private userManuallyEditedTarget = false;
 
   readonly isBankNifty = computed(() => {
     const sym = (this.selectedInstrumentSymbol || '').toUpperCase();
@@ -951,6 +1155,100 @@ export class AlertComposerComponent implements OnInit {
     if (!target || !ltp) return '';
     const diff = Math.round((target - ltp) * 100) / 100;
     return diff >= 0 ? `+${diff}` : `${diff}`;
+  });
+
+  readonly autoTriggerOperator = computed<AlertOperator | null>(() => {
+    const target = this._targetPrice();
+    const ltp = this._currentLtp();
+    if (
+      target === null ||
+      target === undefined ||
+      Number.isNaN(target) ||
+      target <= 0 ||
+      ltp === null ||
+      ltp === undefined ||
+      Number.isNaN(ltp) ||
+      ltp <= 0
+    ) {
+      return null;
+    }
+    return target < ltp ? 'LESS_THAN' : 'GREATER_THAN';
+  });
+
+  readonly autoConditionInfo = computed<{
+    operator: AlertOperator;
+    dhanCondition: 'Crossing Up' | 'Crossing Down';
+    symbol: '≥' | '<';
+    description: string;
+    isCrossingUp: boolean;
+  } | null>(() => {
+    const op = this.autoTriggerOperator();
+    if (!op) return null;
+    if (op === 'LESS_THAN') {
+      return {
+        operator: 'LESS_THAN',
+        dhanCondition: 'Crossing Down',
+        symbol: '<',
+        description: 'Auto-triggers when live price falls below target',
+        isCrossingUp: false,
+      };
+    }
+    return {
+      operator: 'GREATER_THAN',
+      dhanCondition: 'Crossing Up',
+      symbol: '≥',
+      description: 'Auto-triggers when live price rises to/above target',
+      isCrossingUp: true,
+    };
+  });
+
+  readonly priceDirectionWarning = computed<{
+    type: 'BUY_ABOVE_LTP' | 'SELL_BELOW_LTP';
+    title: string;
+    message: string;
+    diffPoints: number;
+  } | null>(() => {
+    const target = this._targetPrice();
+    const ltp = this._currentLtp();
+    const action = this._orderAction();
+
+    if (
+      target === null ||
+      target === undefined ||
+      Number.isNaN(target) ||
+      target <= 0 ||
+      ltp === null ||
+      ltp === undefined ||
+      Number.isNaN(ltp) ||
+      ltp <= 0
+    ) {
+      return null;
+    }
+
+    const fmt = (val: number) =>
+      val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    if (action === 'BUY' && target > ltp) {
+      const diff = Math.round((target - ltp) * 100) / 100;
+      return {
+        type: 'BUY_ABOVE_LTP',
+        title: 'Warning: Buy (CALL) price is higher than live price',
+        message: `Target price (₹${fmt(target)}) is +${diff} pts above the current live price (₹${fmt(ltp)}). Buy orders are usually placed below live price — please verify before placing.`,
+        diffPoints: diff,
+      };
+    }
+
+    if (action === 'SELL' && target < ltp) {
+      const diff = Math.round((ltp - target) * 100) / 100;
+      return {
+        type: 'SELL_BELOW_LTP',
+        title: 'Warning: Sell (PUT) price is lower than live price',
+        message: `Target price (₹${fmt(target)}) is -${diff} pts below the current live price (₹${fmt(ltp)}). Sell orders are usually placed above live price — please verify before placing.`,
+        diffPoints: diff,
+      };
+    }
+
+    return null;
   });
 
   readonly stopLossPrice = computed(() => {
@@ -1034,11 +1332,32 @@ export class AlertComposerComponent implements OnInit {
 
         this.instruments.set(activeIndices);
         if (activeIndices.length > 0) {
+          const querySym = this.route?.snapshot?.queryParams?.['symbol'];
           const current = this.selectedInstrumentSymbol;
-          const matched = current ? activeIndices.find((i) => i.symbol === current) : null;
+          const matchedByQuery = querySym
+            ? activeIndices.find(
+                (i) =>
+                  i.symbol.toUpperCase() === querySym.toUpperCase() ||
+                  (i.name && i.name.toUpperCase().includes(querySym.toUpperCase()))
+              )
+            : null;
+          const matched = matchedByQuery || (current ? activeIndices.find((i) => i.symbol === current) : null);
           const target = matched || activeIndices.find((i) => i.symbol === 'NIFTY 50') || activeIndices[0];
           if (target) {
-            this.onInstrumentChange(target.symbol);
+            const queryTarget = this.route?.snapshot?.queryParams?.['targetPrice'];
+            const parsedQueryTarget =
+              queryTarget !== undefined && queryTarget !== null && queryTarget !== ''
+                ? Number(queryTarget)
+                : undefined;
+            const queryStrategy = this.route?.snapshot?.queryParams?.['strategy'];
+            if (queryStrategy) {
+              if (queryStrategy.includes('DEMAND') || queryStrategy.includes('BULL')) {
+                this.orderAction = 'BUY';
+              } else if (queryStrategy.includes('SUPPLY') || queryStrategy.includes('BEAR')) {
+                this.orderAction = 'SELL';
+              }
+            }
+            this.onInstrumentChange(target.symbol, parsedQueryTarget);
           }
         } else {
           this.selectedInstrumentSymbol = '';
@@ -1136,8 +1455,9 @@ export class AlertComposerComponent implements OnInit {
     return 15;
   }
 
-  onInstrumentChange(symbol: string): void {
+  onInstrumentChange(symbol: string, presetTargetPrice?: number): void {
     this.userManuallyChangedLots = false;
+    this.userManuallyEditedTarget = false;
     this.selectedInstrumentSymbol = symbol;
     const upper = (symbol || '').toUpperCase();
     const found = this.instruments().find(
@@ -1164,39 +1484,41 @@ export class AlertComposerComponent implements OnInit {
     }
 
     // Set defined Stop Loss points based on instrument
-    this.stopLossPoints.set(this.getDefinedSlPoints(symbol));
+    this.stopLossPoints.set(this.getDefinedSlPoints(found.symbol));
 
-    // Set initial LTP & target price
-    if (found.ltp) {
-      this.currentLtp = found.ltp;
-      const offset = symbol.includes('BANK')
-        ? 100
-        : symbol.includes('SENSEX')
-        ? 150
-        : symbol.includes('MID')
-        ? 20
-        : 30;
-      this.targetPrice = Math.round((found.ltp + offset) * 100) / 100;
+    const hasPresetTarget =
+      presetTargetPrice !== undefined &&
+      presetTargetPrice !== null &&
+      !Number.isNaN(presetTargetPrice) &&
+      presetTargetPrice > 0;
+
+    // Set initial Spot LTP & initialize Target Trigger Price directly to live spot price
+    if (found.ltp && found.ltp > 0) {
+      const roundedLtp = Math.round(found.ltp * 100) / 100;
+      this.currentLtp = roundedLtp;
+      this.targetPrice = hasPresetTarget ? presetTargetPrice : roundedLtp;
+    } else {
+      this.currentLtp = null;
+      this.targetPrice = hasPresetTarget ? presetTargetPrice : null;
     }
 
+    const expectedSymbol = found.symbol;
+
     // Fetch live LTP
-    this.instrumentService.getLtp(symbol).subscribe((res) => {
-      if (res.ltp !== null && res.ltp !== undefined) {
-        this.currentLtp = res.ltp;
-        const offset = symbol.includes('BANK')
-          ? 100
-          : symbol.includes('SENSEX')
-          ? 150
-          : symbol.includes('MID')
-          ? 20
-          : 30;
-        this.targetPrice = Math.round((res.ltp + offset) * 100) / 100;
+    this.instrumentService.getLtp(found.symbol).subscribe((res) => {
+      if (this.selectedInstrumentSymbol !== expectedSymbol) return;
+      if (res.ltp !== null && res.ltp !== undefined && res.ltp > 0) {
+        const roundedLive = Math.round(res.ltp * 100) / 100;
+        this.currentLtp = roundedLive;
+        if (!hasPresetTarget && !this.userManuallyEditedTarget) {
+          this.targetPrice = roundedLive;
+        }
         this.loadOptionContracts();
       }
     });
 
     // Fetch expiries from backend for this instrument
-    this.loadExpiries(symbol);
+    this.loadExpiries(found.symbol);
   }
 
   openScripSearchModal(): void {
@@ -1222,7 +1544,7 @@ export class AlertComposerComponent implements OnInit {
       this.orderExchangeSegment = item.exchangeSegment;
       this.orderLots = 1;
       this.currentLtp = item.ltp;
-      this.targetPrice = item.ltp ? Math.round(item.ltp * 1.02 * 100) / 100 : null;
+      this.targetPrice = item.ltp ? Math.round(item.ltp * 100) / 100 : null;
 
       const symUpper = item.symbol.toUpperCase();
       let parentSym = 'NIFTY 50';
@@ -1263,7 +1585,7 @@ export class AlertComposerComponent implements OnInit {
       this.selectedInstrument = item;
       this.selectedInstrumentSymbol = item.symbol;
       this.currentLtp = item.ltp;
-      this.targetPrice = item.ltp ? Math.round(item.ltp * 1.01 * 100) / 100 : null;
+      this.targetPrice = item.ltp ? Math.round(item.ltp * 100) / 100 : null;
       this.orderLots = 1;
       this.orderSymbol = item.symbol;
       this.orderSecurityId = item.securityId;
@@ -1294,6 +1616,7 @@ export class AlertComposerComponent implements OnInit {
   }
 
   onTargetPriceChange(): void {
+    this.userManuallyEditedTarget = true;
     this.loadOptionContracts();
   }
 
@@ -1467,9 +1790,10 @@ export class AlertComposerComponent implements OnInit {
     // Operator decided automatically: GREATER_THAN if target >= current LTP, LESS_THAN if target < current LTP
     // Matches Dhan HQ API v2 and Dhan Web/App operator specifications, preventing 'Price undefined' on Dhan
     const operator: AlertOperator =
-      this.currentLtp !== null && priceNum < this.currentLtp
+      this.autoTriggerOperator() ??
+      (this.currentLtp !== null && priceNum < this.currentLtp
         ? 'LESS_THAN'
-        : 'GREATER_THAN';
+        : 'GREATER_THAN');
 
     // 30 days default expiry date in YYYY-MM-DD
     const expDate = (() => {
@@ -1567,6 +1891,8 @@ export class AlertComposerComponent implements OnInit {
           },
         };
 
+    const directionWarning = this.priceDirectionWarning();
+
     const previewData: AlertPreviewData = {
       instrument: this.selectedInstrumentSymbol,
       securityId: secId,
@@ -1597,6 +1923,12 @@ export class AlertComposerComponent implements OnInit {
       stopLoss: stopLossConfig,
       dhanPayload,
       slDhanPayload,
+      priceWarning: directionWarning
+        ? {
+            title: directionWarning.title,
+            message: directionWarning.message,
+          }
+        : undefined,
     };
 
     const dialogRef = this.dialog.open(AlertPreviewDialogComponent, {

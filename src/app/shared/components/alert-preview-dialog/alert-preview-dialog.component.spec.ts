@@ -131,4 +131,36 @@ describe('AlertPreviewDialogComponent', () => {
     component.confirm();
     expect(mockDialogRef.close).toHaveBeenCalledWith({ confirmed: true });
   });
+
+  it('should render price warning banner in confirm mode when priceWarning is provided', () => {
+    component.data = {
+      ...baseData,
+      mode: 'confirm',
+      priceWarning: {
+        title: 'Warning: Buy (CALL) price is higher than live price',
+        message: 'Target price is above live price.',
+      },
+    };
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const warnBanner = compiled.querySelector('.preview-price-warning');
+    expect(warnBanner).not.toBeNull();
+    expect(warnBanner?.textContent).toContain('Buy (CALL) price is higher than live price');
+  });
+
+  it('should not render price warning banner in view mode', () => {
+    component.data = {
+      ...baseData,
+      mode: 'view',
+      priceWarning: {
+        title: 'Warning: Buy (CALL) price is higher than live price',
+        message: 'Target price is above live price.',
+      },
+    };
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('.preview-price-warning')).toBeNull();
+  });
 });

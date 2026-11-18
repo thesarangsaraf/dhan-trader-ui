@@ -37,6 +37,7 @@ export interface AlertAttachedOrder {
   orderType?: 'MARKET' | 'LIMIT' | string;
   quantity: number;
   lots?: number;
+  lotSize?: number;
   price?: number;
   triggerPrice?: number;
   validity?: string;

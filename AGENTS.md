@@ -81,8 +81,8 @@ This document provides operational context, architectural contracts, design rule
 ### Rule 5: User Authentication & Indefinite Session Persistence
 - **Dual-Token Architecture**:
   - The application requires username and password login (`POST /api/user-auth/login`).
-  - Access Token: Short-lived HS256 JWT (15 minutes). Attached to all authenticated requests via `Authorization: Bearer <accessToken>`.
-  - Refresh Token: Long-lived cryptographically secure random token (365 days / 1 year), stored in `localStorage` and synced with Firestore `config/auth_user`.
+  - Access Token: Stateless HS256 JWT (30 days / 2,592,000s). Attached to all authenticated requests via `Authorization: Bearer <accessToken>`. Validated statelessly via HMAC-SHA256 signature without requiring database lookups, surviving backend server restarts and reboots seamlessly.
+  - Refresh Token: Long-lived cryptographically secure random token (365 days / 1 year), stored in `localStorage` and synced with Firestore `users/{username}`.
 - **Indefinite Persistent Login ("Stay Logged In")**:
   - Exactly like major platforms (Twitter/X, Facebook, LinkedIn), user sessions remain active indefinitely across browser restarts, reboots, and tab closures.
   - The session expires **strictly and only when the user explicitly clicks Sign Out or clears their entire browser history, cache, cookies, and site data**.
@@ -100,6 +100,28 @@ This document provides operational context, architectural contracts, design rule
   - **Declarative Decorator / Annotation (@Roles)**: On the REST API backend, role permissions are enforced cleanly using the NestJS `@Roles(UserRole.ADMIN)` annotation and global `RolesGuard` rather than static string checks. Unauthorized callers receive HTTP 403 Forbidden.
   - The seed superuser `sarang` account is permanently protected from deletion and demotion.
   - Passwords are encrypted using memory-hard `scrypt` hashing and are never exposed in user list responses.
+
+### Rule 6: Mandatory Cross-Device Responsive Compatibility (Desktop & Mobile First-Class Support)
+- **Core Contract**: Dhan Trader Pro is a critical trading application used simultaneously on desktop workstations and on-the-go mobile devices (iOS Safari, Android Chrome, mobile PWA). **Every new change, feature, dialog, or UI component MUST be 100% compatible with and responsive across both desktop and mobile viewports.**
+- **Standard Breakpoints**:
+  - **Mobile Phones**: `≤ 480px` (e.g. 320px, 360px, 375px, 390px, 412px, 430px)
+  - **Phablets & Small Tablets**: `481px – 768px`
+  - **Tablets & iPad Portrait**: `769px – 1023px`
+  - **Desktop / Workstation**: `≥ 1024px`
+- **Zero Horizontal Overflow Rule**:
+  - No page, container, card, modal, or form element may cause horizontal scrolling or overflow on mobile screens (`max-width: 100vw; overflow-x: hidden`).
+  - Always reset hardcoded desktop `min-width` (e.g. `min-width: 560px`) in `@media (max-width: 1023px)` and `@media (max-width: 768px)` using `min-width: 0 !important; width: 100% !important; max-width: 100% !important;`.
+- **Mobile Navigation Bar Clearance**:
+  - The application features a persistent bottom navigation bar on mobile (`height: 56px + env(safe-area-inset-bottom)`).
+  - Never wrap page content in nested `height: 100%; overflow-y: auto;` containers that prevent scroll awareness; use `min-height: 100%;` and ensure proper bottom padding so that the lowest action buttons, cards, or table rows are never hidden behind the navigation bar.
+- **Card-Based Mobile Layouts for Complex Tables**:
+  - Wide multi-column tables (e.g. Stock Screener, Positions, Order Book, Trade History) are unwieldy on mobile phone screens. Always provide dedicated responsive mobile card views (`.results-cards-list` / `.setup-mobile-card`) or adaptive flex layouts that highlight critical metrics (Symbol, Price, P&L, Strategy) and prominent touch action buttons without requiring horizontal scrolling.
+- **Touch Target & Button Ergonomics**:
+  - All interactive elements (buttons, toggles, chips, icon triggers) on mobile must have touch targets of at least 36px–44px with comfortable spacing.
+  - Directional toggles (CALL/PUT) should sit side-by-side (50% width each) on mobile rather than consuming excessive vertical screen space.
+- **Header & Pill Responsiveness**:
+  - On mobile viewports (`≤ 768px`), top header elements must prioritize live funds and token expiry while hiding long brand badges and truncating/iconifying user chips to prevent top app bar overflow.
+  - On tablets (`769px – 1023px`), navigation tabs and status chips must use compact padding and icon representations to prevent colliding with brand titles.
 
 ---
 

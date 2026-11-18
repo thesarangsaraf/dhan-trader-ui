@@ -18,7 +18,7 @@ describe('UserAuthService', () => {
         UserAuthService,
         provideHttpClient(),
         provideHttpClientTesting(),
-        provideRouter([]),
+        provideRouter([{ path: 'login', component: {} as any }]),
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
       ],
     });
@@ -70,6 +70,43 @@ describe('UserAuthService', () => {
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ refreshToken: 'stored-refresh-token' });
     req.flush({ accessToken: 'new-access-token' });
+  });
+
+  it('should NOT call logout when refresh fails due to server restart (status 0) or 500 error', () => {
+    localStorage.setItem('dhan_access_token', 'my-token');
+    localStorage.setItem('dhan_refresh_token', 'stored-refresh-token');
+    localStorage.setItem('dhan_user', JSON.stringify({ username: 'sarang', role: 'admin' }));
+    service.currentUser.set({ username: 'sarang', role: 'admin' });
+
+    const logoutSpy = vi.spyOn(service, 'logout');
+
+    service.refreshToken().subscribe((res) => {
+      expect(res).toBeNull();
+      // Tokens must NOT be cleared when server is restarting / connection refused (status 0)
+      expect(logoutSpy).not.toHaveBeenCalled();
+      expect(localStorage.getItem('dhan_refresh_token')).toBe('stored-refresh-token');
+      expect(service.isAuthenticated()).toBe(true);
+    });
+
+    const req = httpMock.expectOne('/api/user-auth/refresh');
+    req.error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
+  });
+
+  it('should call logout when refresh returns 401 Unauthorized (session revoked)', () => {
+    localStorage.setItem('dhan_access_token', 'my-token');
+    localStorage.setItem('dhan_refresh_token', 'expired-refresh-token');
+    const logoutSpy = vi.spyOn(service, 'logout');
+
+    service.refreshToken().subscribe((res) => {
+      expect(res).toBeNull();
+      expect(logoutSpy).toHaveBeenCalledWith(true);
+    });
+
+    const req = httpMock.expectOne('/api/user-auth/refresh');
+    req.flush({ message: 'Session expired' }, { status: 401, statusText: 'Unauthorized' });
+
+    const logoutReq = httpMock.expectOne('/api/user-auth/logout');
+    logoutReq.flush({ success: true });
   });
 
   it('should clear localStorage and reset signals on logout', () => {

@@ -368,7 +368,7 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
           </div>
 
           <!-- RESULTS TABLE (DESKTOP) / CARDS (MOBILE) -->
-          <div *ngIf="filteredMatches().length > 0 && !screenerService.isScanning()" class="results-table-wrapper">
+          <div *ngIf="filteredMatches().length > 0 && !screenerService.isScanning()" class="results-table-wrapper desktop-only">
             <table class="setups-table">
               <thead>
                 <tr>
@@ -462,6 +462,72 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <!-- RESULTS MOBILE CARDS -->
+          <div *ngIf="filteredMatches().length > 0 && !screenerService.isScanning()" class="results-cards-list mobile-only">
+            <div
+              *ngFor="let match of filteredMatches()"
+              class="setup-mobile-card"
+              [class.bullish-card]="match.signalType === 'BUY'"
+              [class.bearish-card]="match.signalType === 'SELL'"
+            >
+              <div class="sm-card-top">
+                <div class="sm-ticker">
+                  <span class="sm-symbol mono-val">{{ match.customSymbol || match.symbol }}</span>
+                  <span class="sm-name">{{ match.name }}</span>
+                </div>
+                <div class="sm-top-right">
+                  <div class="sm-cmp mono-val">
+                    <span class="sm-cmp-label">CMP:</span>
+                    <span class="sm-cmp-val">{{ match.cmp | currencyInr }}</span>
+                  </div>
+                  <span class="tf-badge">{{ match.timeframe }}</span>
+                </div>
+              </div>
+
+              <div class="sm-strategy-row">
+                <div
+                  class="strategy-badge"
+                  [class.badge-demand]="match.strategy === 'DEMAND_ORDER_BLOCK'"
+                  [class.badge-supply]="match.strategy === 'SUPPLY_ORDER_BLOCK'"
+                  [class.badge-bull-sweep]="match.strategy === 'BULLISH_LIQUIDITY_SWEEP'"
+                  [class.badge-bear-sweep]="match.strategy === 'BEARISH_LIQUIDITY_SWEEP'"
+                >
+                  <span class="material-symbols-rounded badge-icon">
+                    {{ match.signalType === 'BUY' ? 'trending_up' : 'trending_down' }}
+                  </span>
+                  <span>{{ match.strategyLabel }}</span>
+                </div>
+              </div>
+              <div *ngIf="match.details?.notes" class="sm-strategy-notes">
+                {{ match.details?.notes }}
+              </div>
+
+              <div class="sm-metrics-grid mono-val">
+                <div class="sm-metric-item">
+                  <span class="sm-metric-lbl">Suggested Entry</span>
+                  <span class="sm-metric-val entry-price">{{ match.entryPrice | currencyInr }}</span>
+                </div>
+                <div class="sm-metric-item">
+                  <span class="sm-metric-lbl">Stop Loss</span>
+                  <span class="sm-metric-val sl-price">{{ match.stopLossPrice | currencyInr }}</span>
+                </div>
+                <div class="sm-metric-item">
+                  <span class="sm-metric-lbl">Risk Distance</span>
+                  <span class="sm-metric-val">&plusmn;{{ match.riskPoints | number : '1.2-2' }} ({{ match.riskPercent | number : '1.2-2' }}%)</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                class="trade-setup-btn sm-action-btn"
+                (click)="goToComposerWithSetup(match)"
+              >
+                <span class="material-symbols-rounded">bolt</span>
+                <span>Create Conditional Alert</span>
+              </button>
+            </div>
           </div>
         </section>
       </main>
@@ -1358,15 +1424,156 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         text-align: right;
       }
 
+      .desktop-only {
+        display: block;
+      }
+
+      .mobile-only {
+        display: none;
+      }
+
+      /* MOBILE SETUP CARD STYLES */
+      .results-cards-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .setup-mobile-card {
+        background: #0e1422;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        transition: all 0.15s ease;
+
+        &.bullish-card {
+          border-left: 4px solid #10b981;
+        }
+
+        &.bearish-card {
+          border-left: 4px solid #f43f5e;
+        }
+      }
+
+      .sm-card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .sm-ticker {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .sm-symbol {
+        font-weight: 700;
+        font-size: 1rem;
+        color: #f8fafc;
+      }
+
+      .sm-name {
+        font-size: 0.75rem;
+        color: #94a3b8;
+      }
+
+      .sm-top-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+      }
+
+      .sm-cmp {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .sm-cmp-label {
+        font-size: 0.6875rem;
+        color: #94a3b8;
+      }
+
+      .sm-cmp-val {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #f8fafc;
+      }
+
+      .sm-strategy-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .sm-strategy-notes {
+        font-size: 0.75rem;
+        color: #94a3b8;
+        line-height: 1.35;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 6px 8px;
+        border-radius: 6px;
+      }
+
+      .sm-metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        background: rgba(0, 0, 0, 0.25);
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+      }
+
+      .sm-metric-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .sm-metric-lbl {
+        font-size: 0.65rem;
+        color: #94a3b8;
+        text-transform: uppercase;
+      }
+
+      .sm-metric-val {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #f1f5f9;
+      }
+
+      .sm-action-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 10px;
+        font-size: 0.875rem;
+        min-height: 42px;
+      }
+
       /* RESPONSIVE DESIGN (RULE 6) */
       @media (max-width: 768px) {
+        .desktop-only {
+          display: none !important;
+        }
+
+        .mobile-only {
+          display: flex !important;
+        }
+
         .page-body {
-          padding: 16px 12px;
-          gap: 16px;
+          padding: 12px 10px 24px;
+          gap: 14px;
         }
 
         .control-header-card {
-          padding: 16px;
+          padding: 14px;
           flex-direction: column;
           align-items: stretch;
         }
@@ -1374,26 +1581,75 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         .controls-toolbar {
           flex-direction: column;
           align-items: stretch;
+          gap: 10px;
         }
 
-        .timeframe-group {
-          justify-content: space-between;
+        .add-ticker-bar {
+          flex-direction: column;
+          align-items: stretch;
         }
 
-        .actions-group {
-          justify-content: stretch;
+        .add-ticker-bar .input-field {
+          width: 100%;
+        }
 
-          button {
-            flex: 1;
-          }
+        .add-ticker-bar .add-btn {
+          width: 100%;
+          justify-content: center;
+          height: 38px;
+        }
+
+        .search-input-wrap {
+          width: 100%;
         }
 
         .kpi-grid {
           grid-template-columns: 1fr 1fr;
+          gap: 8px;
         }
 
         .setups-container {
-          padding: 16px;
+          padding: 14px;
+        }
+      }
+
+      @media (max-width: 520px) {
+        .actions-group {
+          flex-direction: column;
+          align-items: stretch;
+          width: 100%;
+          gap: 8px;
+
+          button {
+            width: 100%;
+            flex: none;
+            min-height: 40px;
+          }
+        }
+
+        .timeframe-group {
+          flex-direction: column;
+          align-items: flex-start;
+          width: 100%;
+          gap: 6px;
+        }
+
+        .timeframe-chips {
+          width: 100%;
+          display: flex;
+          gap: 4px;
+        }
+
+        .tf-chip {
+          flex: 1;
+          text-align: center;
+          padding: 6px 4px;
+          font-size: 0.75rem;
+        }
+
+        .sm-metrics-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
         }
       }
     `,

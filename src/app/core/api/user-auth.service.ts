@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -130,8 +130,11 @@ export class UserAuthService {
         }),
         catchError((err) => {
           this.isRefreshing = false;
-          // Refresh failed - session revoked or expired
-          this.logout(true);
+          // Only logout if server explicitly rejected the refresh token (401 Unauthorized or 403 Forbidden).
+          // If the backend is restarting (status 0, connection refused) or 5xx, keep the local session intact!
+          if (err instanceof HttpErrorResponse && (err.status === 401 || err.status === 403)) {
+            this.logout(true);
+          }
           return of(null);
         }),
       );

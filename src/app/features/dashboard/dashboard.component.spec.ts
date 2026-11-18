@@ -103,4 +103,20 @@ describe('DashboardComponent', () => {
     expect(compiled.querySelector('.top-app-bar')).toBeNull();
     expect(compiled.querySelector('.header-brand')).toBeNull();
   });
+
+  it('should toggle mobile zones between composer and alerts', () => {
+    fixture.detectChanges();
+    expect(component.activeMobileZone()).toBe('alerts');
+
+    // Click trade zone button
+    const compiled = fixture.nativeElement as HTMLElement;
+    const buttons = compiled.querySelectorAll('.mobile-zone-nav .zone-btn');
+    expect(buttons.length).toBe(2);
+
+    (buttons[0] as HTMLButtonElement).click();
+    expect(component.activeMobileZone()).toBe('composer');
+
+    (buttons[1] as HTMLButtonElement).click();
+    expect(component.activeMobileZone()).toBe('alerts');
+  });
 });
