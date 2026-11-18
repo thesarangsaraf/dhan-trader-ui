@@ -1,13 +1,21 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { of } from 'rxjs';
 import { catchError, finalize, tap } from 'rxjs/operators';
-import { of, Observable } from 'rxjs';
 import {
-  ScreenerMatch,
+  LiquiditySweepSignal,
+  ScreenerInstrumentItem,
+  ScreenerInstrumentsResponse,
+  ScreenerScanMode,
+  ScreenerScanRequest,
   ScreenerScanResponse,
-  ScreenerWatchlistDoc,
-  WatchlistStockItem,
 } from '../models/screener.models';
+
+/** Format a local/IST date string YYYY-MM-DD offset by deltaDays */
+function formatIstDateOffset(deltaDays = 0): string {
+  const istNowMs = Date.now() + 5.5 * 3600 * 1000 + deltaDays * 86400 * 1000;
+  return new Date(istNowMs).toISOString().slice(0, 10);
+}
 
 @Injectable({
   providedIn: 'root',
@@ -15,176 +23,128 @@ import {
 export class ScreenerService {
   private readonly http = inject(HttpClient);
 
-  // --- SIGNALS STATE ---
-  readonly watchlist = signal<WatchlistStockItem[]>([]);
-  readonly isLoadingWatchlist = signal<boolean>(false);
-  readonly watchlistError = signal<string | null>(null);
+  // --- CONFIGURED INDICES (from Firestore config/lot_sizes) ---
+  readonly instruments = signal<ScreenerInstrumentItem[]>([]);
+  readonly isLoadingInstruments = signal<boolean>(false);
+  readonly instrumentsError = signal<string | null>(null);
 
-  readonly selectedTimeframe = signal<string>('15m');
+  // --- ON-DEMAND SCAN STATE ---
+  readonly scanMode = signal<ScreenerScanMode>('live');
+  readonly historicalStartDate = signal<string>(formatIstDateOffset(-1));
+  readonly historicalEndDate = signal<string>(formatIstDateOffset(-1));
+
   readonly isScanning = signal<boolean>(false);
   readonly scanError = signal<string | null>(null);
   readonly scanResults = signal<ScreenerScanResponse | null>(null);
   readonly lastScannedAt = signal<string | null>(null);
 
   // --- COMPUTED SIGNALS ---
-  readonly matches = computed<ScreenerMatch[]>(() => this.scanResults()?.matches || []);
-  readonly totalMatches = computed<number>(() => this.scanResults()?.totalMatches || 0);
-  readonly bullishMatches = computed<number>(() => this.scanResults()?.bullishMatches || 0);
-  readonly bearishMatches = computed<number>(() => this.scanResults()?.bearishMatches || 0);
+  readonly recommendations = computed<LiquiditySweepSignal[]>(
+    () => this.scanResults()?.recommendations || [],
+  );
+  readonly totalRecommendations = computed<number>(
+    () => this.scanResults()?.totalRecommendations || 0,
+  );
+  readonly bullishCount = computed<number>(() => this.scanResults()?.bullishCount || 0);
+  readonly bearishCount = computed<number>(() => this.scanResults()?.bearishCount || 0);
   readonly totalScanned = computed<number>(() => this.scanResults()?.totalScanned || 0);
-  readonly enabledWatchlistCount = computed<number>(() => this.watchlist().filter((s) => s.enabled).length);
+  readonly instrumentCount = computed<number>(() => this.instruments().length);
 
   constructor() {
-    this.loadWatchlist();
+    this.loadInstruments();
   }
 
   /**
-   * Load configurable stock watchlist from Firestore
+   * Load the configured indices universe from Firestore config/lot_sizes.
+   * Does NOT trigger any scan automatically.
    */
-  loadWatchlist(): void {
-    this.isLoadingWatchlist.set(true);
-    this.watchlistError.set(null);
+  loadInstruments(): void {
+    this.isLoadingInstruments.set(true);
+    this.instrumentsError.set(null);
 
     this.http
-      .get<ScreenerWatchlistDoc>('/api/screener/watchlist')
+      .get<ScreenerInstrumentsResponse>('/api/screener/instruments')
       .pipe(
         tap((res) => {
-          if (res && Array.isArray(res.symbols)) {
-            this.watchlist.set(res.symbols);
+          if (res && Array.isArray(res.instruments)) {
+            this.instruments.set(res.instruments);
           }
         }),
         catchError((err) => {
-          const msg = err.error?.message || err.message || 'Failed to load stock watchlist from backend';
-          this.watchlistError.set(msg);
+          const msg =
+            err.error?.message ||
+            err.message ||
+            'Failed to load configured indices from backend';
+          this.instrumentsError.set(msg);
           return of(null);
         }),
-        finalize(() => this.isLoadingWatchlist.set(false)),
+        finalize(() => this.isLoadingInstruments.set(false)),
       )
       .subscribe();
   }
 
-  /**
-   * Update full stock watchlist in Firestore
-   */
-  updateWatchlist(symbols: WatchlistStockItem[]): Observable<any> {
-    this.isLoadingWatchlist.set(true);
-    return this.http
-      .put<{ success: boolean; data: ScreenerWatchlistDoc }>('/api/screener/watchlist', { symbols })
-      .pipe(
-        tap((res) => {
-          if (res?.data?.symbols) {
-            this.watchlist.set(res.data.symbols);
-          }
-        }),
-        finalize(() => this.isLoadingWatchlist.set(false)),
-      );
+  setMode(mode: ScreenerScanMode): void {
+    this.scanMode.set(mode);
+    this.scanError.set(null);
+  }
+
+  setHistoricalDates(startDate: string, endDate?: string): void {
+    this.historicalStartDate.set(startDate);
+    this.historicalEndDate.set(endDate || startDate);
+    this.scanError.set(null);
   }
 
   /**
-   * Toggle a specific stock enabled / disabled
+   * Strictly on-demand 5m Liquidity Sweep & Reversal scan.
+   * Only executed when the user clicks "Run Scan".
    */
-  toggleStock(symbol: string): void {
-    const current = this.watchlist();
-    const updated = current.map((item) =>
-      item.symbol.toUpperCase() === symbol.toUpperCase()
-        ? { ...item, enabled: !item.enabled }
-        : item,
-    );
-    this.watchlist.set(updated);
-    this.updateWatchlist(updated).subscribe();
-  }
+  runScan(override?: Partial<ScreenerScanRequest>): void {
+    const mode: ScreenerScanMode = override?.mode || this.scanMode();
+    const payload: ScreenerScanRequest = { mode };
 
-  /**
-   * Add a new stock ticker to the watchlist
-   */
-  addStock(symbol: string, name: string, sector?: string): void {
-    const cleanSym = symbol.replace(/\.NS$/i, '').trim().toUpperCase();
-    if (!cleanSym) return;
+    if (mode === 'historical') {
+      const startDate = override?.startDate || override?.date || this.historicalStartDate();
+      const endDate = override?.endDate || override?.date || this.historicalEndDate() || startDate;
 
-    const current = this.watchlist();
-    if (current.some((s) => s.symbol.toUpperCase() === cleanSym)) {
-      return; // Already exists
+      if (!startDate) {
+        this.scanError.set('Please select a date for Historical mode.');
+        return;
+      }
+      if (startDate > endDate) {
+        this.scanError.set('Start date must be earlier than or equal to End date.');
+        return;
+      }
+
+      payload.startDate = startDate;
+      payload.endDate = endDate;
     }
 
-    const newItem: WatchlistStockItem = {
-      symbol: cleanSym,
-      name: name.trim() || cleanSym,
-      sector: sector?.trim() || 'Equity',
-      enabled: true,
-      order: current.length + 1,
-    };
+    if (override?.symbols && override.symbols.length > 0) {
+      payload.symbols = override.symbols;
+    }
 
-    const updated = [...current, newItem];
-    this.watchlist.set(updated);
-    this.updateWatchlist(updated).subscribe();
-  }
-
-  /**
-   * Remove a stock ticker from the watchlist
-   */
-  removeStock(symbol: string): void {
-    const cleanSym = symbol.replace(/\.NS$/i, '').trim().toUpperCase();
-    const current = this.watchlist();
-    const updated = current.filter((s) => s.symbol.toUpperCase() !== cleanSym);
-    this.watchlist.set(updated);
-    this.updateWatchlist(updated).subscribe();
-  }
-
-  /**
-   * Reset watchlist back to the default 28 large-cap stocks
-   */
-  resetWatchlist(): void {
-    this.isLoadingWatchlist.set(true);
-    this.http
-      .post<{ success: boolean; data: ScreenerWatchlistDoc }>('/api/screener/watchlist/reset', {})
-      .pipe(
-        tap((res) => {
-          if (res?.data?.symbols) {
-            this.watchlist.set(res.data.symbols);
-          }
-        }),
-        catchError((err) => {
-          this.watchlistError.set(err.message || 'Failed to reset watchlist');
-          return of(null);
-        }),
-        finalize(() => this.isLoadingWatchlist.set(false)),
-      )
-      .subscribe();
-  }
-
-  /**
-   * Execute manual technical price action scan for selected timeframe
-   */
-  runScan(timeframe?: string): void {
-    const tf = timeframe || this.selectedTimeframe();
-    this.selectedTimeframe.set(tf);
     this.isScanning.set(true);
     this.scanError.set(null);
 
     this.http
-      .post<ScreenerScanResponse>('/api/screener/scan', { timeframe: tf })
+      .post<ScreenerScanResponse>('/api/screener/scan', payload)
       .pipe(
         tap((res) => {
           this.scanResults.set(res);
           this.lastScannedAt.set(res.scannedAt || new Date().toISOString());
         }),
         catchError((err) => {
-          const msg =
-            err.error?.message ||
-            err.message ||
-            'Failed to execute screener scan. Please ensure backend is running.';
+          const rawMsg = err.error?.message;
+          const msg = Array.isArray(rawMsg)
+            ? rawMsg.join(', ')
+            : rawMsg ||
+              err.message ||
+              'Failed to execute liquidity sweep scan. Please ensure backend is running.';
           this.scanError.set(msg);
           return of(null);
         }),
         finalize(() => this.isScanning.set(false)),
       )
       .subscribe();
-  }
-
-  /**
-   * Change selected timeframe interval
-   */
-  setTimeframe(tf: string): void {
-    this.selectedTimeframe.set(tf);
   }
 }

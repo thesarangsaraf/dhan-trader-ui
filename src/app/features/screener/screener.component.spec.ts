@@ -4,86 +4,104 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenerComponent } from './screener.component';
 import { ScreenerService } from '../../core/api/screener.service';
-import { ScreenerMatch, WatchlistStockItem } from '../../core/models/screener.models';
+import {
+  LiquiditySweepSignal,
+  ScreenerInstrumentItem,
+  ScreenerScanMode,
+} from '../../core/models/screener.models';
 
 describe('ScreenerComponent', () => {
   let component: ScreenerComponent;
   let fixture: ComponentFixture<ScreenerComponent>;
   let router: Router;
 
-  const mockWatchlist = signal<WatchlistStockItem[]>([
-    { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', enabled: true, order: 1 },
-    { symbol: 'TCS', name: 'Tata Consultancy Services Ltd', enabled: true, order: 2 },
+  const mockInstruments = signal<ScreenerInstrumentItem[]>([
+    { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', enabled: true },
+    { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', enabled: true },
+    { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', enabled: true },
+    { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', enabled: true },
   ]);
 
-  const mockMatches = signal<ScreenerMatch[]>([
+  const mockRecommendations = signal<LiquiditySweepSignal[]>([
     {
-      symbol: 'RELIANCE',
-      name: 'Reliance Industries Ltd',
-      cmp: 2496,
-      strategy: 'DEMAND_ORDER_BLOCK',
-      strategyLabel: 'Demand OB (Bullish)',
+      id: 'NIFTY_50_1763440500_BUY',
+      symbol: 'NIFTY 50',
+      name: 'Nifty 50 Index',
       signalType: 'BUY',
-      entryPrice: 2495,
-      stopLossPrice: 2480,
-      riskPoints: 15,
-      riskPercent: 0.6,
-      timeframe: '15m',
-      matchedAt: '2026-11-16T12:00:00.000Z',
+      levelType: 'PDL',
+      levelPrice: 24500,
+      sweepPrice: 24482,
+      sweepTimestamp: 1763440200,
+      confirmationClosePrice: 24525,
+      confirmationTimestamp: 1763440500,
+      sessionDate: '2026-11-18',
+      timeframe: '5m',
+      candles: [
+        { time: 1763440200, open: 24520, high: 24525, low: 24482, close: 24495, volume: 100 },
+        { time: 1763440500, open: 24495, high: 24530, low: 24492, close: 24525, volume: 200 },
+      ],
     },
     {
-      symbol: 'INFY',
-      name: 'Infosys Ltd',
-      cmp: 1524,
-      strategy: 'SUPPLY_ORDER_BLOCK',
-      strategyLabel: 'Supply OB (Bearish)',
+      id: 'BANK_NIFTY_1763443200_SELL',
+      symbol: 'BANK NIFTY',
+      name: 'Bank Nifty Index',
       signalType: 'SELL',
-      entryPrice: 1525,
-      stopLossPrice: 1545,
-      riskPoints: 20,
-      riskPercent: 1.31,
-      timeframe: '15m',
-      matchedAt: '2026-11-16T12:00:00.000Z',
+      levelType: 'PDH',
+      levelPrice: 52500,
+      sweepPrice: 52545,
+      sweepTimestamp: 1763442900,
+      confirmationClosePrice: 52465,
+      confirmationTimestamp: 1763443200,
+      sessionDate: '2026-11-18',
+      timeframe: '5m',
+      candles: [
+        { time: 1763442900, open: 52480, high: 52545, low: 52470, close: 52515, volume: 150 },
+        { time: 1763443200, open: 52515, high: 52520, low: 52450, close: 52465, volume: 250 },
+      ],
     },
   ]);
+
+  const mockScanMode = signal<ScreenerScanMode>('live');
 
   const mockScreenerService = {
-    watchlist: mockWatchlist,
-    isLoadingWatchlist: signal(false),
-    watchlistError: signal<string | null>(null),
-    selectedTimeframe: signal('15m'),
+    instruments: mockInstruments,
+    isLoadingInstruments: signal(false),
+    instrumentsError: signal<string | null>(null),
+    scanMode: mockScanMode,
+    historicalStartDate: signal('2026-11-17'),
+    historicalEndDate: signal('2026-11-17'),
     isScanning: signal(false),
     scanError: signal<string | null>(null),
-    lastScannedAt: signal<string | null>('2026-11-16T12:00:00.000Z'),
+    lastScannedAt: signal<string | null>('2026-11-18T09:35:00.000Z'),
     scanResults: signal<any>({
-      timeframe: '15m',
-      scannedAt: '2026-11-16T12:00:00.000Z',
-      totalScanned: 2,
-      totalMatches: 2,
-      bullishMatches: 1,
-      bearishMatches: 1,
-      matches: mockMatches(),
+      mode: 'live',
+      timeframe: '5m',
+      scannedAt: '2026-11-18T09:35:00.000Z',
+      instrumentsScanned: mockInstruments().map((i) => ({ symbol: i.symbol, name: i.name })),
+      totalScanned: 4,
+      totalRecommendations: 2,
+      bullishCount: 1,
+      bearishCount: 1,
+      recommendations: mockRecommendations(),
     }),
-    matches: mockMatches,
-    totalMatches: signal(2),
-    bullishMatches: signal(1),
-    bearishMatches: signal(1),
-    totalScanned: signal(2),
-    enabledWatchlistCount: signal(2),
+    recommendations: mockRecommendations,
+    totalRecommendations: signal(2),
+    bullishCount: signal(1),
+    bearishCount: signal(1),
+    totalScanned: signal(4),
+    instrumentCount: signal(4),
+    loadInstruments: vi.fn(),
+    setMode: vi.fn((mode: ScreenerScanMode) => mockScanMode.set(mode)),
+    setHistoricalDates: vi.fn(),
     runScan: vi.fn(),
-    setTimeframe: vi.fn(),
-    toggleStock: vi.fn(),
-    addStock: vi.fn(),
-    removeStock: vi.fn(),
-    resetWatchlist: vi.fn(),
-    updateWatchlist: vi.fn(),
   };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockScanMode.set('live');
 
     await TestBed.configureTestingModule({
       imports: [ScreenerComponent],
@@ -102,105 +120,83 @@ describe('ScreenerComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create the screener component', () => {
+  it('should create component and render Liquidity Sweep Screener header with configured indices', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
     expect(component).toBeTruthy();
+    expect(compiled.querySelector('.page-title')?.textContent).toContain(
+      'Liquidity Sweep & Reversal Screener',
+    );
+    expect(compiled.querySelectorAll('.index-chip').length).toBe(4);
+    expect(compiled.querySelector('.watchlist-manager-card')).toBeNull();
   });
 
-  it('should render page title and subtitle', () => {
+  it('should toggle between Live and Historical mode without auto-scanning, and show Date Pickers in Historical mode', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.page-title')?.textContent).toContain('NSE Stock Screener');
-    expect(compiled.querySelector('.page-subtitle')?.textContent).toContain('Supply & Demand Order Blocks');
+    expect(compiled.querySelector('.historical-bar')).toBeNull();
+
+    const modeBtns = compiled.querySelectorAll('.mode-btn');
+    expect(modeBtns.length).toBe(2);
+
+    (modeBtns[1] as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(mockScreenerService.setMode).toHaveBeenCalledWith('historical');
+    expect(mockScreenerService.runScan).not.toHaveBeenCalled();
+    expect(compiled.querySelector('.historical-bar')).not.toBeNull();
+    expect(compiled.querySelectorAll('.date-input').length).toBe(2);
   });
 
-  it('should render timeframe options and trigger scan on selection', () => {
-    const compiled = fixture.nativeElement as HTMLElement;
-    const chips = compiled.querySelectorAll('.tf-chip');
-    expect(chips.length).toBe(4); // 15m, 1h, 1d, 1wk
-
-    // Click on 1h chip
-    const hourChip = chips[1] as HTMLButtonElement;
-    hourChip.click();
-
-    expect(mockScreenerService.setTimeframe).toHaveBeenCalledWith('1h');
-    expect(mockScreenerService.runScan).toHaveBeenCalled();
-  });
-
-  it('should call runScan when clicking Run Technical Scan button', () => {
+  it('should execute scan strictly when clicking Run Scan button', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const runBtn = compiled.querySelector('.run-scan-btn') as HTMLButtonElement;
     expect(runBtn).not.toBeNull();
 
     runBtn.click();
-    expect(mockScreenerService.runScan).toHaveBeenCalled();
+    expect(mockScreenerService.runScan).toHaveBeenCalledTimes(1);
   });
 
-  it('should toggle watchlist manager panel when clicking Watchlist button', () => {
-    expect(component.isWatchlistOpen()).toBe(false);
-
+  it('should render an individual recommendation card and SweepChart per discrete signal', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const toggleBtn = compiled.querySelector('.manage-watchlist-btn') as HTMLButtonElement;
-    toggleBtn.click();
-    fixture.detectChanges();
+    const cards = compiled.querySelectorAll('.recommendation-card');
+    expect(cards.length).toBe(2);
 
-    expect(component.isWatchlistOpen()).toBe(true);
-    expect(compiled.querySelector('.watchlist-manager-card')).not.toBeNull();
+    const charts = compiled.querySelectorAll('app-sweep-chart');
+    expect(charts.length).toBe(2);
+
+    expect(cards[0].textContent).toContain('NIFTY 50');
+    expect(cards[0].textContent).toContain('BUY');
+    expect(cards[0].textContent).toContain('PDL Sweep');
+    expect(cards[1].textContent).toContain('BANK NIFTY');
+    expect(cards[1].textContent).toContain('SELL');
+    expect(cards[1].textContent).toContain('PDH Sweep');
   });
 
-  it('should render results table with stock symbol, CMP, strategy, entry, and stop-loss', () => {
-    const compiled = fixture.nativeElement as HTMLElement;
-    const rows = compiled.querySelectorAll('.setups-table tbody tr');
-    expect(rows.length).toBe(2);
+  it('should filter recommendations by BUY/SELL direction and level type', () => {
+    component.activeSignalFilter.set('BUY');
+    fixture.detectChanges();
+    expect(component.filteredRecommendations().length).toBe(1);
+    expect(component.filteredRecommendations()[0].symbol).toBe('NIFTY 50');
 
-    const firstRow = rows[0];
-    // Stock symbol without .NS
-    expect(firstRow.querySelector('.ticker-symbol')?.textContent?.trim()).toBe('RELIANCE');
-    // Strategy
-    expect(firstRow.querySelector('.strategy-badge')?.textContent).toContain('Demand OB (Bullish)');
-    // Entry price
-    expect(firstRow.querySelector('.entry-price')?.textContent).toContain('2,495');
-    // Stop loss price
-    expect(firstRow.querySelector('.sl-price')?.textContent).toContain('2,480');
+    component.activeSignalFilter.set('ALL');
+    component.activeLevelFilter.set('PDH');
+    fixture.detectChanges();
+    expect(component.filteredRecommendations().length).toBe(1);
+    expect(component.filteredRecommendations()[0].symbol).toBe('BANK NIFTY');
   });
 
-  it('should filter matches when clicking on Bullish/Bearish pills', () => {
-    component.activeStrategyFilter.set('BUY');
-    fixture.detectChanges();
-    expect(component.filteredMatches().length).toBe(1);
-    expect(component.filteredMatches()[0].symbol).toBe('RELIANCE');
-
-    component.activeStrategyFilter.set('SELL');
-    fixture.detectChanges();
-    expect(component.filteredMatches().length).toBe(1);
-    expect(component.filteredMatches()[0].symbol).toBe('INFY');
-  });
-
-  it('should navigate to dashboard composer when clicking Create Alert button', () => {
+  it('should navigate to dashboard composer when clicking Create Alert on a recommendation card', () => {
     const navigateSpy = vi.spyOn(router, 'navigate');
     const compiled = fixture.nativeElement as HTMLElement;
     const alertBtn = compiled.querySelector('.trade-setup-btn') as HTMLButtonElement;
-    expect(alertBtn).not.toBeNull();
-
     alertBtn.click();
+
     expect(navigateSpy).toHaveBeenCalledWith(['/'], {
       queryParams: {
-        symbol: 'RELIANCE',
-        targetPrice: 2495,
-        stopLoss: 2480,
-        strategy: 'DEMAND_ORDER_BLOCK',
+        symbol: 'NIFTY 50',
+        targetPrice: 24525,
+        stopLoss: 24482,
+        strategy: 'BUY_PDL_SWEEP',
       },
     });
-  });
-
-  it('should render mobile setup cards for mobile viewport compatibility', () => {
-    const compiled = fixture.nativeElement as HTMLElement;
-    const mobileCards = compiled.querySelectorAll('.results-cards-list .setup-mobile-card');
-    expect(mobileCards.length).toBe(2);
-
-    const firstCard = mobileCards[0];
-    expect(firstCard.querySelector('.sm-symbol')?.textContent?.trim()).toBe('RELIANCE');
-    expect(firstCard.querySelector('.strategy-badge')?.textContent).toContain('Demand OB (Bullish)');
-    expect(firstCard.querySelector('.entry-price')?.textContent).toContain('2,495');
-    expect(firstCard.querySelector('.sl-price')?.textContent).toContain('2,480');
-    expect(firstCard.querySelector('.sm-action-btn')?.textContent).toContain('Create Conditional Alert');
   });
 });

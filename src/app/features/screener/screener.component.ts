@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -6,10 +6,36 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ScreenerService } from '../../core/api/screener.service';
-import { ScreenerMatch, WatchlistStockItem } from '../../core/models/screener.models';
+import {
+  LiquidityLevelType,
+  LiquiditySweepSignal,
+  ScreenerScanMode,
+} from '../../core/models/screener.models';
 import { CurrencyInrPipe } from '../../shared/pipes/currency-inr.pipe';
 import { IstDatePipe } from '../../shared/pipes/ist-date.pipe';
 import { SectionErrorComponent } from '../../shared/components/section-error/section-error.component';
+import { SweepChartComponent } from './components/sweep-chart/sweep-chart.component';
+
+const IST_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true,
+});
+
+const IST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata',
+  day: '2-digit',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true,
+});
+
+function formatIstDateOffset(deltaDays = 0): string {
+  const istNowMs = Date.now() + 5.5 * 3600 * 1000 + deltaDays * 86400 * 1000;
+  return new Date(istNowMs).toISOString().slice(0, 10);
+}
 
 @Component({
   selector: 'app-screener',
@@ -23,440 +49,400 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
     CurrencyInrPipe,
     IstDatePipe,
     SectionErrorComponent,
+    SweepChartComponent,
   ],
   template: `
     <div class="screener-root">
       <main class="page-body">
         <!-- TOP CONTROL & ACTION BAR -->
         <section class="control-header-card">
-          <div class="title-group">
-            <div class="page-title">
-              <span class="material-symbols-rounded page-icon">radar</span>
-              <span>NSE Stock Screener</span>
-            </div>
-            <div class="page-subtitle">
-              Configurable Large-Cap Universe &bull; Supply &amp; Demand Order Blocks &bull; Liquidity Sweep Reversals
-              <span *ngIf="screenerService.lastScannedAt() as lastScan">
-                &bull; Last scanned at {{ lastScan | istDate : 'timeOnly' }}
-              </span>
-            </div>
-          </div>
-
-          <!-- Controls Toolbar -->
-          <div class="controls-toolbar">
-            <!-- Timeframe Selector -->
-            <div class="timeframe-group">
-              <span class="control-label">Timeframe:</span>
-              <div class="timeframe-chips">
-                <button
-                  type="button"
-                  *ngFor="let tf of availableTimeframes"
-                  class="tf-chip"
-                  [class.active]="screenerService.selectedTimeframe() === tf.value"
-                  (click)="onSelectTimeframe(tf.value)"
-                  [disabled]="screenerService.isScanning()"
-                >
-                  {{ tf.label }}
-                </button>
+          <div class="header-top-row">
+            <div class="title-group">
+              <div class="page-title">
+                <span class="material-symbols-rounded page-icon">radar</span>
+                <span>Liquidity Sweep &amp; Reversal Screener</span>
+                <span class="tf-pill mono-val">5m</span>
+              </div>
+              <div class="page-subtitle">
+                On-Demand PDH / PDL &amp; Intraday High / Low Sweep Detection &bull; Yahoo Finance 5m OHLC
+                <span *ngIf="screenerService.lastScannedAt() as lastScan">
+                  &bull; Last run at {{ lastScan | istDate : 'timeOnly' }}
+                </span>
               </div>
             </div>
 
-            <!-- Action Buttons -->
-            <div class="actions-group">
-              <button
-                type="button"
-                class="manage-watchlist-btn"
-                (click)="isWatchlistOpen.set(!isWatchlistOpen())"
-                [class.active]="isWatchlistOpen()"
-                matTooltip="Manage configurable Firestore watchlist"
-              >
-                <span class="material-symbols-rounded">format_list_bulleted</span>
-                <span>Watchlist ({{ screenerService.enabledWatchlistCount() }}/{{ screenerService.watchlist().length }})</span>
-                <span class="material-symbols-rounded chevron">
-                  {{ isWatchlistOpen() ? 'expand_less' : 'expand_more' }}
-                </span>
-              </button>
+            <!-- Mode Selector + Run Scan CTA -->
+            <div class="controls-toolbar">
+              <div class="mode-toggle" role="group" aria-label="Scan mode selector">
+                <button
+                  type="button"
+                  class="mode-btn"
+                  [class.active]="screenerService.scanMode() === 'live'"
+                  (click)="selectMode('live')"
+                  [disabled]="screenerService.isScanning()"
+                  matTooltip="Evaluates only the latest 2-3 closed 5m candles of the current session"
+                >
+                  <span class="live-dot" [class.pulsing]="screenerService.scanMode() === 'live'"></span>
+                  <span>Live</span>
+                </button>
+                <button
+                  type="button"
+                  class="mode-btn"
+                  [class.active]="screenerService.scanMode() === 'historical'"
+                  (click)="selectMode('historical')"
+                  [disabled]="screenerService.isScanning()"
+                  matTooltip="Backtest full trading session(s) for a selected date or date range"
+                >
+                  <span class="material-symbols-rounded mode-icon">history</span>
+                  <span>Historical</span>
+                </button>
+              </div>
 
               <button
                 type="button"
                 class="run-scan-btn"
                 (click)="runScan()"
-                [disabled]="screenerService.isScanning() || screenerService.enabledWatchlistCount() === 0"
-                matTooltip="Run Technical Price Action Scan"
+                [disabled]="screenerService.isScanning() || screenerService.instrumentCount() === 0"
+                matTooltip="Execute on-demand 5m Liquidity Sweep scan"
               >
                 <span
                   class="material-symbols-rounded"
                   [class.spinning]="screenerService.isScanning()"
                 >
-                  {{ screenerService.isScanning() ? 'autorenew' : 'search_insights' }}
+                  {{ screenerService.isScanning() ? 'autorenew' : 'play_arrow' }}
                 </span>
-                <span>{{ screenerService.isScanning() ? 'Scanning...' : 'Run Technical Scan' }}</span>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <!-- WATCHLIST MANAGER PANEL (COLLAPSIBLE) -->
-        <section *ngIf="isWatchlistOpen()" class="watchlist-manager-card">
-          <div class="watchlist-header">
-            <div class="wl-title-group">
-              <div class="wl-title">
-                <span class="material-symbols-rounded">playlist_add_check</span>
-                <span>Configurable Stock Universe (Firestore: <code>config/screener_watchlist</code>)</span>
-              </div>
-              <div class="wl-subtitle">
-                Select which large-cap Indian stocks to scan, add new NSE tickers, or reset to defaults.
-              </div>
-            </div>
-
-            <div class="wl-header-actions">
-              <button
-                type="button"
-                class="wl-reset-btn"
-                (click)="screenerService.resetWatchlist()"
-                [disabled]="screenerService.isLoadingWatchlist()"
-                matTooltip="Reset to default 28 Large-Cap stocks"
-              >
-                <span class="material-symbols-rounded">restart_alt</span>
-                <span>Reset Defaults</span>
+                <span>{{ screenerService.isScanning() ? 'Scanning...' : 'Run Scan' }}</span>
               </button>
             </div>
           </div>
 
-          <!-- Add Ticker Row -->
-          <div class="add-ticker-bar">
-            <div class="input-field">
-              <label>NSE Symbol:</label>
-              <input
-                type="text"
-                placeholder="e.g. TATAPOWER"
-                [(ngModel)]="newSymbol"
-                (keyup.enter)="addNewStock()"
-              />
-            </div>
-            <div class="input-field grow">
-              <label>Company Name:</label>
-              <input
-                type="text"
-                placeholder="e.g. Tata Power Co Ltd"
-                [(ngModel)]="newName"
-                (keyup.enter)="addNewStock()"
-              />
-            </div>
-            <div class="input-field">
-              <label>Sector / Category:</label>
-              <input
-                type="text"
-                placeholder="e.g. Power"
-                [(ngModel)]="newSector"
-                (keyup.enter)="addNewStock()"
-              />
-            </div>
-            <button
-              type="button"
-              class="add-btn"
-              (click)="addNewStock()"
-              [disabled]="!newSymbol.trim()"
-            >
-              <span class="material-symbols-rounded">add</span>
-              <span>Add Ticker</span>
-            </button>
-          </div>
-
-          <!-- Search / Filter in Watchlist -->
-          <div class="watchlist-filter-bar">
-            <div class="search-input-wrap">
-              <span class="material-symbols-rounded">search</span>
-              <input
-                type="text"
-                placeholder="Filter watchlist stocks..."
-                [(ngModel)]="watchlistSearch"
-              />
-            </div>
-            <div class="bulk-toggles">
-              <button type="button" class="mini-link-btn" (click)="toggleAll(true)">Enable All</button>
-              <span class="divider">&bull;</span>
-              <button type="button" class="mini-link-btn" (click)="toggleAll(false)">Disable All</button>
-            </div>
-          </div>
-
-          <!-- Tickers Grid -->
-          <div class="tickers-grid">
-            <div
-              *ngFor="let stock of filteredWatchlist()"
-              class="ticker-card"
-              [class.disabled]="!stock.enabled"
-            >
-              <label class="ticker-checkbox">
+          <!-- Historical Date / Date Range Picker Row -->
+          <div *ngIf="screenerService.scanMode() === 'historical'" class="historical-bar">
+            <div class="date-inputs-group">
+              <label class="date-field">
+                <span class="date-label">From Date</span>
                 <input
-                  type="checkbox"
-                  [checked]="stock.enabled"
-                  (change)="screenerService.toggleStock(stock.symbol)"
+                  type="date"
+                  class="date-input mono-val"
+                  [min]="minHistoricalDate"
+                  [max]="maxHistoricalDate"
+                  [ngModel]="screenerService.historicalStartDate()"
+                  (ngModelChange)="onStartDateChange($event)"
+                  [disabled]="screenerService.isScanning()"
                 />
-                <span class="custom-checkbox"></span>
               </label>
-              <div class="ticker-info" (click)="screenerService.toggleStock(stock.symbol)">
-                <div class="ticker-symbol">{{ stock.customSymbol || stock.symbol }}</div>
-                <div class="ticker-name" [matTooltip]="stock.name">{{ stock.name }}</div>
-                <div *ngIf="stock.sector" class="ticker-sector">{{ stock.sector }}</div>
-              </div>
-              <button
-                type="button"
-                class="ticker-del-btn"
-                (click)="screenerService.removeStock(stock.symbol)"
-                matTooltip="Remove stock from universe"
-              >
-                <span class="material-symbols-rounded">delete</span>
-              </button>
+
+              <label class="date-field">
+                <span class="date-label">To Date</span>
+                <input
+                  type="date"
+                  class="date-input mono-val"
+                  [min]="screenerService.historicalStartDate() || minHistoricalDate"
+                  [max]="maxHistoricalDate"
+                  [ngModel]="screenerService.historicalEndDate()"
+                  (ngModelChange)="onEndDateChange($event)"
+                  [disabled]="screenerService.isScanning()"
+                />
+              </label>
+            </div>
+
+            <div class="date-presets">
+              <span class="preset-label">Quick Range:</span>
+              <button type="button" class="preset-chip" (click)="applyPreset(0)">Today</button>
+              <button type="button" class="preset-chip" (click)="applyPreset(1)">Yesterday</button>
+              <button type="button" class="preset-chip" (click)="applyPreset(3)">Last 3D</button>
+              <button type="button" class="preset-chip" (click)="applyPreset(5)">Last 5D</button>
             </div>
           </div>
+
+          <!-- Configured Master Indices Universe Strip (config/lot_sizes) -->
+          <div class="universe-strip">
+            <span class="universe-label">
+              <span class="material-symbols-rounded">hub</span>
+              <span>Configured Indices ({{ screenerService.instrumentCount() }}):</span>
+            </span>
+            <div class="universe-chips" *ngIf="screenerService.instruments().length > 0">
+              <span
+                *ngFor="let inst of screenerService.instruments()"
+                class="index-chip mono-val"
+                [matTooltip]="inst.name"
+              >
+                {{ inst.symbol }}
+              </span>
+            </div>
+            <span
+              *ngIf="screenerService.isLoadingInstruments()"
+              class="universe-loading"
+            >
+              Loading configured indices...
+            </span>
+          </div>
         </section>
+
+        <!-- SECTION ERROR: INSTRUMENTS LOAD FAILURE -->
+        <app-section-error
+          *ngIf="screenerService.instrumentsError() as instErr"
+          [title]="'Configured Indices Unavailable'"
+          [message]="instErr"
+          (retry)="screenerService.loadInstruments()"
+        ></app-section-error>
 
         <!-- KPI SUMMARY METRICS -->
         <section class="kpi-grid">
           <div class="kpi-card">
             <div class="kpi-label">
-              <span class="material-symbols-rounded icon-dim">grid_view</span>
-              <span>Total Scanned</span>
+              <span class="material-symbols-rounded icon-dim">hub</span>
+              <span>Indices Scanned</span>
             </div>
             <div class="kpi-value mono-val">
-              {{ screenerService.totalScanned() }}
+              {{ screenerService.scanResults() ? screenerService.totalScanned() : screenerService.instrumentCount() }}
             </div>
-            <div class="kpi-subtext">Active universe tickers</div>
+            <div class="kpi-subtext">From Firestore config/lot_sizes</div>
           </div>
 
           <div class="kpi-card highlight-cyan">
             <div class="kpi-label">
               <span class="material-symbols-rounded icon-cyan">insights</span>
-              <span>Matches Found</span>
+              <span>Total Signals</span>
             </div>
             <div class="kpi-value mono-val">
-              {{ screenerService.totalMatches() }}
+              {{ screenerService.totalRecommendations() }}
             </div>
-            <div class="kpi-subtext">Actionable setups identified</div>
+            <div class="kpi-subtext">
+              {{ screenerService.scanResults()?.mode === 'historical' ? 'Full-session historical setups' : 'Latest 2-3 closed 5m bars' }}
+            </div>
           </div>
 
           <div class="kpi-card highlight-emerald">
             <div class="kpi-label">
               <span class="material-symbols-rounded icon-emerald">trending_up</span>
-              <span>Bullish Setups (Buy)</span>
+              <span>Bullish Sweeps (BUY)</span>
             </div>
             <div class="kpi-value mono-val text-emerald">
-              {{ screenerService.bullishMatches() }}
+              {{ screenerService.bullishCount() }}
             </div>
-            <div class="kpi-subtext">Demand OB / Sell-Side Sweeps</div>
+            <div class="kpi-subtext">PDL / Day Low &rarr; Green Close</div>
           </div>
 
           <div class="kpi-card highlight-coral">
             <div class="kpi-label">
               <span class="material-symbols-rounded icon-coral">trending_down</span>
-              <span>Bearish Setups (Sell)</span>
+              <span>Bearish Sweeps (SELL)</span>
             </div>
             <div class="kpi-value mono-val text-coral">
-              {{ screenerService.bearishMatches() }}
+              {{ screenerService.bearishCount() }}
             </div>
-            <div class="kpi-subtext">Supply OB / Buy-Side Sweeps</div>
+            <div class="kpi-subtext">PDH / Day High &rarr; Red Close</div>
           </div>
         </section>
 
-        <!-- SECTION LEVEL ERROR (RULE 2) -->
+        <!-- SECTION ERROR: SCAN FAILURE -->
         <app-section-error
           *ngIf="screenerService.scanError() as err"
-          [title]="'Screener Execution Notice'"
+          [title]="'Screener Scan Notice'"
           [message]="err"
           (retry)="runScan()"
         ></app-section-error>
 
-        <!-- MATCHED SETUPS CONTAINER -->
+        <!-- RECOMMENDATIONS CONTAINER -->
         <section class="setups-container">
-          <!-- Setups Header & Strategy Filter Switcher -->
           <div class="setups-header">
             <div class="section-title">
               <span class="material-symbols-rounded">candlestick_chart</span>
-              <span>Identified Trade Setups</span>
-              <span class="count-badge" *ngIf="screenerService.totalMatches() > 0">
-                {{ filteredMatches().length }}
+              <span>Detected Liquidity Sweep Recommendations</span>
+              <span class="count-badge mono-val" *ngIf="screenerService.totalRecommendations() > 0">
+                {{ filteredRecommendations().length }}
               </span>
             </div>
 
-            <!-- Strategy Filter Chips -->
-            <div class="filter-chips-bar" *ngIf="screenerService.totalMatches() > 0">
-              <button
-                type="button"
-                class="filter-pill"
-                [class.active]="activeStrategyFilter() === 'ALL'"
-                (click)="activeStrategyFilter.set('ALL')"
-              >
-                All ({{ screenerService.totalMatches() }})
-              </button>
-              <button
-                type="button"
-                class="filter-pill pill-bullish"
-                [class.active]="activeStrategyFilter() === 'BUY'"
-                (click)="activeStrategyFilter.set('BUY')"
-              >
-                <span class="material-symbols-rounded mini-icon">trending_up</span>
-                Bullish ({{ screenerService.bullishMatches() }})
-              </button>
-              <button
-                type="button"
-                class="filter-pill pill-bearish"
-                [class.active]="activeStrategyFilter() === 'SELL'"
-                (click)="activeStrategyFilter.set('SELL')"
-              >
-                <span class="material-symbols-rounded mini-icon">trending_down</span>
-                Bearish ({{ screenerService.bearishMatches() }})
-              </button>
-              <button
-                type="button"
-                class="filter-pill"
-                [class.active]="activeStrategyFilter() === 'OB'"
-                (click)="activeStrategyFilter.set('OB')"
-              >
-                Order Blocks
-              </button>
-              <button
-                type="button"
-                class="filter-pill"
-                [class.active]="activeStrategyFilter() === 'SWEEP'"
-                (click)="activeStrategyFilter.set('SWEEP')"
-              >
-                Liquidity Sweeps
-              </button>
+            <!-- Filters Bar -->
+            <div class="filter-bar" *ngIf="screenerService.totalRecommendations() > 0">
+              <div class="filter-chips-bar">
+                <button
+                  type="button"
+                  class="filter-pill"
+                  [class.active]="activeSignalFilter() === 'ALL'"
+                  (click)="activeSignalFilter.set('ALL')"
+                >
+                  All ({{ screenerService.totalRecommendations() }})
+                </button>
+                <button
+                  type="button"
+                  class="filter-pill pill-bullish"
+                  [class.active]="activeSignalFilter() === 'BUY'"
+                  (click)="activeSignalFilter.set('BUY')"
+                >
+                  <span class="material-symbols-rounded mini-icon">trending_up</span>
+                  BUY ({{ screenerService.bullishCount() }})
+                </button>
+                <button
+                  type="button"
+                  class="filter-pill pill-bearish"
+                  [class.active]="activeSignalFilter() === 'SELL'"
+                  (click)="activeSignalFilter.set('SELL')"
+                >
+                  <span class="material-symbols-rounded mini-icon">trending_down</span>
+                  SELL ({{ screenerService.bearishCount() }})
+                </button>
+              </div>
+
+              <div class="filter-selects">
+                <select
+                  class="compact-select"
+                  [ngModel]="activeLevelFilter()"
+                  (ngModelChange)="activeLevelFilter.set($event)"
+                  aria-label="Filter by liquidity level"
+                >
+                  <option value="ALL">All Levels</option>
+                  <option value="PDL">PDL</option>
+                  <option value="PDH">PDH</option>
+                  <option value="DAY_LOW">Day Low</option>
+                  <option value="DAY_HIGH">Day High</option>
+                </select>
+
+                <select
+                  class="compact-select"
+                  [ngModel]="activeSymbolFilter()"
+                  (ngModelChange)="activeSymbolFilter.set($event)"
+                  aria-label="Filter by index symbol"
+                >
+                  <option value="ALL">All Indices</option>
+                  <option *ngFor="let sym of matchedSymbols()" [value]="sym">
+                    {{ sym }}
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <!-- Empty / Initial States -->
-          <div *ngIf="!screenerService.scanResults() && !screenerService.isScanning()" class="empty-state-card">
+          <!-- Initial State (No Scan Executed Yet) -->
+          <div
+            *ngIf="!screenerService.scanResults() && !screenerService.isScanning()"
+            class="empty-state-card"
+          >
             <div class="empty-icon-wrap">
               <span class="material-symbols-rounded">radar</span>
             </div>
-            <div class="empty-title">Ready to Scan Large-Cap Stocks</div>
+            <div class="empty-title">Ready for On-Demand 5m Liquidity Sweep Scan</div>
             <div class="empty-desc">
-              Select your preferred timeframe (15m, 1h, 1d, 1wk) above and click <strong>"Run Technical Scan"</strong>
-              to scan the active universe for unmitigated Order Blocks and Liquidity Sweep Reversals.
+              Select <strong>Live</strong> (evaluates the latest 2&ndash;3 closed 5m candles) or
+              <strong>Historical</strong> (backtests full trading sessions by date/range), then click
+              <strong>&ldquo;Run Scan&rdquo;</strong> to detect PDH/PDL and Intraday High/Low sweeps with interactive TradingView charts.
             </div>
-            <button type="button" class="empty-action-btn" (click)="runScan()">
+            <button
+              type="button"
+              class="empty-action-btn"
+              (click)="runScan()"
+              [disabled]="screenerService.instrumentCount() === 0"
+            >
               <span class="material-symbols-rounded">play_arrow</span>
-              <span>Execute First Scan ({{ screenerService.selectedTimeframe() }})</span>
+              <span>Run {{ screenerService.scanMode() === 'live' ? 'Live' : 'Historical' }} Scan</span>
             </button>
-          </div>
-
-          <!-- Zero Matches Found State -->
-          <div
-            *ngIf="screenerService.scanResults() && screenerService.totalMatches() === 0 && !screenerService.isScanning()"
-            class="empty-state-card"
-          >
-            <div class="empty-icon-wrap amber">
-              <span class="material-symbols-rounded">search_off</span>
-            </div>
-            <div class="empty-title">No Strategy Matches Found on {{ screenerService.selectedTimeframe() }}</div>
-            <div class="empty-desc">
-              None of the {{ screenerService.totalScanned() }} scanned stocks currently test fresh Order Block zones
-              or recent Liquidity Sweep rejection levels on the <strong>{{ screenerService.selectedTimeframe() }}</strong> timeframe.
-              Try selecting a different timeframe (e.g. 1h or 1d) or re-scanning later in the session.
-            </div>
           </div>
 
           <!-- Scanning Loading State -->
           <div *ngIf="screenerService.isScanning()" class="loading-state-card">
             <div class="scan-spinner"></div>
-            <div class="loading-title">Analyzing Historical OHLCV Candles...</div>
+            <div class="loading-title">Scanning 5-Minute Candles via Yahoo Finance...</div>
             <div class="loading-desc">
-              Executing Order Block impulse &amp; freshness checks and liquidity sweep detections across {{ screenerService.enabledWatchlistCount() }} stocks.
+              Evaluating PDH/PDL and causal Intraday High/Low liquidity sweeps across
+              {{ screenerService.instrumentCount() }} configured indices ({{ screenerService.scanMode() }} mode).
             </div>
           </div>
 
-          <!-- RESULTS TABLE (DESKTOP) / CARDS (MOBILE) -->
-          <div *ngIf="filteredMatches().length > 0 && !screenerService.isScanning()" class="results-table-wrapper desktop-only">
-            <table class="setups-table">
+          <!-- Zero Recommendations Found State -->
+          <div
+            *ngIf="
+              screenerService.scanResults() &&
+              screenerService.totalRecommendations() === 0 &&
+              !screenerService.isScanning()
+            "
+            class="empty-state-card"
+          >
+            <div class="empty-icon-wrap amber">
+              <span class="material-symbols-rounded">search_off</span>
+            </div>
+            <div class="empty-title">No Liquidity Sweep Setups Detected</div>
+            <div class="empty-desc">
+              <ng-container *ngIf="screenerService.scanResults()?.mode === 'live'; else histEmpty">
+                None of the {{ screenerService.totalScanned() }} configured indices triggered a confirmed
+                5-minute sweep &amp; reversal within the latest 2&ndash;3 closed candles. Try switching to
+                <strong>Historical</strong> mode to inspect earlier sessions.
+              </ng-container>
+              <ng-template #histEmpty>
+                No 5-minute PDH/PDL or Intraday High/Low sweep reversals occurred between
+                <strong>{{ screenerService.scanResults()?.startDate }}</strong> and
+                <strong>{{ screenerService.scanResults()?.endDate }}</strong> across the scanned indices.
+              </ng-template>
+            </div>
+          </div>
+
+          <!-- Compact Summary Jump Table (Desktop) -->
+          <div
+            *ngIf="filteredRecommendations().length > 0 && !screenerService.isScanning()"
+            class="summary-table-wrapper desktop-only"
+          >
+            <table class="summary-table">
               <thead>
                 <tr>
-                  <th>Stock Ticker / Name</th>
-                  <th>Current Price (CMP)</th>
-                  <th>Matched Strategy</th>
-                  <th>Suggested Entry</th>
-                  <th>Suggested Stop-Loss</th>
-                  <th>Risk Distance</th>
-                  <th>Timeframe</th>
+                  <th>Index</th>
+                  <th>Signal</th>
+                  <th>Swept Level</th>
+                  <th>Level Price</th>
+                  <th>Sweep Extreme</th>
+                  <th>Confirm Close</th>
+                  <th>Time (IST)</th>
                   <th class="text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let match of filteredMatches()" class="setup-row" [class.bullish-row]="match.signalType === 'BUY'" [class.bearish-row]="match.signalType === 'SELL'">
-                  <!-- Stock Ticker & Name (No .NS clutter) -->
-                  <td class="stock-cell">
-                    <div class="ticker-box">
-                      <span class="ticker-symbol mono-val">{{ match.customSymbol || match.symbol }}</span>
-                      <span class="ticker-fullname">{{ match.name }}</span>
-                    </div>
-                  </td>
-
-                  <!-- Current Market Price (CMP) in INR -->
-                  <td class="cmp-cell">
-                    <div class="cmp-value mono-val">
-                      {{ match.cmp | currencyInr }}
-                    </div>
-                  </td>
-
-                  <!-- Matched Strategy Badge -->
-                  <td class="strategy-cell">
-                    <div
-                      class="strategy-badge"
-                      [class.badge-demand]="match.strategy === 'DEMAND_ORDER_BLOCK'"
-                      [class.badge-supply]="match.strategy === 'SUPPLY_ORDER_BLOCK'"
-                      [class.badge-bull-sweep]="match.strategy === 'BULLISH_LIQUIDITY_SWEEP'"
-                      [class.badge-bear-sweep]="match.strategy === 'BEARISH_LIQUIDITY_SWEEP'"
+                <tr
+                  *ngFor="let rec of filteredRecommendations(); trackBy: trackBySignalId"
+                  class="summary-row"
+                  [class.buy-row]="rec.signalType === 'BUY'"
+                  [class.sell-row]="rec.signalType === 'SELL'"
+                  (click)="scrollToCard(rec.id)"
+                >
+                  <td class="mono-val sym-cell">{{ rec.symbol }}</td>
+                  <td>
+                    <span
+                      class="signal-badge"
+                      [class.badge-buy]="rec.signalType === 'BUY'"
+                      [class.badge-sell]="rec.signalType === 'SELL'"
                     >
-                      <span class="material-symbols-rounded badge-icon">
-                        {{ match.signalType === 'BUY' ? 'trending_up' : 'trending_down' }}
+                      <span class="material-symbols-rounded">
+                        {{ rec.signalType === 'BUY' ? 'trending_up' : 'trending_down' }}
                       </span>
-                      <span>{{ match.strategyLabel }}</span>
-                    </div>
-                    <div *ngIf="match.details?.notes" class="strategy-subnote">
-                      {{ match.details?.notes }}
-                    </div>
+                      {{ rec.signalType }}
+                    </span>
                   </td>
-
-                  <!-- Suggested Entry Price -->
-                  <td class="entry-cell">
-                    <div class="price-val mono-val entry-price">
-                      {{ match.entryPrice | currencyInr }}
-                    </div>
+                  <td>
+                    <span
+                      class="level-pill mono-val"
+                      [class.pd-pill]="rec.levelType === 'PDH' || rec.levelType === 'PDL'"
+                    >
+                      {{ formatLevelLabel(rec.levelType) }}
+                    </span>
                   </td>
-
-                  <!-- Suggested Stop-Loss Price -->
-                  <td class="sl-cell">
-                    <div class="price-val mono-val sl-price">
-                      {{ match.stopLossPrice | currencyInr }}
-                    </div>
+                  <td class="mono-val">{{ rec.levelPrice | currencyInr }}</td>
+                  <td class="mono-val sweep-val">{{ rec.sweepPrice | currencyInr }}</td>
+                  <td
+                    class="mono-val"
+                    [class.text-emerald]="rec.signalType === 'BUY'"
+                    [class.text-coral]="rec.signalType === 'SELL'"
+                  >
+                    {{ rec.confirmationClosePrice | currencyInr }}
                   </td>
-
-                  <!-- Risk Distance (Pts & %) -->
-                  <td class="risk-cell">
-                    <div class="risk-points mono-val">
-                      &plusmn;{{ match.riskPoints | number : '1.2-2' }} pts
-                    </div>
-                    <div class="risk-pct mono-val text-muted">
-                      ({{ match.riskPercent | number : '1.2-2' }}%)
-                    </div>
-                  </td>
-
-                  <!-- Timeframe -->
-                  <td class="tf-cell">
-                    <span class="tf-badge">{{ match.timeframe }}</span>
-                  </td>
-
-                  <!-- Action: Quick Alert Composer Trigger -->
-                  <td class="action-cell text-right">
+                  <td class="mono-val time-cell">{{ formatIstDateTime(rec.confirmationTimestamp) }}</td>
+                  <td class="text-right" (click)="$event.stopPropagation()">
                     <button
                       type="button"
-                      class="trade-setup-btn"
-                      (click)="goToComposerWithSetup(match)"
-                      matTooltip="Pre-fill alert composer on Live Monitor"
+                      class="mini-chart-btn"
+                      (click)="scrollToCard(rec.id)"
+                      matTooltip="Jump to interactive chart card"
                     >
-                      <span class="material-symbols-rounded">bolt</span>
-                      <span>Create Alert</span>
+                      <span class="material-symbols-rounded">candlestick_chart</span>
+                      <span>Chart</span>
                     </button>
                   </td>
                 </tr>
@@ -464,70 +450,118 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
             </table>
           </div>
 
-          <!-- RESULTS MOBILE CARDS -->
-          <div *ngIf="filteredMatches().length > 0 && !screenerService.isScanning()" class="results-cards-list mobile-only">
-            <div
-              *ngFor="let match of filteredMatches()"
-              class="setup-mobile-card"
-              [class.bullish-card]="match.signalType === 'BUY'"
-              [class.bearish-card]="match.signalType === 'SELL'"
+          <!-- INDIVIDUAL RECOMMENDATION CARDS + INTERACTIVE LIGHTWEIGHT CHARTS -->
+          <div
+            *ngIf="filteredRecommendations().length > 0 && !screenerService.isScanning()"
+            class="recommendation-cards-list"
+          >
+            <article
+              *ngFor="let rec of filteredRecommendations(); trackBy: trackBySignalId"
+              [id]="'signal-card-' + rec.id"
+              class="recommendation-card"
+              [class.buy-card]="rec.signalType === 'BUY'"
+              [class.sell-card]="rec.signalType === 'SELL'"
             >
-              <div class="sm-card-top">
-                <div class="sm-ticker">
-                  <span class="sm-symbol mono-val">{{ match.customSymbol || match.symbol }}</span>
-                  <span class="sm-name">{{ match.name }}</span>
-                </div>
-                <div class="sm-top-right">
-                  <div class="sm-cmp mono-val">
-                    <span class="sm-cmp-label">CMP:</span>
-                    <span class="sm-cmp-val">{{ match.cmp | currencyInr }}</span>
-                  </div>
-                  <span class="tf-badge">{{ match.timeframe }}</span>
-                </div>
-              </div>
-
-              <div class="sm-strategy-row">
-                <div
-                  class="strategy-badge"
-                  [class.badge-demand]="match.strategy === 'DEMAND_ORDER_BLOCK'"
-                  [class.badge-supply]="match.strategy === 'SUPPLY_ORDER_BLOCK'"
-                  [class.badge-bull-sweep]="match.strategy === 'BULLISH_LIQUIDITY_SWEEP'"
-                  [class.badge-bear-sweep]="match.strategy === 'BEARISH_LIQUIDITY_SWEEP'"
-                >
-                  <span class="material-symbols-rounded badge-icon">
-                    {{ match.signalType === 'BUY' ? 'trending_up' : 'trending_down' }}
+              <!-- Card Header -->
+              <div class="rec-card-header">
+                <div class="rec-identity">
+                  <span
+                    class="signal-badge lg"
+                    [class.badge-buy]="rec.signalType === 'BUY'"
+                    [class.badge-sell]="rec.signalType === 'SELL'"
+                  >
+                    <span class="material-symbols-rounded">
+                      {{ rec.signalType === 'BUY' ? 'trending_up' : 'trending_down' }}
+                    </span>
+                    <span>{{ rec.signalType }}</span>
                   </span>
-                  <span>{{ match.strategyLabel }}</span>
+
+                  <div class="rec-title-wrap">
+                    <div class="rec-symbol-line">
+                      <span class="rec-symbol mono-val">{{ rec.symbol }}</span>
+                      <span
+                        class="level-pill mono-val"
+                        [class.pd-pill]="rec.levelType === 'PDH' || rec.levelType === 'PDL'"
+                      >
+                        {{ formatLevelLabel(rec.levelType) }} Sweep
+                      </span>
+                      <span class="session-date-pill mono-val">{{ rec.sessionDate }}</span>
+                    </div>
+                    <div class="rec-subline">
+                      {{ rec.name }} &bull; Confirmed {{ formatIstDateTime(rec.confirmationTimestamp) }} IST
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div *ngIf="match.details?.notes" class="sm-strategy-notes">
-                {{ match.details?.notes }}
+
+                <button
+                  type="button"
+                  class="trade-setup-btn"
+                  (click)="goToComposerWithSetup(rec)"
+                  matTooltip="Pre-fill Conditional Alert Composer on Live Monitor"
+                >
+                  <span class="material-symbols-rounded">bolt</span>
+                  <span>Create Alert</span>
+                </button>
               </div>
 
-              <div class="sm-metrics-grid mono-val">
-                <div class="sm-metric-item">
-                  <span class="sm-metric-lbl">Suggested Entry</span>
-                  <span class="sm-metric-val entry-price">{{ match.entryPrice | currencyInr }}</span>
+              <!-- Key Metrics Grid -->
+              <div class="rec-metrics-grid mono-val">
+                <div class="metric-box">
+                  <span class="metric-label">Swept {{ formatLevelLabel(rec.levelType) }}</span>
+                  <span
+                    class="metric-value"
+                    [class.text-amber]="rec.levelType === 'PDH' || rec.levelType === 'PDL'"
+                    [class.text-cyan]="rec.levelType === 'DAY_HIGH' || rec.levelType === 'DAY_LOW'"
+                  >
+                    {{ rec.levelPrice | currencyInr }}
+                  </span>
+                  <span class="metric-meta">Key Liquidity Level</span>
                 </div>
-                <div class="sm-metric-item">
-                  <span class="sm-metric-lbl">Stop Loss</span>
-                  <span class="sm-metric-val sl-price">{{ match.stopLossPrice | currencyInr }}</span>
+
+                <div class="metric-box">
+                  <span class="metric-label">
+                    Sweep {{ rec.signalType === 'BUY' ? 'Low' : 'High' }}
+                  </span>
+                  <span class="metric-value text-amber">
+                    {{ rec.sweepPrice | currencyInr }}
+                  </span>
+                  <span class="metric-meta">
+                    {{ formatIstTime(rec.sweepTimestamp) }} IST
+                    ({{ formatSweepDistance(rec) }} pts)
+                  </span>
                 </div>
-                <div class="sm-metric-item">
-                  <span class="sm-metric-lbl">Risk Distance</span>
-                  <span class="sm-metric-val">&plusmn;{{ match.riskPoints | number : '1.2-2' }} ({{ match.riskPercent | number : '1.2-2' }}%)</span>
+
+                <div class="metric-box">
+                  <span class="metric-label">Confirmation Close</span>
+                  <span
+                    class="metric-value"
+                    [class.text-emerald]="rec.signalType === 'BUY'"
+                    [class.text-coral]="rec.signalType === 'SELL'"
+                  >
+                    {{ rec.confirmationClosePrice | currencyInr }}
+                  </span>
+                  <span class="metric-meta">
+                    {{ formatIstTime(rec.confirmationTimestamp) }} IST
+                    ({{ rec.signalType === 'BUY' ? 'Green Bar' : 'Red Bar' }})
+                  </span>
+                </div>
+
+                <div class="metric-box">
+                  <span class="metric-label">Risk (Close &rarr; Sweep)</span>
+                  <span class="metric-value">
+                    {{ formatRiskPoints(rec) }} pts
+                  </span>
+                  <span class="metric-meta">
+                    {{ formatRiskPercent(rec) }}% distance
+                  </span>
                 </div>
               </div>
 
-              <button
-                type="button"
-                class="trade-setup-btn sm-action-btn"
-                (click)="goToComposerWithSetup(match)"
-              >
-                <span class="material-symbols-rounded">bolt</span>
-                <span>Create Conditional Alert</span>
-              </button>
-            </div>
+              <!-- Interactive TradingView Lightweight Chart (v5) -->
+              <div class="rec-chart-wrap">
+                <app-sweep-chart [signal]="rec"></app-sweep-chart>
+              </div>
+            </article>
           </div>
         </section>
       </main>
@@ -539,21 +573,40 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         min-height: calc(100vh - 64px);
         background-color: #0b0f19;
         color: #f1f5f9;
-        padding-bottom: 48px;
+        padding-bottom: 56px;
+        max-width: 100vw;
+        overflow-x: hidden;
         font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       }
 
       .page-body {
         max-width: 1400px;
         margin: 0 auto;
-        padding: 24px 20px;
+        padding: 20px;
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        gap: 18px;
+        box-sizing: border-box;
       }
 
       .mono-val {
         font-family: 'JetBrains Mono', monospace;
+      }
+
+      .text-emerald {
+        color: #10b981 !important;
+      }
+
+      .text-coral {
+        color: #f43f5e !important;
+      }
+
+      .text-amber {
+        color: #f59e0b !important;
+      }
+
+      .text-cyan {
+        color: #00d2c4 !important;
       }
 
       /* CONTROL HEADER CARD */
@@ -561,7 +614,13 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         background: #151c2c;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 14px;
-        padding: 20px 24px;
+        padding: 18px 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .header-top-row {
         display: flex;
         flex-wrap: wrap;
         justify-content: space-between;
@@ -578,20 +637,31 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
       .page-title {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 10px;
-        font-size: 1.35rem;
+        font-size: 1.3rem;
         font-weight: 700;
         color: #f8fafc;
         letter-spacing: -0.01em;
 
         .page-icon {
           color: #00d2c4;
-          font-size: 28px;
+          font-size: 26px;
         }
       }
 
+      .tf-pill {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(0, 210, 196, 0.14);
+        color: #00d2c4;
+        border: 1px solid rgba(0, 210, 196, 0.3);
+      }
+
       .page-subtitle {
-        font-size: 0.85rem;
+        font-size: 0.84rem;
         color: #94a3b8;
       }
 
@@ -599,42 +669,37 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         display: flex;
         align-items: center;
         flex-wrap: wrap;
-        gap: 16px;
+        gap: 12px;
       }
 
-      .timeframe-group {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-
-        .control-label {
-          font-size: 0.82rem;
-          font-weight: 600;
-          color: #94a3b8;
-          text-transform: uppercase;
-          letter-spacing: 0.03em;
-        }
-      }
-
-      .timeframe-chips {
-        display: flex;
+      /* MODE SELECTOR */
+      .mode-toggle {
+        display: inline-flex;
         background: #0b0f19;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
         padding: 3px;
-        gap: 2px;
+        gap: 3px;
       }
 
-      .tf-chip {
+      .mode-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         background: transparent;
         border: none;
         color: #94a3b8;
-        padding: 6px 12px;
-        font-size: 0.82rem;
+        padding: 8px 14px;
+        border-radius: 7px;
+        font-size: 0.84rem;
         font-weight: 600;
-        border-radius: 6px;
         cursor: pointer;
         transition: all 0.15s ease;
+        min-height: 36px;
+
+        .mode-icon {
+          font-size: 17px;
+        }
 
         &:hover:not(:disabled) {
           color: #f1f5f9;
@@ -642,66 +707,44 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         }
 
         &.active {
-          background: #00d2c4;
-          color: #0b0f19;
-          font-weight: 700;
+          background: #1e293b;
+          color: #00d2c4;
+          box-shadow: inset 0 0 0 1px rgba(0, 210, 196, 0.35);
         }
       }
 
-      .actions-group {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
+      .live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #64748b;
 
-      .manage-watchlist-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        color: #cbd5e1;
-        padding: 8px 14px;
-        border-radius: 8px;
-        font-size: 0.84rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-
-        &:hover {
-          background: rgba(255, 255, 255, 0.08);
-          color: #f8fafc;
-        }
-
-        &.active {
-          border-color: #6366f1;
-          color: #a5b4fc;
-          background: rgba(99, 102, 241, 0.1);
-        }
-
-        .chevron {
-          font-size: 18px;
+        &.pulsing {
+          background: #10b981;
+          box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
         }
       }
 
       .run-scan-btn {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
         background: linear-gradient(135deg, #00d2c4 0%, #0284c7 100%);
         border: none;
         color: #0b0f19;
-        padding: 9px 18px;
-        border-radius: 8px;
-        font-size: 0.86rem;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 0.88rem;
         font-weight: 700;
         cursor: pointer;
-        transition: all 0.2s;
-        box-shadow: 0 2px 8px rgba(0, 210, 196, 0.25);
+        min-height: 42px;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 10px rgba(0, 210, 196, 0.28);
 
         &:hover:not(:disabled) {
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(0, 210, 196, 0.4);
+          box-shadow: 0 4px 14px rgba(0, 210, 196, 0.45);
         }
 
         &:disabled {
@@ -724,281 +767,136 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         }
       }
 
-      /* WATCHLIST MANAGER */
-      .watchlist-manager-card {
-        background: #151c2c;
-        border: 1px solid rgba(99, 102, 241, 0.25);
-        border-radius: 14px;
-        padding: 20px;
+      /* HISTORICAL DATE PICKER BAR */
+      .historical-bar {
         display: flex;
-        flex-direction: column;
-        gap: 16px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 12px 14px;
+        background: #0b0f19;
+        border: 1px solid rgba(99, 102, 241, 0.25);
+        border-radius: 10px;
       }
 
-      .watchlist-header {
+      .date-inputs-group {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
         flex-wrap: wrap;
+        align-items: center;
         gap: 12px;
       }
 
-      .wl-title-group {
+      .date-field {
         display: flex;
         flex-direction: column;
         gap: 4px;
       }
 
-      .wl-title {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 1.05rem;
-        font-weight: 700;
-        color: #f8fafc;
+      .date-label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #94a3b8;
+      }
 
-        code {
-          background: #0b0f19;
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-size: 0.8rem;
-          color: #00d2c4;
-          font-family: 'JetBrains Mono', monospace;
+      .date-input {
+        background: #151c2c;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        color: #f8fafc;
+        padding: 8px 12px;
+        font-size: 0.84rem;
+        outline: none;
+        min-height: 38px;
+        color-scheme: dark;
+
+        &:focus {
+          border-color: #00d2c4;
         }
       }
 
-      .wl-subtitle {
-        font-size: 0.82rem;
-        color: #94a3b8;
+      .date-presets {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
       }
 
-      .wl-reset-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: transparent;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        color: #94a3b8;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-size: 0.78rem;
+      .preset-label {
+        font-size: 0.75rem;
+        color: #64748b;
+        margin-right: 2px;
+      }
+
+      .preset-chip {
+        background: rgba(99, 102, 241, 0.12);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        color: #c7d2fe;
+        padding: 6px 10px;
+        border-radius: 7px;
+        font-size: 0.76rem;
         font-weight: 600;
         cursor: pointer;
+        min-height: 34px;
+        transition: all 0.15s ease;
 
-        &:hover:not(:disabled) {
-          color: #f1f5f9;
-          border-color: rgba(255, 255, 255, 0.25);
+        &:hover {
+          background: rgba(99, 102, 241, 0.25);
+          color: #ffffff;
         }
       }
 
-      .add-ticker-bar {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        align-items: flex-end;
-        background: #0b0f19;
-        padding: 12px 14px;
-        border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-
-        .input-field {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-
-          &.grow {
-            flex-grow: 1;
-            min-width: 200px;
-          }
-
-          label {
-            font-size: 0.74rem;
-            font-weight: 600;
-            color: #94a3b8;
-          }
-
-          input {
-            background: #151c2c;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            color: #f1f5f9;
-            padding: 8px 10px;
-            font-size: 0.84rem;
-            outline: none;
-
-            &:focus {
-              border-color: #00d2c4;
-            }
-          }
-        }
-
-        .add-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: #6366f1;
-          border: none;
-          color: #fff;
-          padding: 8px 14px;
-          border-radius: 6px;
-          font-size: 0.82rem;
-          font-weight: 600;
-          cursor: pointer;
-          height: 35px;
-
-          &:hover:not(:disabled) {
-            background: #4f46e5;
-          }
-
-          &:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-          }
-        }
-      }
-
-      .watchlist-filter-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 12px;
-      }
-
-      .search-input-wrap {
+      /* CONFIGURED INDICES STRIP */
+      .universe-strip {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .universe-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #94a3b8;
+
+        .material-symbols-rounded {
+          font-size: 16px;
+          color: #6366f1;
+        }
+      }
+
+      .universe-chips {
+        display: flex;
+        flex-wrap: wrap;
         gap: 6px;
-        background: #0b0f19;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .index-chip {
+        font-size: 0.74rem;
+        font-weight: 600;
+        padding: 3px 9px;
         border-radius: 6px;
-        padding: 6px 10px;
-        width: 260px;
-
-        span {
-          color: #64748b;
-          font-size: 18px;
-        }
-
-        input {
-          background: transparent;
-          border: none;
-          outline: none;
-          color: #f1f5f9;
-          font-size: 0.82rem;
-          width: 100%;
-        }
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #e2e8f0;
       }
 
-      .bulk-toggles {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 0.8rem;
-
-        .mini-link-btn {
-          background: none;
-          border: none;
-          color: #00d2c4;
-          cursor: pointer;
-          padding: 0;
-
-          &:hover {
-            text-decoration: underline;
-          }
-        }
-
-        .divider {
-          color: #475569;
-        }
+      .universe-loading {
+        font-size: 0.78rem;
+        color: #64748b;
       }
 
-      .tickers-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-        gap: 8px;
-        max-height: 280px;
-        overflow-y: auto;
-        padding-right: 4px;
-      }
-
-      .ticker-card {
-        background: #0b0f19;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 8px;
-        padding: 8px 12px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        transition: all 0.15s;
-
-        &.disabled {
-          opacity: 0.45;
-          border-style: dashed;
-        }
-
-        .ticker-checkbox {
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-
-          input {
-            accent-color: #00d2c4;
-            cursor: pointer;
-          }
-        }
-
-        .ticker-info {
-          flex: 1;
-          cursor: pointer;
-          overflow: hidden;
-        }
-
-        .ticker-symbol {
-          font-weight: 700;
-          font-size: 0.86rem;
-          color: #f8fafc;
-          font-family: 'JetBrains Mono', monospace;
-        }
-
-        .ticker-name {
-          font-size: 0.72rem;
-          color: #94a3b8;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .ticker-sector {
-          font-size: 0.65rem;
-          color: #64748b;
-          text-transform: uppercase;
-        }
-
-        .ticker-del-btn {
-          background: none;
-          border: none;
-          color: #64748b;
-          cursor: pointer;
-          padding: 2px;
-          border-radius: 4px;
-
-          &:hover {
-            color: #f43f5e;
-            background: rgba(244, 63, 94, 0.1);
-          }
-
-          span {
-            font-size: 16px;
-          }
-        }
-      }
-
-      /* KPI METRICS GRID */
+      /* KPI GRID */
       .kpi-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 14px;
       }
 
@@ -1006,65 +904,60 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         background: #151c2c;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 12px;
-        padding: 16px 20px;
+        padding: 16px 18px;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 6px;
 
         &.highlight-cyan {
-          border-color: rgba(0, 210, 196, 0.25);
+          border-color: rgba(0, 210, 196, 0.22);
         }
 
         &.highlight-emerald {
-          border-color: rgba(16, 185, 129, 0.25);
+          border-color: rgba(16, 185, 129, 0.22);
         }
 
         &.highlight-coral {
-          border-color: rgba(244, 63, 94, 0.25);
+          border-color: rgba(244, 63, 94, 0.22);
         }
+      }
 
-        .kpi-label {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 0.78rem;
-          font-weight: 600;
-          color: #94a3b8;
-          text-transform: uppercase;
-          letter-spacing: 0.02em;
+      .kpi-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #94a3b8;
 
-          span.material-symbols-rounded {
-            font-size: 18px;
-          }
+        .material-symbols-rounded {
+          font-size: 18px;
         }
+      }
 
-        .kpi-value {
-          font-size: 1.85rem;
-          font-weight: 700;
-          color: #f8fafc;
-          line-height: 1.1;
-        }
+      .icon-dim {
+        color: #94a3b8;
+      }
+      .icon-cyan {
+        color: #00d2c4;
+      }
+      .icon-emerald {
+        color: #10b981;
+      }
+      .icon-coral {
+        color: #f43f5e;
+      }
 
-        .kpi-subtext {
-          font-size: 0.74rem;
-          color: #64748b;
-        }
+      .kpi-value {
+        font-size: 1.65rem;
+        font-weight: 700;
+        color: #f8fafc;
+        line-height: 1.15;
+      }
 
-        .icon-cyan {
-          color: #00d2c4;
-        }
-        .icon-emerald {
-          color: #10b981;
-        }
-        .icon-coral {
-          color: #f43f5e;
-        }
-        .text-emerald {
-          color: #10b981;
-        }
-        .text-coral {
-          color: #f43f5e;
-        }
+      .kpi-subtext {
+        font-size: 0.74rem;
+        color: #64748b;
       }
 
       /* SETUPS CONTAINER */
@@ -1072,10 +965,10 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         background: #151c2c;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 14px;
-        padding: 20px 24px;
+        padding: 20px;
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 18px;
       }
 
       .setups-header {
@@ -1090,26 +983,35 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         display: flex;
         align-items: center;
         gap: 8px;
-        font-size: 1.1rem;
+        font-size: 1.05rem;
         font-weight: 700;
         color: #f8fafc;
 
-        span.material-symbols-rounded {
-          color: #6366f1;
+        .material-symbols-rounded {
+          color: #00d2c4;
+          font-size: 22px;
         }
+      }
 
-        .count-badge {
-          background: #6366f1;
-          color: #fff;
-          font-size: 0.74rem;
-          font-weight: 700;
-          padding: 2px 7px;
-          border-radius: 10px;
-        }
+      .count-badge {
+        background: rgba(0, 210, 196, 0.14);
+        color: #00d2c4;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+
+      .filter-bar {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
       }
 
       .filter-chips-bar {
         display: flex;
+        align-items: center;
         flex-wrap: wrap;
         gap: 6px;
       }
@@ -1121,535 +1023,510 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         background: #0b0f19;
         border: 1px solid rgba(255, 255, 255, 0.1);
         color: #94a3b8;
-        padding: 5px 11px;
-        border-radius: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
         font-size: 0.78rem;
         font-weight: 600;
         cursor: pointer;
+        min-height: 34px;
+
+        .mini-icon {
+          font-size: 15px;
+        }
 
         &:hover {
-          color: #f1f5f9;
+          color: #f8fafc;
+          border-color: rgba(255, 255, 255, 0.25);
         }
 
         &.active {
-          background: #6366f1;
-          border-color: #6366f1;
-          color: #fff;
+          background: rgba(0, 210, 196, 0.16);
+          border-color: #00d2c4;
+          color: #00d2c4;
         }
 
         &.pill-bullish.active {
-          background: #10b981;
+          background: rgba(16, 185, 129, 0.16);
           border-color: #10b981;
+          color: #10b981;
         }
 
         &.pill-bearish.active {
-          background: #f43f5e;
+          background: rgba(244, 63, 94, 0.16);
           border-color: #f43f5e;
-        }
-
-        .mini-icon {
-          font-size: 14px;
-        }
-      }
-
-      /* EMPTY & LOADING STATES */
-      .empty-state-card {
-        padding: 48px 24px;
-        text-align: center;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-
-        .empty-icon-wrap {
-          width: 56px;
-          height: 56px;
-          border-radius: 50%;
-          background: rgba(0, 210, 196, 0.1);
-          color: #00d2c4;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-
-          &.amber {
-            background: rgba(245, 158, 11, 0.1);
-            color: #f59e0b;
-          }
-
-          span {
-            font-size: 30px;
-          }
-        }
-
-        .empty-title {
-          font-size: 1.15rem;
-          font-weight: 700;
-          color: #f8fafc;
-        }
-
-        .empty-desc {
-          max-width: 540px;
-          font-size: 0.86rem;
-          color: #94a3b8;
-          line-height: 1.5;
-        }
-
-        .empty-action-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          margin-top: 8px;
-          background: #00d2c4;
-          border: none;
-          color: #0b0f19;
-          padding: 8px 16px;
-          border-radius: 8px;
-          font-size: 0.84rem;
-          font-weight: 700;
-          cursor: pointer;
-        }
-      }
-
-      .loading-state-card {
-        padding: 56px 24px;
-        text-align: center;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 14px;
-
-        .scan-spinner {
-          width: 40px;
-          height: 40px;
-          border: 3px solid rgba(0, 210, 196, 0.15);
-          border-top-color: #00d2c4;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-
-        .loading-title {
-          font-size: 1.1rem;
-          font-weight: 700;
-          color: #f8fafc;
-        }
-
-        .loading-desc {
-          font-size: 0.84rem;
-          color: #94a3b8;
-        }
-      }
-
-      /* RESULTS TABLE */
-      .results-table-wrapper {
-        overflow-x: auto;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-      }
-
-      .setups-table {
-        width: 100%;
-        border-collapse: collapse;
-        text-align: left;
-        font-size: 0.84rem;
-
-        th {
-          background: #0e1422;
-          color: #94a3b8;
-          font-weight: 600;
-          font-size: 0.74rem;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
-          padding: 12px 14px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          white-space: nowrap;
-        }
-
-        td {
-          padding: 14px 14px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-          vertical-align: middle;
-        }
-
-        tr.setup-row {
-          transition: background-color 0.15s;
-
-          &:hover {
-            background-color: rgba(255, 255, 255, 0.03);
-          }
-
-          &.bullish-row {
-            border-left: 3px solid #10b981;
-          }
-
-          &.bearish-row {
-            border-left: 3px solid #f43f5e;
-          }
-        }
-      }
-
-      .stock-cell {
-        min-width: 160px;
-
-        .ticker-box {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-
-        .ticker-symbol {
-          font-weight: 700;
-          font-size: 0.95rem;
-          color: #f8fafc;
-        }
-
-        .ticker-fullname {
-          font-size: 0.74rem;
-          color: #94a3b8;
-        }
-      }
-
-      .cmp-cell {
-        .cmp-value {
-          font-size: 0.92rem;
-          font-weight: 700;
-          color: #f8fafc;
-        }
-      }
-
-      .strategy-cell {
-        min-width: 220px;
-
-        .strategy-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 4px 9px;
-          border-radius: 6px;
-          font-size: 0.76rem;
-          font-weight: 700;
-
-          .badge-icon {
-            font-size: 15px;
-          }
-
-          &.badge-demand,
-          &.badge-bull-sweep {
-            background: rgba(16, 185, 129, 0.15);
-            color: #10b981;
-            border: 1px solid rgba(16, 185, 129, 0.3);
-          }
-
-          &.badge-supply,
-          &.badge-bear-sweep {
-            background: rgba(244, 63, 94, 0.15);
-            color: #f43f5e;
-            border: 1px solid rgba(244, 63, 94, 0.3);
-          }
-        }
-
-        .strategy-subnote {
-          font-size: 0.7rem;
-          color: #64748b;
-          margin-top: 3px;
-        }
-      }
-
-      .entry-cell {
-        .entry-price {
-          font-size: 0.9rem;
-          font-weight: 700;
-          color: #00d2c4;
-        }
-      }
-
-      .sl-cell {
-        .sl-price {
-          font-size: 0.9rem;
-          font-weight: 700;
           color: #f43f5e;
         }
       }
 
-      .risk-cell {
-        .risk-points {
-          font-size: 0.82rem;
-          font-weight: 600;
-          color: #cbd5e1;
-        }
+      .filter-selects {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
 
-        .risk-pct {
-          font-size: 0.72rem;
-          color: #64748b;
+      .compact-select {
+        background: #0b0f19;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #e2e8f0;
+        padding: 6px 10px;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        min-height: 34px;
+        outline: none;
+
+        &:focus {
+          border-color: #00d2c4;
         }
       }
 
-      .tf-cell {
-        .tf-badge {
-          background: #0b0f19;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 3px 8px;
-          border-radius: 4px;
-          font-size: 0.74rem;
-          font-weight: 600;
-          color: #94a3b8;
-          font-family: 'JetBrains Mono', monospace;
+      /* EMPTY / LOADING STATES */
+      .empty-state-card,
+      .loading-state-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 40px 20px;
+        background: #0b0f19;
+        border: 1px dashed rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        gap: 12px;
+      }
+
+      .empty-icon-wrap {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 210, 196, 0.12);
+        color: #00d2c4;
+
+        &.amber {
+          background: rgba(245, 158, 11, 0.12);
+          color: #f59e0b;
         }
+
+        .material-symbols-rounded {
+          font-size: 30px;
+        }
+      }
+
+      .empty-title,
+      .loading-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #f8fafc;
+      }
+
+      .empty-desc,
+      .loading-desc {
+        max-width: 560px;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        color: #94a3b8;
+      }
+
+      .empty-action-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #00d2c4;
+        border: none;
+        color: #0b0f19;
+        padding: 10px 18px;
+        border-radius: 9px;
+        font-size: 0.86rem;
+        font-weight: 700;
+        cursor: pointer;
+        margin-top: 4px;
+        min-height: 40px;
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+
+      .scan-spinner {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 3px solid rgba(0, 210, 196, 0.18);
+        border-top-color: #00d2c4;
+        animation: spin 0.9s linear infinite;
+      }
+
+      /* SUMMARY TABLE (DESKTOP) */
+      .summary-table-wrapper {
+        overflow-x: auto;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        background: #0b0f19;
+      }
+
+      .summary-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.83rem;
+
+        th {
+          text-align: left;
+          padding: 10px 14px;
+          color: #94a3b8;
+          font-size: 0.72rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        td {
+          padding: 10px 14px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          color: #e2e8f0;
+        }
+
+        tbody tr:last-child td {
+          border-bottom: none;
+        }
+
+        .text-right {
+          text-align: right;
+        }
+      }
+
+      .summary-row {
+        cursor: pointer;
+        transition: background 0.15s ease;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.04);
+        }
+      }
+
+      .sym-cell {
+        font-weight: 700;
+        color: #f8fafc;
+      }
+
+      .sweep-val {
+        color: #fbbf24;
+      }
+
+      .time-cell {
+        color: #94a3b8;
+        font-size: 0.78rem;
+      }
+
+      .mini-chart-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(0, 210, 196, 0.12);
+        border: 1px solid rgba(0, 210, 196, 0.3);
+        color: #00d2c4;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+
+        .material-symbols-rounded {
+          font-size: 15px;
+        }
+      }
+
+      /* BADGES */
+      .signal-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 9px;
+        border-radius: 6px;
+        font-size: 0.74rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+
+        .material-symbols-rounded {
+          font-size: 15px;
+        }
+
+        &.lg {
+          padding: 6px 12px;
+          font-size: 0.84rem;
+          border-radius: 8px;
+
+          .material-symbols-rounded {
+            font-size: 18px;
+          }
+        }
+
+        &.badge-buy {
+          background: rgba(16, 185, 129, 0.16);
+          color: #10b981;
+          border: 1px solid rgba(16, 185, 129, 0.38);
+        }
+
+        &.badge-sell {
+          background: rgba(244, 63, 94, 0.16);
+          color: #f43f5e;
+          border: 1px solid rgba(244, 63, 94, 0.38);
+        }
+      }
+
+      .level-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        background: rgba(0, 210, 196, 0.12);
+        color: #00d2c4;
+        border: 1px solid rgba(0, 210, 196, 0.3);
+
+        &.pd-pill {
+          background: rgba(245, 158, 11, 0.14);
+          color: #f59e0b;
+          border-color: rgba(245, 158, 11, 0.35);
+        }
+      }
+
+      .session-date-pill {
+        font-size: 0.72rem;
+        color: #94a3b8;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 2px 8px;
+        border-radius: 6px;
+      }
+
+      /* RECOMMENDATION CARDS */
+      .recommendation-cards-list {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .recommendation-card {
+        background: #1e293b;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 14px;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+
+        &.buy-card {
+          border-left: 4px solid #10b981;
+        }
+
+        &.sell-card {
+          border-left: 4px solid #f43f5e;
+        }
+      }
+
+      .rec-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .rec-identity {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .rec-title-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .rec-symbol-line {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .rec-symbol {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #f8fafc;
+      }
+
+      .rec-subline {
+        font-size: 0.78rem;
+        color: #94a3b8;
       }
 
       .trade-setup-btn {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        background: rgba(99, 102, 241, 0.12);
-        border: 1px solid rgba(99, 102, 241, 0.35);
-        color: #a5b4fc;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-size: 0.76rem;
+        justify-content: center;
+        gap: 6px;
+        background: rgba(99, 102, 241, 0.16);
+        border: 1px solid rgba(99, 102, 241, 0.4);
+        color: #c7d2fe;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 0.82rem;
         font-weight: 700;
         cursor: pointer;
-        transition: all 0.15s;
+        min-height: 38px;
+        transition: all 0.15s ease;
+
+        .material-symbols-rounded {
+          font-size: 17px;
+        }
 
         &:hover {
           background: #6366f1;
-          color: #fff;
-        }
-
-        span.material-symbols-rounded {
-          font-size: 16px;
+          color: #ffffff;
         }
       }
 
-      .text-right {
-        text-align: right;
-      }
-
-      .desktop-only {
-        display: block;
-      }
-
-      .mobile-only {
-        display: none;
-      }
-
-      /* MOBILE SETUP CARD STYLES */
-      .results-cards-list {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-
-      .setup-mobile-card {
-        background: #0e1422;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 10px;
-        padding: 14px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        transition: all 0.15s ease;
-
-        &.bullish-card {
-          border-left: 4px solid #10b981;
-        }
-
-        &.bearish-card {
-          border-left: 4px solid #f43f5e;
-        }
-      }
-
-      .sm-card-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 8px;
-      }
-
-      .sm-ticker {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-
-      .sm-symbol {
-        font-weight: 700;
-        font-size: 1rem;
-        color: #f8fafc;
-      }
-
-      .sm-name {
-        font-size: 0.75rem;
-        color: #94a3b8;
-      }
-
-      .sm-top-right {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 4px;
-      }
-
-      .sm-cmp {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      }
-
-      .sm-cmp-label {
-        font-size: 0.6875rem;
-        color: #94a3b8;
-      }
-
-      .sm-cmp-val {
-        font-weight: 700;
-        font-size: 0.95rem;
-        color: #f8fafc;
-      }
-
-      .sm-strategy-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .sm-strategy-notes {
-        font-size: 0.75rem;
-        color: #94a3b8;
-        line-height: 1.35;
-        background: rgba(255, 255, 255, 0.03);
-        padding: 6px 8px;
-        border-radius: 6px;
-      }
-
-      .sm-metrics-grid {
+      .rec-metrics-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 6px;
-        background: rgba(0, 0, 0, 0.25);
-        padding: 8px 10px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.04);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
       }
 
-      .sm-metric-item {
+      .metric-box {
+        background: #0b0f19;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 10px;
+        padding: 10px 12px;
         display: flex;
         flex-direction: column;
-        gap: 2px;
+        gap: 3px;
       }
 
-      .sm-metric-lbl {
-        font-size: 0.65rem;
+      .metric-label {
+        font-size: 0.7rem;
         color: #94a3b8;
         text-transform: uppercase;
+        letter-spacing: 0.03em;
       }
 
-      .sm-metric-val {
-        font-size: 0.8125rem;
-        font-weight: 600;
-        color: #f1f5f9;
+      .metric-value {
+        font-size: 0.98rem;
+        font-weight: 700;
+        color: #f8fafc;
       }
 
-      .sm-action-btn {
+      .metric-meta {
+        font-size: 0.7rem;
+        color: #64748b;
+      }
+
+      .rec-chart-wrap {
         width: 100%;
-        justify-content: center;
-        padding: 10px;
-        font-size: 0.875rem;
-        min-height: 42px;
       }
 
-      /* RESPONSIVE DESIGN (RULE 6) */
+      /* RESPONSIVE BREAKPOINTS (RULE 6) */
+      @media (max-width: 1023px) {
+        .kpi-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .rec-metrics-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
       @media (max-width: 768px) {
+        .screener-root {
+          padding-bottom: 88px;
+        }
+
+        .page-body {
+          padding: 14px 12px;
+          gap: 14px;
+        }
+
+        .control-header-card,
+        .setups-container {
+          padding: 14px;
+        }
+
         .desktop-only {
           display: none !important;
         }
 
-        .mobile-only {
-          display: flex !important;
-        }
-
-        .page-body {
-          padding: 12px 10px 24px;
-          gap: 14px;
-        }
-
-        .control-header-card {
-          padding: 14px;
-          flex-direction: column;
-          align-items: stretch;
-        }
-
         .controls-toolbar {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 10px;
-        }
-
-        .add-ticker-bar {
-          flex-direction: column;
-          align-items: stretch;
-        }
-
-        .add-ticker-bar .input-field {
           width: 100%;
+          justify-content: space-between;
         }
 
-        .add-ticker-bar .add-btn {
-          width: 100%;
+        .mode-toggle {
+          flex: 1;
+        }
+
+        .mode-btn {
+          flex: 1;
           justify-content: center;
-          height: 38px;
         }
 
-        .search-input-wrap {
+        .run-scan-btn {
           width: 100%;
         }
 
-        .kpi-grid {
+        .historical-bar {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .date-inputs-group {
+          width: 100%;
+          display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 8px;
         }
 
-        .setups-container {
+        .date-input {
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .recommendation-card {
           padding: 14px;
+        }
+
+        .trade-setup-btn {
+          width: 100%;
         }
       }
 
-      @media (max-width: 520px) {
-        .actions-group {
-          flex-direction: column;
-          align-items: stretch;
+      @media (max-width: 480px) {
+        .page-title {
+          font-size: 1.12rem;
+        }
+
+        .date-inputs-group {
+          grid-template-columns: 1fr;
+        }
+
+        .kpi-value {
+          font-size: 1.35rem;
+        }
+
+        .filter-selects {
           width: 100%;
-          gap: 8px;
-
-          button {
-            width: 100%;
-            flex: none;
-            min-height: 40px;
-          }
-        }
-
-        .timeframe-group {
-          flex-direction: column;
-          align-items: flex-start;
-          width: 100%;
-          gap: 6px;
-        }
-
-        .timeframe-chips {
-          width: 100%;
-          display: flex;
-          gap: 4px;
-        }
-
-        .tf-chip {
-          flex: 1;
-          text-align: center;
-          padding: 6px 4px;
-          font-size: 0.75rem;
-        }
-
-        .sm-metrics-grid {
+          display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 8px;
+        }
+
+        .compact-select {
+          width: 100%;
         }
       }
     `,
@@ -1659,85 +1536,130 @@ export class ScreenerComponent {
   readonly screenerService = inject(ScreenerService);
   private readonly router = inject(Router);
 
-  readonly availableTimeframes = [
-    { value: '15m', label: '15 Min' },
-    { value: '1h', label: '1 Hour' },
-    { value: '1d', label: '1 Day' },
-    { value: '1wk', label: '1 Week' },
-  ];
+  readonly minHistoricalDate = formatIstDateOffset(-59);
+  readonly maxHistoricalDate = formatIstDateOffset(0);
 
-  readonly isWatchlistOpen = signal<boolean>(false);
-  readonly watchlistSearch = signal<string>('');
-  readonly activeStrategyFilter = signal<string>('ALL');
+  readonly activeSignalFilter = signal<'ALL' | 'BUY' | 'SELL'>('ALL');
+  readonly activeLevelFilter = signal<'ALL' | LiquidityLevelType>('ALL');
+  readonly activeSymbolFilter = signal<string>('ALL');
 
-  // New stock form state
-  newSymbol = '';
-  newName = '';
-  newSector = '';
-
-  readonly filteredWatchlist = computed<WatchlistStockItem[]>(() => {
-    const list = this.screenerService.watchlist();
-    const query = this.watchlistSearch().trim().toUpperCase();
-    if (!query) return list;
-    return list.filter(
-      (s) =>
-        s.symbol.toUpperCase().includes(query) ||
-        (s.name && s.name.toUpperCase().includes(query)) ||
-        (s.sector && s.sector.toUpperCase().includes(query)),
-    );
+  readonly matchedSymbols = computed<string[]>(() => {
+    const recs = this.screenerService.recommendations();
+    return Array.from(new Set(recs.map((r) => r.symbol))).sort();
   });
 
-  readonly filteredMatches = computed<ScreenerMatch[]>(() => {
-    const matches = this.screenerService.matches();
-    const filter = this.activeStrategyFilter();
+  readonly filteredRecommendations = computed<LiquiditySweepSignal[]>(() => {
+    const recs = this.screenerService.recommendations();
+    const signalFilter = this.activeSignalFilter();
+    const levelFilter = this.activeLevelFilter();
+    const symbolFilter = this.activeSymbolFilter();
 
-    if (filter === 'BUY') {
-      return matches.filter((m) => m.signalType === 'BUY');
-    }
-    if (filter === 'SELL') {
-      return matches.filter((m) => m.signalType === 'SELL');
-    }
-    if (filter === 'OB') {
-      return matches.filter((m) => m.strategy.includes('ORDER_BLOCK'));
-    }
-    if (filter === 'SWEEP') {
-      return matches.filter((m) => m.strategy.includes('SWEEP'));
-    }
-    return matches;
+    return recs.filter((rec) => {
+      if (signalFilter !== 'ALL' && rec.signalType !== signalFilter) return false;
+      if (levelFilter !== 'ALL' && rec.levelType !== levelFilter) return false;
+      if (symbolFilter !== 'ALL' && rec.symbol !== symbolFilter) return false;
+      return true;
+    });
   });
 
-  onSelectTimeframe(tf: string): void {
-    this.screenerService.setTimeframe(tf);
-    this.runScan();
+  selectMode(mode: ScreenerScanMode): void {
+    this.screenerService.setMode(mode);
+  }
+
+  onStartDateChange(date: string): void {
+    const currentEnd = this.screenerService.historicalEndDate();
+    const nextEnd = !currentEnd || currentEnd < date ? date : currentEnd;
+    this.screenerService.setHistoricalDates(date, nextEnd);
+  }
+
+  onEndDateChange(date: string): void {
+    const currentStart = this.screenerService.historicalStartDate();
+    const nextStart = !currentStart || currentStart > date ? date : currentStart;
+    this.screenerService.setHistoricalDates(nextStart, date);
+  }
+
+  applyPreset(daysAgo: number): void {
+    if (daysAgo === 0) {
+      const today = formatIstDateOffset(0);
+      this.screenerService.setHistoricalDates(today, today);
+      return;
+    }
+    if (daysAgo === 1) {
+      const yesterday = formatIstDateOffset(-1);
+      this.screenerService.setHistoricalDates(yesterday, yesterday);
+      return;
+    }
+    const start = formatIstDateOffset(-(daysAgo - 1));
+    const end = formatIstDateOffset(0);
+    this.screenerService.setHistoricalDates(start, end);
   }
 
   runScan(): void {
+    this.activeSignalFilter.set('ALL');
+    this.activeLevelFilter.set('ALL');
+    this.activeSymbolFilter.set('ALL');
     this.screenerService.runScan();
   }
 
-  addNewStock(): void {
-    if (!this.newSymbol.trim()) return;
-    this.screenerService.addStock(this.newSymbol, this.newName, this.newSector);
-    this.newSymbol = '';
-    this.newName = '';
-    this.newSector = '';
+  trackBySignalId(_index: number, item: LiquiditySweepSignal): string {
+    return item.id;
   }
 
-  toggleAll(enabled: boolean): void {
-    const current = this.screenerService.watchlist();
-    const updated = current.map((s) => ({ ...s, enabled }));
-    this.screenerService.watchlist.set(updated);
-    this.screenerService.updateWatchlist(updated).subscribe();
+  formatLevelLabel(levelType: LiquidityLevelType): string {
+    switch (levelType) {
+      case 'PDL':
+        return 'PDL';
+      case 'PDH':
+        return 'PDH';
+      case 'DAY_LOW':
+        return 'Day Low';
+      case 'DAY_HIGH':
+        return 'Day High';
+      default:
+        return levelType;
+    }
   }
 
-  goToComposerWithSetup(match: ScreenerMatch): void {
-    // Navigate to dashboard live monitor with prefill query params
+  formatIstTime(unixSeconds: number): string {
+    if (!unixSeconds) return '--';
+    return IST_TIME_FORMATTER.format(new Date(unixSeconds * 1000));
+  }
+
+  formatIstDateTime(unixSeconds: number): string {
+    if (!unixSeconds) return '--';
+    return IST_DATE_TIME_FORMATTER.format(new Date(unixSeconds * 1000));
+  }
+
+  formatSweepDistance(rec: LiquiditySweepSignal): string {
+    const diff = Math.abs(rec.levelPrice - rec.sweepPrice);
+    return diff.toFixed(2);
+  }
+
+  formatRiskPoints(rec: LiquiditySweepSignal): string {
+    const diff = Math.abs(rec.confirmationClosePrice - rec.sweepPrice);
+    return diff.toFixed(2);
+  }
+
+  formatRiskPercent(rec: LiquiditySweepSignal): string {
+    if (!rec.confirmationClosePrice) return '0.00';
+    const pct = (Math.abs(rec.confirmationClosePrice - rec.sweepPrice) / rec.confirmationClosePrice) * 100;
+    return pct.toFixed(2);
+  }
+
+  scrollToCard(signalId: string): void {
+    const el = document.getElementById(`signal-card-${signalId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  goToComposerWithSetup(rec: LiquiditySweepSignal): void {
     this.router.navigate(['/'], {
       queryParams: {
-        symbol: match.symbol,
-        targetPrice: match.entryPrice,
-        stopLoss: match.stopLossPrice,
-        strategy: match.strategy,
+        symbol: rec.symbol,
+        targetPrice: rec.confirmationClosePrice,
+        stopLoss: rec.sweepPrice,
+        strategy: `${rec.signalType}_${rec.levelType}_SWEEP`,
       },
     });
   }

@@ -1,9 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ScreenerService } from './screener.service';
-import { ScreenerScanResponse, ScreenerWatchlistDoc } from '../models/screener.models';
+import { ScreenerScanResponse } from '../models/screener.models';
 
 describe('ScreenerService', () => {
   let service: ScreenerService;
@@ -11,25 +11,22 @@ describe('ScreenerService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [
-        ScreenerService,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ],
+      providers: [ScreenerService, provideHttpClient(), provideHttpClientTesting()],
     });
 
     service = TestBed.inject(ScreenerService);
     httpMock = TestBed.inject(HttpTestingController);
 
-    // Initial loadWatchlist() is called in constructor
-    const initReq = httpMock.expectOne('/api/screener/watchlist');
+    // Initial loadInstruments() is triggered in constructor (no scan auto-run)
+    const initReq = httpMock.expectOne('/api/screener/instruments');
     expect(initReq.request.method).toBe('GET');
     initReq.flush({
-      symbols: [
-        { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', enabled: true, order: 1 },
-        { symbol: 'TCS', name: 'Tata Consultancy Services Ltd', enabled: true, order: 2 },
+      instruments: [
+        { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', enabled: true },
+        { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', enabled: true },
+        { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', enabled: true },
+        { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', enabled: true },
       ],
-      updatedAt: '2026-11-16T12:00:00.000Z',
     });
   });
 
@@ -37,100 +34,103 @@ describe('ScreenerService', () => {
     httpMock.verify();
   });
 
-  it('should be created and populate watchlist from constructor', () => {
+  it('should load configured indices from config/lot_sizes without auto-running scan', () => {
     expect(service).toBeTruthy();
-    expect(service.watchlist().length).toBe(2);
-    expect(service.enabledWatchlistCount()).toBe(2);
+    expect(service.instruments().length).toBe(4);
+    expect(service.instrumentCount()).toBe(4);
+    expect(service.scanMode()).toBe('live');
+    expect(service.scanResults()).toBeNull();
+    expect(service.isScanning()).toBe(false);
   });
 
-  it('should toggle stock enabled status and update Firestore', () => {
-    service.toggleStock('RELIANCE');
-    expect(service.watchlist()[0].enabled).toBe(false);
-
-    const putReq = httpMock.expectOne('/api/screener/watchlist');
-    expect(putReq.request.method).toBe('PUT');
-    expect(putReq.request.body.symbols[0].enabled).toBe(false);
-    putReq.flush({ success: true, data: { symbols: service.watchlist() } });
-  });
-
-  it('should add new stock ticker to watchlist', () => {
-    service.addStock('TATAPOWER', 'Tata Power Co Ltd', 'Power');
-    expect(service.watchlist().length).toBe(3);
-    expect(service.watchlist()[2].symbol).toBe('TATAPOWER');
-
-    const putReq = httpMock.expectOne('/api/screener/watchlist');
-    expect(putReq.request.method).toBe('PUT');
-    putReq.flush({ success: true, data: { symbols: service.watchlist() } });
-  });
-
-  it('should remove stock ticker from watchlist', () => {
-    service.removeStock('TCS');
-    expect(service.watchlist().length).toBe(1);
-    expect(service.watchlist()[0].symbol).toBe('RELIANCE');
-
-    const putReq = httpMock.expectOne('/api/screener/watchlist');
-    expect(putReq.request.method).toBe('PUT');
-    putReq.flush({ success: true, data: { symbols: service.watchlist() } });
-  });
-
-  it('should reset watchlist to defaults via POST /api/screener/watchlist/reset', () => {
-    service.resetWatchlist();
-
-    const resetReq = httpMock.expectOne('/api/screener/watchlist/reset');
-    expect(resetReq.request.method).toBe('POST');
-    resetReq.flush({
-      success: true,
-      data: {
-        symbols: [
-          { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', enabled: true },
-          { symbol: 'TCS', name: 'Tata Consultancy Services Ltd', enabled: true },
-          { symbol: 'HDFCBANK', name: 'HDFC Bank Ltd', enabled: true },
-        ],
-      },
-    });
-
-    expect(service.watchlist().length).toBe(3);
-  });
-
-  it('should trigger technical scan via POST /api/screener/scan', () => {
-    const mockScanResult: ScreenerScanResponse = {
-      timeframe: '15m',
-      scannedAt: '2026-11-16T12:05:00.000Z',
+  it('should execute Live mode scan strictly on-demand via POST /api/screener/scan', () => {
+    const mockResponse: ScreenerScanResponse = {
+      mode: 'live',
+      timeframe: '5m',
+      scannedAt: '2026-11-18T09:35:00.000Z',
+      instrumentsScanned: [
+        { symbol: 'NIFTY 50', name: 'Nifty 50 Index' },
+        { symbol: 'BANK NIFTY', name: 'Bank Nifty Index' },
+      ],
       totalScanned: 2,
-      totalMatches: 1,
-      bullishMatches: 1,
-      bearishMatches: 0,
-      matches: [
+      totalRecommendations: 1,
+      bullishCount: 1,
+      bearishCount: 0,
+      recommendations: [
         {
-          symbol: 'RELIANCE',
-          name: 'Reliance Industries Ltd',
-          cmp: 2496,
-          strategy: 'DEMAND_ORDER_BLOCK',
-          strategyLabel: 'Demand OB (Bullish)',
+          id: 'NIFTY_50_1763440500_BUY',
+          symbol: 'NIFTY 50',
+          name: 'Nifty 50 Index',
           signalType: 'BUY',
-          entryPrice: 2495,
-          stopLossPrice: 2480,
-          riskPoints: 15,
-          riskPercent: 0.6,
-          timeframe: '15m',
-          matchedAt: '2026-11-16T12:05:00.000Z',
+          levelType: 'PDL',
+          levelPrice: 24500,
+          sweepPrice: 24482,
+          sweepTimestamp: 1763440200,
+          confirmationClosePrice: 24525,
+          confirmationTimestamp: 1763440500,
+          sessionDate: '2026-11-18',
+          timeframe: '5m',
+          candles: [
+            { time: 1763440200, open: 24520, high: 24525, low: 24482, close: 24495, volume: 100 },
+            { time: 1763440500, open: 24495, high: 24530, low: 24492, close: 24525, volume: 200 },
+          ],
         },
       ],
     };
 
-    service.runScan('15m');
+    service.runScan();
     expect(service.isScanning()).toBe(true);
 
     const scanReq = httpMock.expectOne('/api/screener/scan');
     expect(scanReq.request.method).toBe('POST');
-    expect(scanReq.request.body).toEqual({ timeframe: '15m' });
-    scanReq.flush(mockScanResult);
+    expect(scanReq.request.body).toEqual({ mode: 'live' });
+    scanReq.flush(mockResponse);
 
     expect(service.isScanning()).toBe(false);
-    expect(service.totalMatches()).toBe(1);
-    expect(service.bullishMatches()).toBe(1);
-    expect(service.matches()[0].symbol).toBe('RELIANCE');
-    expect(service.matches()[0].entryPrice).toBe(2495);
-    expect(service.matches()[0].stopLossPrice).toBe(2480);
+    expect(service.totalRecommendations()).toBe(1);
+    expect(service.bullishCount()).toBe(1);
+    expect(service.bearishCount()).toBe(0);
+    expect(service.recommendations()[0].levelType).toBe('PDL');
+  });
+
+  it('should execute Historical mode scan with startDate and endDate', () => {
+    service.setMode('historical');
+    service.setHistoricalDates('2026-11-14', '2026-11-17');
+    service.runScan();
+
+    const scanReq = httpMock.expectOne('/api/screener/scan');
+    expect(scanReq.request.method).toBe('POST');
+    expect(scanReq.request.body).toEqual({
+      mode: 'historical',
+      startDate: '2026-11-14',
+      endDate: '2026-11-17',
+    });
+
+    scanReq.flush({
+      mode: 'historical',
+      timeframe: '5m',
+      startDate: '2026-11-14',
+      endDate: '2026-11-17',
+      scannedAt: '2026-11-18T10:00:00.000Z',
+      instrumentsScanned: [],
+      totalScanned: 4,
+      totalRecommendations: 0,
+      bullishCount: 0,
+      bearishCount: 0,
+      recommendations: [],
+    });
+
+    expect(service.isScanning()).toBe(false);
+    expect(service.totalRecommendations()).toBe(0);
+  });
+
+  it('should reject invalid historical date range locally before calling backend', () => {
+    service.setMode('historical');
+    service.setHistoricalDates('2026-11-18', '2026-11-15');
+    service.runScan();
+
+    httpMock.expectNone('/api/screener/scan');
+    expect(service.scanError()).toContain('Start date must be earlier');
+    expect(service.isScanning()).toBe(false);
   });
 });
