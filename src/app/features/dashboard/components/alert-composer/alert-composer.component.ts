@@ -71,8 +71,8 @@ import { environment } from '../../../../../environments/environment';
         <div class="db-not-found-warning mb-12" *ngIf="instruments().length === 0">
           <span class="material-symbols-rounded warn-icon">database_off</span>
           <div class="warn-content">
-            <span class="warn-title">Data is not found in database</span>
-            <span class="warn-msg">No indices available in Firestore. Please sync security master from Settings.</span>
+            <span class="warn-title">Traded instruments data is not available in database</span>
+            <span class="warn-msg">No traded instruments found in Firestore (master_data/traded_instruments). Please sync from Master JSON in Settings.</span>
           </div>
         </div>
 
@@ -95,8 +95,8 @@ import { environment } from '../../../../../environments/environment';
                   panelClass="instrument-select-panel"
                   required
                 >
-                  <mat-option *ngFor="let item of instruments()" [value]="item.symbol">
-                    {{ item.symbol }}
+                  <mat-option *ngFor="let item of instruments()" [value]="item.displayName || item.symbol">
+                    {{ item.displayName || item.symbol }}
                   </mat-option>
                 </mat-select>
               </mat-form-field>
@@ -240,6 +240,9 @@ import { environment } from '../../../../../environments/environment';
                       <span class="preferred-indicator" *ngIf="preferredLots() > 0">
                         Configured Preferred: <strong>{{ preferredLots() }} Lots</strong>
                       </span>
+                      <span class="preferred-indicator text-muted" *ngIf="preferredLots() === 0 && instruments().length > 0">
+                        Preferred Lots: Data not available
+                      </span>
                     </div>
                     <div class="fixed-lots-group">
                       <button
@@ -254,7 +257,7 @@ import { environment } from '../../../../../environments/environment';
                           <span class="pref-pill" *ngIf="preferredLots() > 0 && lots === preferredLots()">Preferred</span>
                         </span>
                         <span class="lot-btn-calc mono-val">
-                          ({{ lots * currentContractLotSize() }} Qty)
+                          ({{ currentContractLotSize() > 0 ? (lots * currentContractLotSize()) + ' Qty' : '--' }})
                         </span>
                       </button>
                     </div>
@@ -263,10 +266,15 @@ import { environment } from '../../../../../environments/environment';
                     <div class="order-qty-summary-box mono-val">
                       <div class="summary-line">
                         <span class="summary-lbl">Total Order Quantity:</span>
-                        <span class="summary-val text-cyan font-bold">{{ totalOrderQuantity() }} Shares</span>
+                        <span class="summary-val text-cyan font-bold" *ngIf="totalOrderQuantity() > 0; else qtyNotAvailable">
+                          {{ totalOrderQuantity() }} Shares
+                        </span>
+                        <ng-template #qtyNotAvailable>
+                          <span class="summary-val text-muted font-bold">Data not available</span>
+                        </ng-template>
                       </div>
                       <span class="summary-calc text-muted">
-                        ({{ orderLots }} Lots &times; {{ currentContractLotSize() }} Qty/Lot)
+                        ({{ orderLots > 0 ? orderLots + ' Lots' : '--' }} &times; {{ currentContractLotSize() > 0 ? currentContractLotSize() + ' Qty/Lot' : '--' }})
                       </span>
                     </div>
                   </div>
@@ -277,7 +285,12 @@ import { environment } from '../../../../../environments/environment';
                   <div class="sl-summary-row mono-val">
                     <div class="sl-defined-tag">
                       <span class="material-symbols-rounded tag-icon">shield</span>
-                      <span>Stop Loss: <strong>{{ stopLossPoints() }} Points</strong></span>
+                      <span *ngIf="stopLossPoints() > 0; else slNotAvailable">
+                        Stop Loss: <strong>{{ stopLossPoints() }} Points</strong>
+                      </span>
+                      <ng-template #slNotAvailable>
+                        <span>Stop Loss: <strong class="text-muted">Data not available</strong></span>
+                      </ng-template>
                     </div>
                     <div class="sl-calc-box" *ngIf="stopLossPrice() !== null">
                       <span class="sl-calc-label">SL Price:</span>
@@ -1114,7 +1127,7 @@ export class AlertComposerComponent implements OnInit {
 
   // Automated Stop Loss Form Fields
   enableStopLoss = signal<boolean>(true);
-  stopLossPoints = signal<number>(12);
+  stopLossPoints = signal<number>(0);
 
   userManuallyChangedLots = false;
   private userManuallyEditedTarget = false;
@@ -1284,25 +1297,57 @@ export class AlertComposerComponent implements OnInit {
   }
 
   loadInstruments(): void {
-    // 1. Fetch configured lot sizes & tradeable indices dynamically from Firestore
+    // 1. Always fetch fresh traded instruments & preferred lot sizes from Firestore
     forkJoin({
-      lotSizes: this.instrumentService.fetchLotSizes(),
-      indicesList: this.instrumentService.fetchConfiguredIndices(),
+      lotSizes: this.instrumentService.fetchLotSizes(true),
+      indicesList: this.instrumentService.fetchConfiguredIndices(true),
     }).subscribe({
       next: ({ indicesList }) => {
         const cfg = this.instrumentService.lotSizes();
+        const cfgList = cfg?.instruments || cfg?.indices || [];
+        const findCfgMatch = (idx: Instrument) => {
+          const sym = (idx.displayName || idx.symbol || '').toUpperCase();
+          const symName = (idx.symbolName || '').toUpperCase();
+          return cfgList.find((c) => {
+            if (idx.securityId && c.securityId && String(c.securityId) === String(idx.securityId)) {
+              return true;
+            }
+            const cDisp = (c.displayName || c.symbol || '').toUpperCase();
+            const cSym = (c.symbolName || '').toUpperCase();
+            return (
+              (cDisp && (cDisp === sym || sym.includes(cDisp))) ||
+              (cSym && (cSym === sym || cSym === symName))
+            );
+          });
+        };
+
         let activeIndices: Instrument[] = [];
         if (indicesList && indicesList.length > 0) {
           activeIndices = indicesList.map((idx) => {
-            const sym = idx.symbol.toUpperCase();
-            const matchedCfg = cfg.indices?.find(
-              (c) => c.symbol.toUpperCase() === sym || sym.includes(c.symbol.toUpperCase())
-            );
-            const defLotSize = idx.defaultLotSize || idx.defaultLots || matchedCfg?.defaultLotSize || matchedCfg?.defaultLots || 0;
-            const defQtyInLot = idx.defaultQuantityInOneLot || idx.lotSize || matchedCfg?.defaultQuantityInOneLot || matchedCfg?.lotSize || 0;
-            const slPts = idx.stopLossPoints ?? matchedCfg?.stopLossPoints ?? (sym.includes('BANK') ? 20 : sym.includes('SENSEX') ? 30 : sym.includes('MID') ? 15 : 12);
+            const sym = (idx.displayName || idx.symbol || '').toUpperCase();
+            const matchedCfg = findCfgMatch(idx);
+            const defLotSize =
+              idx.preferredLots ||
+              idx.defaultLotSize ||
+              idx.defaultLots ||
+              matchedCfg?.preferredLots ||
+              matchedCfg?.defaultLotSize ||
+              matchedCfg?.defaultLots ||
+              0;
+            const defQtyInLot =
+              idx.lotSize ||
+              idx.defaultQuantityInOneLot ||
+              matchedCfg?.lotSize ||
+              matchedCfg?.defaultQuantityInOneLot ||
+              0;
+            const slPts = idx.stopLossPoints ?? matchedCfg?.stopLossPoints ?? 0;
+            const display = idx.displayName || matchedCfg?.displayName || idx.symbol;
             return {
               ...idx,
+              symbol: display,
+              displayName: display,
+              name: display,
+              preferredLots: defLotSize,
               defaultLotSize: defLotSize,
               defaultLots: defLotSize,
               defaultQuantityInOneLot: defQtyInLot,
@@ -1311,23 +1356,30 @@ export class AlertComposerComponent implements OnInit {
               stopLossPoints: slPts,
             };
           });
-        } else if (cfg?.indices && cfg.indices.length > 0) {
-          activeIndices = cfg.indices
-            .filter((i) => i.enabled !== false)
-            .map((i) => ({
-              symbol: i.symbol,
-              name: i.name,
-              securityId: i.securityId,
-              exchangeSegment: i.exchangeSegment,
-              instrumentType: 'INDEX',
-              lotSize: i.defaultQuantityInOneLot || i.lotSize || 0,
-              defaultLotSize: i.defaultLotSize || i.defaultLots || 0,
-              defaultQuantityInOneLot: i.defaultQuantityInOneLot || i.lotSize || 0,
-              defaultLots: i.defaultLotSize || i.defaultLots || 0,
-              defaultQuantity: (i.defaultLotSize || 0) * (i.defaultQuantityInOneLot || 0),
-              stopLossPoints: i.stopLossPoints,
-              ltp: 0,
-            }));
+        } else if (cfgList.length > 0) {
+          activeIndices = cfgList
+            .map((i) => {
+              const display = i.displayName || i.name || i.symbol;
+              const prefLots = i.preferredLots || i.defaultLotSize || i.defaultLots || 0;
+              const lotQty = i.lotSize || i.defaultQuantityInOneLot || 0;
+              return {
+                symbol: display,
+                displayName: display,
+                symbolName: i.symbolName,
+                name: display,
+                securityId: i.securityId,
+                exchangeSegment: i.exchangeSegment,
+                instrumentType: 'INDEX',
+                lotSize: lotQty,
+                preferredLots: prefLots,
+                defaultLotSize: prefLots,
+                defaultQuantityInOneLot: lotQty,
+                defaultLots: prefLots,
+                defaultQuantity: prefLots * lotQty,
+                stopLossPoints: i.stopLossPoints,
+                ltp: 0,
+              };
+            });
         }
 
         this.instruments.set(activeIndices);
@@ -1335,14 +1387,30 @@ export class AlertComposerComponent implements OnInit {
           const querySym = this.route?.snapshot?.queryParams?.['symbol'];
           const current = this.selectedInstrumentSymbol;
           const matchedByQuery = querySym
-            ? activeIndices.find(
-                (i) =>
-                  i.symbol.toUpperCase() === querySym.toUpperCase() ||
-                  (i.name && i.name.toUpperCase().includes(querySym.toUpperCase()))
-              )
+            ? activeIndices.find((i) => {
+                const q = querySym.toUpperCase();
+                return (
+                  (i.displayName || i.symbol).toUpperCase() === q ||
+                  (i.symbolName && i.symbolName.toUpperCase() === q) ||
+                  (i.name && i.name.toUpperCase().includes(q))
+                );
+              })
             : null;
-          const matched = matchedByQuery || (current ? activeIndices.find((i) => i.symbol === current) : null);
-          const target = matched || activeIndices.find((i) => i.symbol === 'NIFTY 50') || activeIndices[0];
+          const matched =
+            matchedByQuery ||
+            (current
+              ? activeIndices.find(
+                  (i) => (i.displayName || i.symbol).toUpperCase() === current.toUpperCase(),
+                )
+              : null);
+          const target =
+            matched ||
+            activeIndices.find(
+              (i) =>
+                String(i.securityId) === '13' ||
+                (i.displayName || i.symbol).toUpperCase() === 'NIFTY 50',
+            ) ||
+            activeIndices[0];
           if (target) {
             const queryTarget = this.route?.snapshot?.queryParams?.['targetPrice'];
             const parsedQueryTarget =
@@ -1351,19 +1419,21 @@ export class AlertComposerComponent implements OnInit {
                 : undefined;
             const queryStrategy = this.route?.snapshot?.queryParams?.['strategy'];
             if (queryStrategy) {
-              if (queryStrategy.includes('DEMAND') || queryStrategy.includes('BULL')) {
+              if (queryStrategy.includes('DEMAND') || queryStrategy.includes('BULL') || queryStrategy.includes('BUY')) {
                 this.orderAction = 'BUY';
-              } else if (queryStrategy.includes('SUPPLY') || queryStrategy.includes('BEAR')) {
+              } else if (queryStrategy.includes('SUPPLY') || queryStrategy.includes('BEAR') || queryStrategy.includes('SELL')) {
                 this.orderAction = 'SELL';
               }
             }
-            this.onInstrumentChange(target.symbol, parsedQueryTarget);
+            this.onInstrumentChange(target.displayName || target.symbol, parsedQueryTarget);
           }
         } else {
           this.selectedInstrumentSymbol = '';
           this.selectedInstrument = null;
           this.currentLtp = null;
           this.targetPrice = null;
+          this.orderLots = 0;
+          this.stopLossPoints.set(0);
           this.expiries.set([]);
           this.strikePairs.set([]);
           this.selectedStrikePrice = null;
@@ -1372,18 +1442,38 @@ export class AlertComposerComponent implements OnInit {
         }
       },
       error: () => {
-        this.instrumentService.fetchConfiguredIndices().subscribe((indicesList) => {
+        this.instrumentService.fetchConfiguredIndices(true).subscribe((indicesList) => {
           const cfg = this.instrumentService.lotSizes();
+          const cfgList = cfg?.instruments || cfg?.indices || [];
           if (indicesList && indicesList.length > 0) {
             const enriched = indicesList.map((idx) => {
-              const sym = idx.symbol.toUpperCase();
-              const matchedCfg = cfg.indices?.find(
-                (c) => c.symbol.toUpperCase() === sym || sym.includes(c.symbol.toUpperCase())
+              const sym = (idx.displayName || idx.symbol || '').toUpperCase();
+              const matchedCfg = cfgList.find(
+                (c) =>
+                  (idx.securityId && String(c.securityId) === String(idx.securityId)) ||
+                  (c.displayName || c.symbol || '').toUpperCase() === sym,
               );
-              const defLotSize = idx.defaultLotSize || idx.defaultLots || matchedCfg?.defaultLotSize || matchedCfg?.defaultLots || 0;
-              const defQtyInLot = idx.defaultQuantityInOneLot || idx.lotSize || matchedCfg?.defaultQuantityInOneLot || matchedCfg?.lotSize || 0;
+              const defLotSize =
+                idx.preferredLots ||
+                idx.defaultLotSize ||
+                idx.defaultLots ||
+                matchedCfg?.preferredLots ||
+                matchedCfg?.defaultLotSize ||
+                matchedCfg?.defaultLots ||
+                0;
+              const defQtyInLot =
+                idx.lotSize ||
+                idx.defaultQuantityInOneLot ||
+                matchedCfg?.lotSize ||
+                matchedCfg?.defaultQuantityInOneLot ||
+                0;
+              const display = idx.displayName || matchedCfg?.displayName || idx.symbol;
               return {
                 ...idx,
+                symbol: display,
+                displayName: display,
+                name: display,
+                preferredLots: defLotSize,
                 defaultLotSize: defLotSize,
                 defaultLots: defLotSize,
                 defaultQuantityInOneLot: defQtyInLot,
@@ -1392,8 +1482,13 @@ export class AlertComposerComponent implements OnInit {
               };
             });
             this.instruments.set(enriched);
-            const target = enriched.find((i) => i.symbol === 'NIFTY 50') || enriched[0];
-            if (target) this.onInstrumentChange(target.symbol);
+            const target =
+              enriched.find(
+                (i) =>
+                  String(i.securityId) === '13' ||
+                  (i.displayName || i.symbol).toUpperCase() === 'NIFTY 50',
+              ) || enriched[0];
+            if (target) this.onInstrumentChange(target.displayName || target.symbol);
           }
         });
       },
@@ -1401,18 +1496,23 @@ export class AlertComposerComponent implements OnInit {
   }
 
   getPreferredLotsForInstrument(inst: Instrument | null): number {
-    const sym = (inst?.symbol || this.selectedInstrumentSymbol || '').toUpperCase();
+    const sym = (inst?.displayName || inst?.symbol || this.selectedInstrumentSymbol || '').toUpperCase();
     if (!sym) return 0;
     const cfg = this.instrumentService.lotSizes();
+    const cfgList = cfg?.instruments || cfg?.indices || [];
 
+    if (inst?.preferredLots && inst.preferredLots > 0) return inst.preferredLots;
     if (inst?.defaultLotSize && inst.defaultLotSize > 0) return inst.defaultLotSize;
     if (inst?.defaultLots && inst.defaultLots > 0) return inst.defaultLots;
 
-    const matched = cfg.indices?.find(
-      (i) => i.symbol.toUpperCase() === sym || sym.includes(i.symbol.toUpperCase())
+    const matched = cfgList.find(
+      (i) =>
+        (inst?.securityId && String(i.securityId) === String(inst.securityId)) ||
+        (i.displayName || i.symbol || '').toUpperCase() === sym ||
+        (i.symbolName && i.symbolName.toUpperCase() === sym),
     );
-    if (matched && (matched.defaultLotSize || matched.defaultLots)) {
-      return matched.defaultLotSize || matched.defaultLots || 0;
+    if (matched && (matched.preferredLots || matched.defaultLotSize || matched.defaultLots)) {
+      return matched.preferredLots || matched.defaultLotSize || matched.defaultLots || 0;
     }
     if (sym.includes('BANK') && cfg.bankNiftyLots) return cfg.bankNiftyLots;
     if ((sym.includes('MIDCAP') || sym.includes('MIDCP')) && cfg.midcapNiftyLots) return cfg.midcapNiftyLots;
@@ -1422,12 +1522,16 @@ export class AlertComposerComponent implements OnInit {
   }
 
   getLotSizeForInstrument(inst: Instrument | null): number {
-    const sym = (inst?.symbol || this.selectedInstrumentSymbol || '').toUpperCase();
+    const sym = (inst?.displayName || inst?.symbol || this.selectedInstrumentSymbol || '').toUpperCase();
     const cfg = this.instrumentService.lotSizes();
-    const matched = cfg.indices?.find(
-      (i) => i.symbol.toUpperCase() === sym || sym.includes(i.symbol.toUpperCase())
+    const cfgList = cfg?.instruments || cfg?.indices || [];
+    const matched = cfgList.find(
+      (i) =>
+        (inst?.securityId && String(i.securityId) === String(inst.securityId)) ||
+        (i.displayName || i.symbol || '').toUpperCase() === sym ||
+        (i.symbolName && i.symbolName.toUpperCase() === sym),
     );
-    if (matched && (matched.defaultQuantityInOneLot || matched.lotSize)) {
+    if (matched && (matched.lotSize || matched.defaultQuantityInOneLot)) {
       return matched.defaultQuantityInOneLot || matched.lotSize || 0;
     }
     if (inst?.defaultQuantityInOneLot && inst.defaultQuantityInOneLot > 0) {
@@ -1446,13 +1550,20 @@ export class AlertComposerComponent implements OnInit {
   getDefinedSlPoints(symbol: string): number {
     const upperSym = (symbol || '').toUpperCase();
     const cfg = this.instrumentService.lotSizes();
-    const matched = cfg.indices?.find((i) => i.symbol.toUpperCase() === upperSym);
+    const cfgList = cfg?.instruments || cfg?.indices || [];
+    const matched = cfgList.find(
+      (i) =>
+        (i.displayName || i.symbol || '').toUpperCase() === upperSym ||
+        (i.symbolName || '').toUpperCase() === upperSym,
+    );
     if (matched && matched.stopLossPoints) return matched.stopLossPoints;
-    if (upperSym.includes('BANK')) return 20;
-    if (upperSym.includes('MIDCAP') || upperSym.includes('MIDCP')) return 15;
-    if (upperSym.includes('SENSEX')) return 30;
-    if (upperSym.includes('NIFTY')) return 12;
-    return 15;
+    const inst = this.instruments().find(
+      (i) =>
+        (i.displayName || i.symbol || '').toUpperCase() === upperSym ||
+        (i.symbolName || '').toUpperCase() === upperSym,
+    );
+    if (inst && inst.stopLossPoints) return inst.stopLossPoints;
+    return 0;
   }
 
   onInstrumentChange(symbol: string, presetTargetPrice?: number): void {
@@ -1462,15 +1573,17 @@ export class AlertComposerComponent implements OnInit {
     const upper = (symbol || '').toUpperCase();
     const found = this.instruments().find(
       (i) =>
-        i.symbol.toUpperCase() === upper ||
-        (upper.includes('BANK') && i.symbol.toUpperCase().includes('BANK')) ||
-        (upper.includes('SENSEX') && i.symbol.toUpperCase().includes('SENSEX')) ||
+        (i.displayName || i.symbol).toUpperCase() === upper ||
+        (i.symbolName && i.symbolName.toUpperCase() === upper) ||
+        (upper.includes('BANK') && (i.displayName || i.symbol).toUpperCase().includes('BANK')) ||
+        (upper.includes('SENSEX') && (i.displayName || i.symbol).toUpperCase().includes('SENSEX')) ||
         ((upper.includes('MIDCAP') || upper.includes('MIDCP')) &&
-          (i.symbol.toUpperCase().includes('MIDCAP') || i.symbol.toUpperCase().includes('MIDCP'))) ||
+          ((i.displayName || i.symbol).toUpperCase().includes('MIDCAP') ||
+            (i.displayName || i.symbol).toUpperCase().includes('MIDCP'))) ||
         (upper.includes('NIFTY') &&
           !upper.includes('BANK') &&
           !upper.includes('MID') &&
-          i.symbol === 'NIFTY 50')
+          (String(i.securityId) === '13' || (i.displayName || i.symbol).toUpperCase() === 'NIFTY 50'))
     );
     if (!found) return;
 

@@ -19,17 +19,18 @@ describe('ScreenerComponent', () => {
   let router: Router;
 
   const mockInstruments = signal<ScreenerInstrumentItem[]>([
-    { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', enabled: true },
-    { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', enabled: true },
-    { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', enabled: true },
-    { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', enabled: true },
+    { symbol: 'NIFTY', displayName: 'Nifty 50', name: 'Nifty 50', securityId: '13' },
+    { symbol: 'BANKNIFTY', displayName: 'Nifty Bank', name: 'Nifty Bank', securityId: '25' },
+    { symbol: 'MIDCPNIFTY', displayName: 'Nifty Midcap Select', name: 'Nifty Midcap Select', securityId: '442' },
+    { symbol: 'SENSEX', displayName: 'Sensex', name: 'Sensex', securityId: '51' },
   ]);
 
   const mockRecommendations = signal<LiquiditySweepSignal[]>([
     {
-      id: 'NIFTY_50_1763440500_BUY',
-      symbol: 'NIFTY 50',
-      name: 'Nifty 50 Index',
+      id: 'NIFTY_1763440500_BUY',
+      symbol: 'NIFTY',
+      displayName: 'Nifty 50',
+      name: 'Nifty 50',
       signalType: 'BUY',
       levelType: 'PDL',
       levelPrice: 24500,
@@ -45,9 +46,10 @@ describe('ScreenerComponent', () => {
       ],
     },
     {
-      id: 'BANK_NIFTY_1763443200_SELL',
-      symbol: 'BANK NIFTY',
-      name: 'Bank Nifty Index',
+      id: 'BANKNIFTY_1763443200_SELL',
+      symbol: 'BANKNIFTY',
+      displayName: 'Nifty Bank',
+      name: 'Nifty Bank',
       signalType: 'SELL',
       levelType: 'PDH',
       levelPrice: 52500,
@@ -163,10 +165,10 @@ describe('ScreenerComponent', () => {
     const charts = compiled.querySelectorAll('app-sweep-chart');
     expect(charts.length).toBe(2);
 
-    expect(cards[0].textContent).toContain('NIFTY 50');
+    expect(cards[0].textContent).toContain('Nifty 50');
     expect(cards[0].textContent).toContain('BUY');
     expect(cards[0].textContent).toContain('PDL Sweep');
-    expect(cards[1].textContent).toContain('BANK NIFTY');
+    expect(cards[1].textContent).toContain('Nifty Bank');
     expect(cards[1].textContent).toContain('SELL');
     expect(cards[1].textContent).toContain('PDH Sweep');
   });
@@ -175,13 +177,13 @@ describe('ScreenerComponent', () => {
     component.activeSignalFilter.set('BUY');
     fixture.detectChanges();
     expect(component.filteredRecommendations().length).toBe(1);
-    expect(component.filteredRecommendations()[0].symbol).toBe('NIFTY 50');
+    expect(component.filteredRecommendations()[0].displayName).toBe('Nifty 50');
 
     component.activeSignalFilter.set('ALL');
     component.activeLevelFilter.set('PDH');
     fixture.detectChanges();
     expect(component.filteredRecommendations().length).toBe(1);
-    expect(component.filteredRecommendations()[0].symbol).toBe('BANK NIFTY');
+    expect(component.filteredRecommendations()[0].displayName).toBe('Nifty Bank');
   });
 
   it('should navigate to dashboard composer when clicking Create Alert on a recommendation card', () => {
@@ -192,7 +194,7 @@ describe('ScreenerComponent', () => {
 
     expect(navigateSpy).toHaveBeenCalledWith(['/'], {
       queryParams: {
-        symbol: 'NIFTY 50',
+        symbol: 'Nifty 50',
         targetPrice: 24525,
         stopLoss: 24482,
         strategy: 'BUY_PDL_SWEEP',

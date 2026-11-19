@@ -63,10 +63,10 @@ describe('SettingsPageComponent', () => {
       midcapNiftyLots: 5,
       sensexLots: 5,
       indices: [
-        { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 65, lotSize: 65, defaultLots: 5, defaultQuantity: 325, enabled: true },
-        { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 30, lotSize: 30, defaultLots: 5, defaultQuantity: 150, enabled: true },
-        { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 120, lotSize: 120, defaultLots: 5, defaultQuantity: 600, enabled: true },
-        { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 20, lotSize: 20, defaultLots: 5, defaultQuantity: 100, enabled: true },
+        { symbol: 'NIFTY 50', displayName: 'Nifty 50', name: 'Nifty 50 Index', securityId: '13', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 65, lotSize: 65, preferredLots: 5, defaultLots: 5, defaultQuantity: 325 },
+        { symbol: 'BANK NIFTY', displayName: 'Nifty Bank', name: 'Bank Nifty Index', securityId: '25', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 30, lotSize: 30, preferredLots: 5, defaultLots: 5, defaultQuantity: 150 },
+        { symbol: 'MIDCAP NIFTY', displayName: 'Nifty Midcap Select', name: 'Nifty Midcap Select', securityId: '442', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 120, lotSize: 120, preferredLots: 5, defaultLots: 5, defaultQuantity: 600 },
+        { symbol: 'SENSEX', displayName: 'Sensex', name: 'BSE Sensex Index', securityId: '51', exchangeSegment: 'IDX_I', defaultLotSize: 5, defaultQuantityInOneLot: 20, lotSize: 20, preferredLots: 5, defaultLots: 5, defaultQuantity: 100 },
       ],
       updatedAt: '2026-11-08T03:00:00.000Z',
     }),
@@ -91,6 +91,9 @@ describe('SettingsPageComponent', () => {
       tradedIndices: ['NIFTY', 'BANKNIFTY', 'MIDCPNIFTY', 'SENSEX'],
     }),
     isSavingLotSizes: vi.fn().mockReturnValue(false),
+    isLoadingLotSizes: vi.fn().mockReturnValue(false),
+    isSyncingTradedInstrumentsJson: vi.fn().mockReturnValue(false),
+    syncTradedInstrumentsFromJson: vi.fn().mockReturnValue(of({ success: true })),
     fetchSyncStatus: vi.fn().mockReturnValue(of(null)),
     fetchOptionsSyncStatus: vi.fn().mockReturnValue(of(null)),
     fetchLotSizes: vi.fn().mockReturnValue(of(null)),
@@ -204,14 +207,57 @@ describe('SettingsPageComponent', () => {
     expect(mockInstrumentService.flushAndReloadEquities).toHaveBeenCalled();
   });
 
-  it('should call flushAndReloadOptions when clicking Flush & Reload Options button and confirmed', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('should render compact Dhan HQ API Token Lifecycle section with only manual token input and renew button', () => {
     const el = fixture.nativeElement as HTMLElement;
-    const flushOptBtn = el.querySelector('#scrip-section .flush-options-btn') as HTMLButtonElement;
-    expect(flushOptBtn).toBeTruthy();
-    expect(flushOptBtn.textContent).toContain('Flush & Reload Options');
-    flushOptBtn.click();
-    expect(mockInstrumentService.flushAndReloadOptions).toHaveBeenCalled();
+    const tokenSection = el.querySelector('#token-section');
+    expect(tokenSection).toBeTruthy();
+
+    // Must have manual token text box and Renew Token button
+    expect(tokenSection?.querySelector('input[name="accessToken"]')).toBeTruthy();
+    const renewBtn = tokenSection?.querySelector('.renew-token-btn') as HTMLButtonElement;
+    expect(renewBtn).toBeTruthy();
+    expect(renewBtn.textContent).toContain('Renew Token');
+
+    // Must NOT show token metadata grid or extra descriptive text
+    expect(tokenSection?.querySelector('.token-details-grid')).toBeNull();
+    expect(tokenSection?.textContent).not.toContain('Client ID');
+    expect(tokenSection?.textContent).not.toContain('Token Status');
+    expect(tokenSection?.textContent).not.toContain('Time Remaining');
+    expect(tokenSection?.textContent).not.toContain('Masked Access Token');
+    expect(tokenSection?.textContent).not.toContain('Issued At');
+    expect(tokenSection?.textContent).not.toContain('Expires At');
+    expect(tokenSection?.textContent).not.toContain('Manual Token Update (Hot-Reload)');
+    expect(tokenSection?.textContent).not.toContain('Clear Input');
+  });
+
+  it('should not display Quantity in 1 Lot inputs or Dropdown checkboxes in Traded Instruments Master Data', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const lotsSection = el.querySelector('#lots-section');
+    expect(lotsSection).toBeTruthy();
+
+    expect(lotsSection?.textContent).not.toContain('Quantity in 1 Lot');
+    expect(lotsSection?.querySelectorAll('input[type="checkbox"]').length).toBe(0);
+    expect(lotsSection?.querySelectorAll('.dropdown-toggle').length).toBe(0);
+    expect(lotsSection?.textContent).not.toContain('Dropdown');
+
+    // Only 1 numeric input (Preferred Lot Size) per instrument card
+    expect(lotsSection?.querySelectorAll('.lot-card').length).toBe(4);
+    expect(lotsSection?.querySelectorAll('.lot-card input[type="number"]').length).toBe(4);
+
+    // Must NOT display verbose metadata badge text (ID / Freeze / Step) or "Shares" label
+    expect(lotsSection?.querySelector('.index-badge')).toBeNull();
+    expect(lotsSection?.textContent).not.toContain('Freeze');
+    expect(lotsSection?.textContent).not.toContain('Step');
+    expect(lotsSection?.textContent).toContain('Quantity');
+    expect(lotsSection?.textContent).not.toContain('Shares');
+  });
+
+  it('should completely remove Traded Index Options section, button, and status pill', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).not.toContain('Traded Index Options');
+    expect(el.querySelector('#scrip-section .flush-options-btn')).toBeNull();
+    expect(el.querySelector('.options-ribbon-pill')).toBeNull();
+    expect(el.textContent).not.toContain('index_options');
   });
 
   it('should not display old sync buttons in scrip section', () => {
@@ -269,29 +315,10 @@ describe('SettingsPageComponent', () => {
     expect(el.textContent).not.toContain('Google Cloud Firestore Infrastructure');
   });
 
-  it('should only show new password option in #user-auth-section and omit overview/protocol info and old password', () => {
+  it('should completely remove App User & Persistent Authentication section from settings page', () => {
     const el = fixture.nativeElement as HTMLElement;
-    const userAuthSec = el.querySelector('#user-auth-section');
-    expect(userAuthSec).toBeTruthy();
-
-    // Verify it only asks for new password, not old / current password
-    expect(userAuthSec?.textContent).toContain('New Password');
-    expect(userAuthSec?.textContent).not.toContain('Current Password');
-    expect(userAuthSec?.textContent).not.toContain('Enter current password');
-
-    // Verify it does not show overview info
-    expect(userAuthSec?.textContent).not.toContain('Active User');
-    expect(userAuthSec?.textContent).not.toContain('Session Persistence');
-    expect(userAuthSec?.textContent).not.toContain('Keeps you signed in until browser cache & cookies are cleared');
-    expect(userAuthSec?.textContent).not.toContain('Security Protocol');
-    expect(userAuthSec?.textContent).not.toContain('Hardware-resistant salted password derivation');
-
-    // Verify change password action
-    const changePwdSpy = vi.spyOn(component.userAuthService, 'changePassword').mockReturnValue(of({ success: true, message: 'Password updated' }));
-    component.newPasswordInput.set('mySecurePass123');
-    component.changeAppPassword();
-    expect(changePwdSpy).toHaveBeenCalledWith({ newPassword: 'mySecurePass123' });
-    expect(component.newPasswordInput()).toBe('');
+    expect(el.querySelector('#user-auth-section')).toBeNull();
+    expect(el.textContent).not.toContain('App User & Persistent Authentication');
   });
 
   it('should render active sessions inside #user-crud-section and allow killing sessions', () => {
@@ -401,5 +428,17 @@ describe('SettingsPageComponent', () => {
     // Kill all sessions for trader1
     component.confirmKillAllUserSessions('trader1');
     expect(killAllSpy).toHaveBeenCalledWith('trader1');
+  });
+
+  it('should display Data not available empty state when database has no traded instruments', () => {
+    component.indicesList = [];
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const lotsSection = el.querySelector('#lots-section');
+    expect(lotsSection?.textContent).toContain('Traded instruments data is not available in database');
+    expect(lotsSection?.querySelectorAll('.lot-card').length).toBe(0);
+    const saveBtn = lotsSection?.querySelector('.action-btn-primary') as HTMLButtonElement;
+    expect(saveBtn?.disabled).toBe(true);
   });
 });

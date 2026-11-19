@@ -5,8 +5,6 @@ import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '../../../core/api/auth.service';
 import { UserAuthService } from '../../../core/api/user-auth.service';
@@ -28,8 +26,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
     MatButtonModule,
     MatIconModule,
     MatTooltipModule,
-    MatFormFieldModule,
-    MatInputModule,
     IstDatePipe,
   ],
   template: `
@@ -91,68 +87,11 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   : 'Equities: Data not found in database' }}
               </span>
             </div>
-
-            <!-- Index Options Pill -->
-            <div
-              class="status-pill master-pill options-ribbon-pill"
-              [ngClass]="{
-                'active': instrumentService.optionsSyncStatus()?.storedInFirestore,
-                'warning-pill': !instrumentService.optionsSyncStatus()?.storedInFirestore
-              }"
-              matTooltip="Traded NSE Index Options in Firestore collection index_options"
-            >
-              <span class="material-symbols-rounded">{{ instrumentService.optionsSyncStatus()?.storedInFirestore ? 'stacked_line_chart' : 'database_off' }}</span>
-              <span class="pill-text">
-                {{ instrumentService.optionsSyncStatus()?.storedInFirestore
-                  ? 'Options: ' + (instrumentService.optionsSyncStatus()?.metadata?.totalItems | number) + ' Contracts'
-                  : 'Options: Data not found in database' }}
-              </span>
-            </div>
           </div>
         </section>
 
         <!-- SETTINGS CARDS GRID / CONTAINER -->
         <div class="settings-container">
-          <!-- SECTION 0: APP USER & AUTHENTICATION -->
-          <section class="settings-section-card" id="user-auth-section">
-            <div class="section-header">
-              <div class="section-title-wrap">
-                <div class="icon-avatar token-avatar">
-                  <span class="material-symbols-rounded">lock_reset</span>
-                </div>
-                <div>
-                  <h2 class="section-heading">App User & Persistent Authentication</h2>
-                  <p class="section-subheading">Update application workspace login password</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Password Update Form -->
-            <div class="password-update-row">
-              <div class="password-input-col">
-                <label class="compact-label">New Password</label>
-                <input
-                  type="password"
-                  [value]="newPasswordInput()"
-                  (input)="newPasswordInput.set($any($event.target).value)"
-                  (keydown.enter)="changeAppPassword()"
-                  placeholder="Enter new password (min 6 characters)"
-                  class="compact-password-input"
-                />
-              </div>
-              <button
-                mat-flat-button
-                color="primary"
-                class="action-btn-primary"
-                (click)="changeAppPassword()"
-                [disabled]="isChangingPassword() || !newPasswordInput() || newPasswordInput().length < 6"
-              >
-                <span class="material-symbols-rounded">{{ isChangingPassword() ? 'autorenew' : 'save' }}</span>
-                <span>{{ isChangingPassword() ? 'Updating...' : 'Update Password' }}</span>
-              </button>
-            </div>
-          </section>
-
           <!-- SECTION: USER MANAGEMENT, ACCESS CONTROL & ACTIVE SESSIONS (Restricted to 'admin' role) -->
           <section class="settings-section-card" id="user-crud-section" *ngIf="userAuthService.isAdmin()">
             <div class="section-header">
@@ -541,118 +480,54 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
           </section>
 
           <!-- SECTION 1: DHAN JWT TOKEN MANAGEMENT -->
-          <section class="settings-section-card" id="token-section">
-            <div class="section-header">
+          <section class="settings-section-card compact-token-card" id="token-section">
+            <div class="section-header compact-section-header">
               <div class="section-title-wrap">
                 <div class="icon-avatar token-avatar">
                   <span class="material-symbols-rounded">vpn_key</span>
                 </div>
-                <div>
-                  <h2 class="section-heading">Dhan HQ API Token Lifecycle</h2>
-                  <p class="section-subheading">Inspect active JWT claims, 1-click token renewal via Dhan API, or hot-reload new credentials</p>
-                </div>
+                <h2 class="section-heading">Dhan HQ API Token Lifecycle</h2>
               </div>
               <div class="section-actions">
                 <button
                   mat-flat-button
                   color="primary"
-                  class="action-btn-primary"
+                  class="action-btn-primary renew-token-btn"
                   (click)="authService.renewToken()"
                   [disabled]="authService.isRenewing()"
-                  matTooltip="Renew token using Dhan HQ API renew endpoint"
                 >
                   <span class="material-symbols-rounded" [class.spinning]="authService.isRenewing()">autorenew</span>
-                  {{ authService.isRenewing() ? 'Renewing...' : '1-Click Renew Token' }}
+                  <span>{{ authService.isRenewing() ? 'Renewing...' : 'Renew Token' }}</span>
                 </button>
               </div>
             </div>
 
-            <!-- Token Details Grid -->
-            <div class="token-details-grid" *ngIf="authService.tokenStatus() as token">
-              <div class="detail-box">
-                <div class="detail-label">Client ID</div>
-                <div class="detail-val mono-val">{{ token.clientId || 'Not Set' }}</div>
+            <form (ngSubmit)="submitTokenUpdate()" class="token-compact-row">
+              <div class="token-input-col">
+                <input
+                  type="text"
+                  [(ngModel)]="tokenInput"
+                  name="accessToken"
+                  placeholder="Enter new Dhan access token"
+                  class="compact-password-input mono-val"
+                  autocomplete="off"
+                  required
+                />
               </div>
-              <div class="detail-box">
-                <div class="detail-label">Token Status</div>
-                <div class="detail-val status-val" [ngClass]="{
-                  'green': token.status === 'ACTIVE',
-                  'yellow': token.status === 'EXPIRING_SOON',
-                  'red': token.status === 'EXPIRED'
-                }">
-                  <span class="pulse-dot"></span>
-                  {{ token.statusText }}
-                </div>
-              </div>
-              <div class="detail-box">
-                <div class="detail-label">Time Remaining</div>
-                <div class="detail-val mono-val countdown-val" [ngClass]="{ 'urgent': authService.statusColor() === 'red' }">
-                  ⏱ {{ authService.timeRemainingFormatted() }}
-                </div>
-              </div>
-              <div class="detail-box">
-                <div class="detail-label">Masked Access Token</div>
-                <div class="detail-val mono-val token-mask">{{ token.tokenMasked || 'None' }}</div>
-              </div>
-              <div class="detail-box">
-                <div class="detail-label">Issued At (IST)</div>
-                <div class="detail-val mono-val">{{ token.issuedAtIST || 'N/A' }}</div>
-              </div>
-              <div class="detail-box">
-                <div class="detail-label">Expires At (IST)</div>
-                <div class="detail-val mono-val">{{ token.expiresAtIST || 'N/A' }}</div>
-              </div>
-            </div>
-
-            <!-- Manual Token Hot-Reload Form -->
-            <div class="inner-form-box">
-              <h3 class="inner-form-title">
-                <span class="material-symbols-rounded">edit_document</span>
-                Manual Token Update (Hot-Reload)
-              </h3>
-              <p class="inner-form-desc">
-                Paste a newly generated 24-hour Dhan Access Token from web.dhan.co. It will instantly hot-reload in memory and synchronize to Google Cloud Firestore (<code>config/dhan</code>).
-              </p>
-
-              <form (ngSubmit)="submitTokenUpdate()" class="token-form">
-                <div class="form-row">
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>New Dhan JWT Access Token</mat-label>
-                    <textarea
-                      matInput
-                      rows="3"
-                      [(ngModel)]="tokenInput"
-                      name="accessToken"
-                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                      required
-                    ></textarea>
-                  </mat-form-field>
-                </div>
-
-                <div class="form-actions-row">
-                  <button
-                    mat-flat-button
-                    color="primary"
-                    type="submit"
-                    [disabled]="!tokenInput.trim() || isUpdatingToken()"
-                  >
-                    <span class="material-symbols-rounded">save</span>
-                    {{ isUpdatingToken() ? 'Updating...' : 'Update & Hot-Reload Token' }}
-                  </button>
-                  <button
-                    mat-button
-                    type="button"
-                    (click)="tokenInput = ''"
-                    [disabled]="!tokenInput"
-                  >
-                    Clear Input
-                  </button>
-                </div>
-              </form>
-            </div>
+              <button
+                mat-flat-button
+                color="primary"
+                type="submit"
+                class="action-btn-primary"
+                [disabled]="!tokenInput.trim() || isUpdatingToken()"
+              >
+                <span class="material-symbols-rounded">{{ isUpdatingToken() ? 'autorenew' : 'save' }}</span>
+                <span>{{ isUpdatingToken() ? 'Updating...' : 'Update Token' }}</span>
+              </button>
+            </form>
           </section>
 
-          <!-- SECTION 2: DYNAMIC INDEX LOT SIZE & DROPDOWN CONFIGURATION -->
+          <!-- SECTION 2: TRADED INSTRUMENTS MASTER DATA (master_data/traded_instruments) -->
           <section class="settings-section-card" id="lots-section">
             <div class="section-header">
               <div class="section-title-wrap">
@@ -660,20 +535,33 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   <span class="material-symbols-rounded">tune</span>
                 </div>
                 <div>
-                  <h2 class="section-heading">Index Lot Size Configuration & Dropdown (Firestore-Driven)</h2>
+                  <h2 class="section-heading">Traded Instruments Master Data (Firestore: <code>master_data/traded_instruments</code>)</h2>
                   <p class="section-subheading">
-                    Configure your preferred order size in <strong>Lots</strong> and <strong>Quantity in 1 Lot</strong> below. Manage which indices appear in the Conditional Alert Composer dropdown.
+                    Configure your preferred order lots for each traded instrument.
                   </p>
                 </div>
               </div>
-              <div class="section-actions">
+              <div class="section-actions" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <button
+                  mat-stroked-button
+                  color="primary"
+                  class="action-btn-secondary sync-json-btn"
+                  (click)="onSyncTradedInstrumentsFromJson()"
+                  [disabled]="instrumentService.isSyncingTradedInstrumentsJson() || instrumentService.isSavingLotSizes()"
+                  matTooltip="Fast sync official Dhan fields from static backend JSON without downloading full CSV (preserves your preferred lots &amp; SL)"
+                >
+                  <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncingTradedInstrumentsJson()">
+                    {{ instrumentService.isSyncingTradedInstrumentsJson() ? 'sync' : 'data_object' }}
+                  </span>
+                  <span>{{ instrumentService.isSyncingTradedInstrumentsJson() ? 'Syncing JSON...' : 'Sync from Master JSON' }}</span>
+                </button>
                 <button
                   mat-flat-button
                   color="primary"
                   class="action-btn-primary"
                   (click)="saveLotSizes()"
-                  [disabled]="instrumentService.isSavingLotSizes()"
-                  matTooltip="Save changes to Google Cloud Firestore database"
+                  [disabled]="indicesList.length === 0 || instrumentService.isSavingLotSizes() || instrumentService.isSyncingTradedInstrumentsJson()"
+                  matTooltip="Save changes to Google Cloud Firestore (master_data/traded_instruments)"
                 >
                   <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSavingLotSizes()">save</span>
                   {{ instrumentService.isSavingLotSizes() ? 'Saving...' : 'Save Configuration to Firestore' }}
@@ -681,243 +569,65 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
               </div>
             </div>
 
-            <!-- Interactive Lot Size & Quantity Inputs Grid -->
-            <div class="lot-sizes-inputs-grid">
-              <!-- NIFTY 50 -->
-              <div class="lot-card" [ngClass]="{ 'disabled-index': !getIndexConfig('NIFTY 50')?.enabled }">
-                <div class="lot-card-header">
-                  <div>
-                    <div class="index-symbol">NIFTY 50</div>
-                    <span class="index-badge">NSE Benchmark</span>
-                  </div>
-                  <label class="dropdown-toggle" matTooltip="Toggle whether NIFTY 50 appears in the Alert Composer dropdown">
-                    <input
-                      type="checkbox"
-                      [checked]="getIndexConfig('NIFTY 50')?.enabled"
-                      (change)="toggleIndexEnabled('NIFTY 50', $event)"
-                    />
-                    <span>Dropdown</span>
-                  </label>
+            <!-- Loading State while fetching from Firestore -->
+            <div class="db-empty-state-card" *ngIf="indicesList.length === 0 && instrumentService.isLoadingLotSizes()">
+              <span class="material-symbols-rounded empty-state-icon spinning">sync</span>
+              <div class="empty-state-copy">
+                <div class="empty-state-title">Loading traded instruments from database...</div>
+                <div class="empty-state-desc">Reading live configuration from Firestore <code>master_data/traded_instruments</code>.</div>
+              </div>
+            </div>
+
+            <!-- Empty Database Banner for Traded Instruments (Zero false defaults) -->
+            <div class="db-empty-state-card warning-state" *ngIf="indicesList.length === 0 && !instrumentService.isLoadingLotSizes()">
+              <span class="material-symbols-rounded empty-state-icon warn">database_off</span>
+              <div class="empty-state-copy">
+                <div class="empty-state-title">Traded instruments data is not available in database</div>
+                <div class="empty-state-desc">
+                  Firestore document <code>master_data/traded_instruments</code> has no records.
+                  Click <strong>Sync from Master JSON</strong> above to populate official NSE/BSE instruments.
                 </div>
-                <div class="lot-inputs-dual-grid">
-                  <div class="lot-input-wrapper">
-                    <label class="lot-label">Quantity in 1 Lot:</label>
-                    <div class="input-with-suffix">
-                      <input
-                        type="number"
-                        min="1"
-                        class="styled-number-input"
-                        [(ngModel)]="qtyNifty50"
-                        (ngModelChange)="onQtyChanged('NIFTY 50', qtyNifty50)"
-                        placeholder="Qty"
-                      />
-                      <span class="input-suffix">Qty</span>
-                    </div>
-                  </div>
-                  <div class="lot-input-wrapper">
-                    <label class="lot-label">Preferred Lot Size:</label>
-                    <div class="input-with-suffix">
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        class="styled-number-input"
-                        [(ngModel)]="lotNifty50"
-                        (ngModelChange)="onLotsChanged('NIFTY 50', lotNifty50)"
-                        placeholder="Lots"
-                      />
-                      <span class="input-suffix">Lots</span>
-                    </div>
+              </div>
+            </div>
+
+            <!-- Interactive Preferred Lot Size Grid -->
+            <div class="lot-sizes-inputs-grid" *ngIf="indicesList.length > 0">
+              <div class="lot-card" *ngFor="let item of indicesList; trackBy: trackBySecurityId">
+                <div class="lot-card-header">
+                  <div class="index-symbol">{{ item.displayName || item.name || item.symbolName || item.symbol || '--' }}</div>
+                </div>
+                <div class="lot-input-wrapper">
+                  <label class="lot-label">Preferred Lot Size:</label>
+                  <div class="input-with-suffix">
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      class="styled-number-input"
+                      [ngModel]="item.preferredLots"
+                      (ngModelChange)="onItemLotsChanged(item, $event)"
+                      [name]="'lots_' + item.securityId"
+                      placeholder="Lots"
+                    />
+                    <span class="input-suffix">Lots</span>
                   </div>
                 </div>
                 <!-- Dynamic Configured Quantity Banner -->
                 <div class="configured-qty-box">
                   <span class="qty-sub">Configured Order Quantity:</span>
-                  <span class="qty-main mono-val">{{ lotNifty50 * qtyNifty50 }} Shares</span>
-                  <span class="qty-calc mono-val">({{ lotNifty50 }} lots &times; {{ qtyNifty50 }} qty/lot)</span>
+                  <span class="qty-main mono-val" *ngIf="(item.preferredLots || 0) > 0 && (item.lotSize || 0) > 0; else qtyUnavailable">
+                    {{ (item.preferredLots || 0) * (item.lotSize || 0) }} Quantity
+                  </span>
+                  <ng-template #qtyUnavailable>
+                    <span class="qty-main mono-val text-muted">Data not available</span>
+                  </ng-template>
+                  <span class="qty-calc mono-val">({{ (item.preferredLots || 0) > 0 ? item.preferredLots + ' lots' : '--' }} &times; {{ (item.lotSize || 0) > 0 ? item.lotSize + ' qty/lot' : '--' }})</span>
                 </div>
                 <!-- Quick Lot Buttons -->
                 <div class="quick-lot-pills">
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotNifty50 === 5 }" (click)="lotNifty50 = 5; onLotsChanged('NIFTY 50', 5)">5 Lots ({{ 5 * qtyNifty50 }})</button>
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotNifty50 === 10 }" (click)="lotNifty50 = 10; onLotsChanged('NIFTY 50', 10)">10 Lots ({{ 10 * qtyNifty50 }})</button>
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotNifty50 === 15 }" (click)="lotNifty50 = 15; onLotsChanged('NIFTY 50', 15)">15 Lots ({{ 15 * qtyNifty50 }})</button>
-                </div>
-              </div>
-
-              <!-- BANK NIFTY -->
-              <div class="lot-card" [ngClass]="{ 'disabled-index': !getIndexConfig('BANK NIFTY')?.enabled }">
-                <div class="lot-card-header">
-                  <div>
-                    <div class="index-symbol">BANK NIFTY</div>
-                    <span class="index-badge">NSE Sectoral</span>
-                  </div>
-                  <label class="dropdown-toggle" matTooltip="Toggle whether BANK NIFTY appears in the Alert Composer dropdown">
-                    <input
-                      type="checkbox"
-                      [checked]="getIndexConfig('BANK NIFTY')?.enabled"
-                      (change)="toggleIndexEnabled('BANK NIFTY', $event)"
-                    />
-                    <span>Dropdown</span>
-                  </label>
-                </div>
-                <div class="lot-inputs-dual-grid">
-                  <div class="lot-input-wrapper">
-                    <label class="lot-label">Quantity in 1 Lot:</label>
-                    <div class="input-with-suffix">
-                      <input
-                        type="number"
-                        min="1"
-                        class="styled-number-input"
-                        [(ngModel)]="qtyBankNifty"
-                        (ngModelChange)="onQtyChanged('BANK NIFTY', qtyBankNifty)"
-                        placeholder="Qty"
-                      />
-                      <span class="input-suffix">Qty</span>
-                    </div>
-                  </div>
-                  <div class="lot-input-wrapper">
-                    <label class="lot-label">Preferred Lot Size:</label>
-                    <div class="input-with-suffix">
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        class="styled-number-input"
-                        [(ngModel)]="lotBankNifty"
-                        (ngModelChange)="onLotsChanged('BANK NIFTY', lotBankNifty)"
-                        placeholder="Lots"
-                      />
-                      <span class="input-suffix">Lots</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="configured-qty-box">
-                  <span class="qty-sub">Configured Order Quantity:</span>
-                  <span class="qty-main mono-val">{{ lotBankNifty * qtyBankNifty }} Shares</span>
-                  <span class="qty-calc mono-val">({{ lotBankNifty }} lots &times; {{ qtyBankNifty }} qty/lot)</span>
-                </div>
-                <div class="quick-lot-pills">
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotBankNifty === 5 }" (click)="lotBankNifty = 5; onLotsChanged('BANK NIFTY', 5)">5 Lots ({{ 5 * qtyBankNifty }})</button>
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotBankNifty === 10 }" (click)="lotBankNifty = 10; onLotsChanged('BANK NIFTY', 10)">10 Lots ({{ 10 * qtyBankNifty }})</button>
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotBankNifty === 15 }" (click)="lotBankNifty = 15; onLotsChanged('BANK NIFTY', 15)">15 Lots ({{ 15 * qtyBankNifty }})</button>
-                </div>
-              </div>
-
-              <!-- MIDCAP NIFTY -->
-              <div class="lot-card" [ngClass]="{ 'disabled-index': !getIndexConfig('MIDCAP NIFTY')?.enabled }">
-                <div class="lot-card-header">
-                  <div>
-                    <div class="index-symbol">MIDCAP NIFTY</div>
-                    <span class="index-badge">Midcap Select</span>
-                  </div>
-                  <label class="dropdown-toggle" matTooltip="Toggle whether MIDCAP NIFTY appears in the Alert Composer dropdown">
-                    <input
-                      type="checkbox"
-                      [checked]="getIndexConfig('MIDCAP NIFTY')?.enabled"
-                      (change)="toggleIndexEnabled('MIDCAP NIFTY', $event)"
-                    />
-                    <span>Dropdown</span>
-                  </label>
-                </div>
-                <div class="lot-inputs-dual-grid">
-                  <div class="lot-input-wrapper">
-                    <label class="lot-label">Quantity in 1 Lot:</label>
-                    <div class="input-with-suffix">
-                      <input
-                        type="number"
-                        min="1"
-                        class="styled-number-input"
-                        [(ngModel)]="qtyMidcapNifty"
-                        (ngModelChange)="onQtyChanged('MIDCAP NIFTY', qtyMidcapNifty)"
-                        placeholder="Qty"
-                      />
-                      <span class="input-suffix">Qty</span>
-                    </div>
-                  </div>
-                  <div class="lot-input-wrapper">
-                    <label class="lot-label">Preferred Lot Size:</label>
-                    <div class="input-with-suffix">
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        class="styled-number-input"
-                        [(ngModel)]="lotMidcapNifty"
-                        (ngModelChange)="onLotsChanged('MIDCAP NIFTY', lotMidcapNifty)"
-                        placeholder="Lots"
-                      />
-                      <span class="input-suffix">Lots</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="configured-qty-box">
-                  <span class="qty-sub">Configured Order Quantity:</span>
-                  <span class="qty-main mono-val">{{ lotMidcapNifty * qtyMidcapNifty }} Shares</span>
-                  <span class="qty-calc mono-val">({{ lotMidcapNifty }} lots &times; {{ qtyMidcapNifty }} qty/lot)</span>
-                </div>
-                <div class="quick-lot-pills">
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotMidcapNifty === 5 }" (click)="lotMidcapNifty = 5; onLotsChanged('MIDCAP NIFTY', 5)">5 Lots ({{ 5 * qtyMidcapNifty }})</button>
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotMidcapNifty === 10 }" (click)="lotMidcapNifty = 10; onLotsChanged('MIDCAP NIFTY', 10)">10 Lots ({{ 10 * qtyMidcapNifty }})</button>
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotMidcapNifty === 15 }" (click)="lotMidcapNifty = 15; onLotsChanged('MIDCAP NIFTY', 15)">15 Lots ({{ 15 * qtyMidcapNifty }})</button>
-                </div>
-              </div>
-
-              <!-- SENSEX -->
-              <div class="lot-card" [ngClass]="{ 'disabled-index': !getIndexConfig('SENSEX')?.enabled }">
-                <div class="lot-card-header">
-                  <div>
-                    <div class="index-symbol">SENSEX</div>
-                    <span class="index-badge">BSE Benchmark</span>
-                  </div>
-                  <label class="dropdown-toggle" matTooltip="Toggle whether SENSEX appears in the Alert Composer dropdown">
-                    <input
-                      type="checkbox"
-                      [checked]="getIndexConfig('SENSEX')?.enabled"
-                      (change)="toggleIndexEnabled('SENSEX', $event)"
-                    />
-                    <span>Dropdown</span>
-                  </label>
-                </div>
-                <div class="lot-inputs-dual-grid">
-                  <div class="lot-input-wrapper">
-                    <label class="lot-label">Quantity in 1 Lot:</label>
-                    <div class="input-with-suffix">
-                      <input
-                        type="number"
-                        min="1"
-                        class="styled-number-input"
-                        [(ngModel)]="qtySensex"
-                        (ngModelChange)="onQtyChanged('SENSEX', qtySensex)"
-                        placeholder="Qty"
-                      />
-                      <span class="input-suffix">Qty</span>
-                    </div>
-                  </div>
-                  <div class="lot-input-wrapper">
-                    <label class="lot-label">Preferred Lot Size:</label>
-                    <div class="input-with-suffix">
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        class="styled-number-input"
-                        [(ngModel)]="lotSensex"
-                        (ngModelChange)="onLotsChanged('SENSEX', lotSensex)"
-                        placeholder="Lots"
-                      />
-                      <span class="input-suffix">Lots</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="configured-qty-box">
-                  <span class="qty-sub">Configured Order Quantity:</span>
-                  <span class="qty-main mono-val">{{ lotSensex * qtySensex }} Shares</span>
-                  <span class="qty-calc mono-val">({{ lotSensex }} lots &times; {{ qtySensex }} qty/lot)</span>
-                </div>
-                <div class="quick-lot-pills">
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotSensex === 5 }" (click)="lotSensex = 5; onLotsChanged('SENSEX', 5)">5 Lots ({{ 5 * qtySensex }})</button>
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotSensex === 10 }" (click)="lotSensex = 10; onLotsChanged('SENSEX', 10)">10 Lots ({{ 10 * qtySensex }})</button>
-                  <button type="button" class="quick-pill" [ngClass]="{ 'active': lotSensex === 15 }" (click)="lotSensex = 15; onLotsChanged('SENSEX', 15)">15 Lots ({{ 15 * qtySensex }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': item.preferredLots === 5 }" (click)="onItemLotsChanged(item, 5)">5 Lots ({{ (item.lotSize || 0) > 0 ? 5 * (item.lotSize || 0) : '--' }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': item.preferredLots === 10 }" (click)="onItemLotsChanged(item, 10)">10 Lots ({{ (item.lotSize || 0) > 0 ? 10 * (item.lotSize || 0) : '--' }})</button>
+                  <button type="button" class="quick-pill" [ngClass]="{ 'active': item.preferredLots === 15 }" (click)="onItemLotsChanged(item, 15)">15 Lots ({{ (item.lotSize || 0) > 0 ? 15 * (item.lotSize || 0) : '--' }})</button>
                 </div>
               </div>
             </div>
@@ -938,7 +648,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 <div>
                   <h2 class="section-heading">NSE Security Masters & Firestore Sync</h2>
                   <p class="section-subheading">
-                    Cash equities in <code>sec_id_to_name_mapping</code> and traded index options in dedicated collection <code>index_options</code>
+                    Cash equities &amp; benchmark indices stored in Firestore collection <code>sec_id_to_name_mapping</code>
                   </p>
                 </div>
               </div>
@@ -956,25 +666,11 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   </span>
                   <span>{{ instrumentService.isFlushingEquities() ? 'Flushing & Reloading Equities...' : 'Flush & Reload Equities' }}</span>
                 </button>
-                <button
-                  mat-flat-button
-                  color="accent"
-                  class="action-btn-accent flush-options-btn"
-                  (click)="onFlushAndReloadOptions()"
-                  [disabled]="instrumentService.isFlushingOptions()"
-                  matTooltip="Flush index_options and reload fresh option contracts from Dhan"
-                >
-                  <span class="material-symbols-rounded" [class.spinning]="instrumentService.isFlushingOptions()">
-                    {{ instrumentService.isFlushingOptions() ? 'sync' : 'restart_alt' }}
-                  </span>
-                  <span>{{ instrumentService.isFlushingOptions() ? 'Flushing & Reloading Options...' : 'Flush & Reload Options' }}</span>
-                </button>
               </div>
             </div>
 
-            <!-- DUAL MASTER SUBSECTIONS -->
+            <!-- CASH EQUITIES & BENCHMARK INDICES -->
             <div class="dual-master-grid">
-              <!-- SUBSECTION A: CASH EQUITIES & BENCHMARK INDICES -->
               <div class="sub-master-card">
                 <div class="sub-master-header">
                   <div class="sub-master-title">
@@ -1037,71 +733,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                   <span>Equities flushed & reloaded: <strong class="mono-val">{{ eqRes.totalInstruments | number }}</strong> total ({{ eqRes.totalEquities | number }} equities, {{ eqRes.totalIndices | number }} indices)</span>
                 </div>
               </div>
-
-              <!-- SUBSECTION B: TRADED INDEX OPTIONS -->
-              <div class="sub-master-card">
-                <div class="sub-master-header">
-                  <div class="sub-master-title">
-                    <span class="material-symbols-rounded sub-icon options-icon">stacked_line_chart</span>
-                    <span>Traded Index Options</span>
-                  </div>
-                  <span class="collection-badge options-badge">index_options</span>
-                </div>
-
-                <!-- Options Not Found in Database Banner -->
-                <div class="db-not-found-banner" *ngIf="!instrumentService.optionsSyncStatus()?.storedInFirestore">
-                  <div class="db-not-found-icon">
-                    <span class="material-symbols-rounded">database_off</span>
-                  </div>
-                  <div class="db-not-found-content">
-                    <h4 class="db-not-found-title">Data is not found in database</h4>
-                    <p class="db-not-found-msg">
-                      Firestore collection <code>index_options</code> contains no option contracts.
-                      Click <strong>Flush & Reload Options</strong> above to download live option contracts for your traded indices.
-                    </p>
-                  </div>
-                </div>
-
-                <!-- Options Stats Grid -->
-                <div class="master-stats-grid" *ngIf="instrumentService.optionsSyncStatus()?.metadata as optMeta">
-                  <div class="stat-card">
-                    <div class="stat-val mono-val">{{ optMeta.totalItems | number }}</div>
-                    <div class="stat-lbl">Total Option Contracts</div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-val mono-val">{{ (optMeta.documentIds?.length || optMeta.totalChunks) ? ((optMeta.documentIds?.length || optMeta.totalChunks) | number) : '--' }}</div>
-                    <div class="stat-lbl">Index Documents</div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-val mono-val">{{ optMeta.maxExpiriesPerIndex ? (optMeta.maxExpiriesPerIndex | number) : '--' }}</div>
-                    <div class="stat-lbl">Max Expiries / Index</div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-val mono-val">{{ (instrumentService.optionsSyncStatus()?.tradedIndices?.length ?? '--') }}</div>
-                    <div class="stat-lbl">Traded Indices</div>
-                  </div>
-                </div>
-
-                <!-- Dedicated Index Documents Badges Box -->
-                <div class="documents-breakdown-box" *ngIf="instrumentService.optionsSyncStatus()?.metadata as optMeta">
-                  <div class="breakdown-title">Dedicated Index Documents in Firestore:</div>
-                  <div class="doc-chips">
-                    <span class="traded-index-pill" *ngFor="let idx of (optMeta.documentIds || instrumentService.optionsSyncStatus()?.tradedIndices || [])">
-                      <span class="material-symbols-rounded">description</span>
-                      {{ idx }} (Current & Next Expiry)
-                    </span>
-                  </div>
-                  <div class="sync-timestamp" *ngIf="optMeta.updatedAt">
-                    Last synchronized: {{ optMeta.updatedAt | istDate : 'full' }}
-                  </div>
-                </div>
-
-                <!-- Options Flush & Reload Success Banner -->
-                <div class="flush-inline-banner" *ngIf="instrumentService.lastFlushOptionsResult() as optRes">
-                  <span class="material-symbols-rounded">check_circle</span>
-                  <span>Options flushed & reloaded: <strong class="mono-val">{{ optRes.totalItems | number }}</strong> contracts across {{ optRes.totalChunks }} chunks</span>
-                </div>
-              </div>
             </div>
           </section>
         </div>
@@ -1114,6 +745,8 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         display: flex;
         flex-direction: column;
         min-height: 100%;
+        max-width: 100vw;
+        overflow-x: hidden;
         background-color: var(--bg-primary);
         color: var(--text-primary);
       }
@@ -1262,6 +895,8 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         display: flex;
         align-items: flex-start;
         gap: 14px;
+        min-width: 0;
+        flex: 1;
       }
       .icon-avatar {
         width: 44px;
@@ -1280,6 +915,8 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         font-weight: 700;
         color: var(--text-primary);
         margin: 0 0 4px 0;
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }
       .section-subheading {
         font-size: 0.8rem;
@@ -1308,25 +945,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         color: #0b0f19 !important;
         font-weight: 700;
       }
-      .password-update-row {
-        display: flex;
-        align-items: flex-end;
-        gap: 16px;
-        flex-wrap: wrap;
-        margin-top: 4px;
-      }
-      .password-input-col {
-        flex: 1;
-        min-width: 260px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-      .compact-label {
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: var(--text-muted);
-      }
       .compact-password-input {
         width: 100%;
         padding: 9px 14px;
@@ -1343,47 +961,31 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
           border-color: var(--dhan-cyan);
         }
       }
-      .token-details-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-        gap: 14px;
-        margin-bottom: 20px;
+      .compact-token-card {
+        padding: 16px 20px;
       }
-      .detail-box {
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        padding: 12px 14px;
-      }
-      .detail-label {
-        font-size: 0.72rem;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        margin-bottom: 4px;
-      }
-      .detail-val {
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: var(--text-primary);
-      }
-      .status-val {
-        display: inline-flex;
+      .compact-section-header {
         align-items: center;
-        gap: 6px;
+        margin-bottom: 12px;
+        padding-bottom: 12px;
       }
-      .countdown-val {
-        color: var(--dhan-cyan);
-        &.urgent { color: var(--color-loss); }
+      .compact-section-header .section-title-wrap {
+        align-items: center;
       }
-      .token-mask {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+      .compact-section-header .section-heading {
+        margin: 0;
       }
-      .inner-form-box, .documents-breakdown-box, .sub-master-card {
+      .token-compact-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .token-input-col {
+        flex: 1;
+        min-width: 240px;
+      }
+      .documents-breakdown-box, .sub-master-card {
         background: rgba(0, 0, 0, 0.2);
         border: 1px solid var(--border-subtle);
         border-radius: 8px;
@@ -1391,45 +993,11 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         margin-top: 16px;
       }
       .documents-breakdown-box { margin-bottom: 20px; padding: 14px; }
-      .inner-form-title {
-        font-size: 0.95rem;
-        font-weight: 700;
-        color: var(--text-primary);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 0 0 6px 0;
-      }
-      .inner-form-desc {
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-        margin: 0 0 16px 0;
-        line-height: 1.4;
-        code {
-          background: rgba(255, 255, 255, 0.06);
-          padding: 2px 6px;
-          border-radius: 4px;
-          color: var(--dhan-cyan);
-          font-family: var(--font-mono);
-        }
-      }
-      .form-row { margin-bottom: 12px; }
-      .form-actions-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-top: 8px;
-      }
       .lot-sizes-inputs-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         gap: 16px;
         margin-bottom: 16px;
-      }
-      .lot-inputs-dual-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
       }
       .lot-card {
         background: var(--bg-card);
@@ -1441,7 +1009,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         gap: 12px;
         transition: border-color 0.15s;
         &:focus-within { border-color: var(--dhan-cyan); }
-        &.disabled-index { opacity: 0.65; border-style: dashed; }
       }
       .lot-card-header {
         display: flex;
@@ -1452,15 +1019,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         font-weight: 700;
         font-size: 0.95rem;
         color: var(--text-primary);
-      }
-      .index-badge {
-        font-size: 0.68rem;
-        padding: 2px 8px;
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.06);
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
       }
       .lot-input-wrapper {
         display: flex;
@@ -1506,20 +1064,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         text-transform: uppercase;
         letter-spacing: 0.04em;
         pointer-events: none;
-      }
-      .dropdown-toggle {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 0.72rem;
-        font-weight: 600;
-        color: var(--dhan-cyan);
-        cursor: pointer;
-        user-select: none;
-        input[type="checkbox"] {
-          accent-color: var(--dhan-cyan);
-          cursor: pointer;
-        }
       }
       .configured-qty-box {
         background: rgba(0, 210, 196, 0.08);
@@ -1639,22 +1183,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         gap: 10px;
         flex-wrap: wrap;
       }
-      .action-btn-accent {
-        background: #9333ea !important;
-        color: #fff !important;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-weight: 600;
-        border-radius: 8px;
-        padding: 0 16px;
-        height: 38px;
-      }
-      .options-ribbon-pill.active {
-        background: rgba(168, 85, 247, 0.15) !important;
-        border-color: rgba(168, 85, 247, 0.4) !important;
-        color: #c084fc !important;
-      }
       .dual-master-grid {
         display: flex;
         flex-direction: column;
@@ -1664,6 +1192,8 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
         margin-bottom: 16px;
       }
       .sub-master-title {
@@ -1677,7 +1207,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
       .sub-icon {
         color: var(--dhan-cyan);
         font-size: 20px;
-        &.options-icon { color: #c084fc; }
       }
       .collection-badge {
         font-family: var(--font-mono);
@@ -1687,24 +1216,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         background: rgba(0, 210, 196, 0.12);
         color: var(--dhan-cyan);
         border: 1px solid rgba(0, 210, 196, 0.3);
-        &.options-badge {
-          background: rgba(168, 85, 247, 0.12);
-          color: #c084fc;
-          border-color: rgba(168, 85, 247, 0.3);
-        }
-      }
-      .traded-index-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        background: rgba(168, 85, 247, 0.15);
-        border: 1px solid rgba(168, 85, 247, 0.4);
-        border-radius: 6px;
-        padding: 4px 10px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: #e9d5ff;
-        .material-symbols-rounded { font-size: 14px; color: #c084fc; }
       }
       .master-inspector-card {
         margin-top: 24px;
@@ -1918,6 +1429,48 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         padding: 36px 20px;
         color: var(--text-muted);
         font-size: 0.875rem;
+      }
+      .db-empty-state-card {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px dashed var(--border-subtle);
+        background: rgba(15, 23, 42, 0.55);
+        flex-wrap: wrap;
+        &.warning-state {
+          border-color: rgba(245, 158, 11, 0.45);
+          background: rgba(245, 158, 11, 0.08);
+        }
+        .empty-state-icon {
+          font-size: 28px;
+          color: var(--dhan-cyan);
+          flex-shrink: 0;
+          &.warn {
+            color: var(--accent-amber, #f59e0b);
+          }
+        }
+        .empty-state-copy {
+          flex: 1;
+          min-width: 200px;
+        }
+        .empty-state-title {
+          font-size: 0.95rem;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin-bottom: 4px;
+        }
+        .empty-state-desc {
+          font-size: 0.8125rem;
+          color: var(--text-secondary);
+          line-height: 1.45;
+          code {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--dhan-cyan);
+          }
+        }
       }
       .inspector-pagination {
         display: flex;
@@ -2170,27 +1723,33 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 
       /* Mobile Optimizations for Platform Settings */
       @media (max-width: 768px) {
-        .page-body { padding: 12px 14px 80px; }
+        .page-body { padding: 12px 14px calc(84px + env(safe-area-inset-bottom)); }
         .control-header-card { padding: 14px 16px; margin-bottom: 16px; gap: 12px; }
         .page-title { font-size: 1.15rem; }
         .page-icon { font-size: 24px; }
         .quick-status-ribbon { gap: 6px; }
         .status-pill { padding: 4px 8px; font-size: 0.7rem; }
         .settings-container { gap: 16px; }
-        .settings-section-card { padding: 14px 16px; border-radius: 10px; }
-        .section-header { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; }
+        .settings-section-card, .compact-token-card { padding: 14px 16px; border-radius: 10px; max-width: 100%; box-sizing: border-box; }
+        .section-header, .compact-section-header { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; }
         .section-actions { width: 100%; }
-        .section-actions button, .action-btn-primary { width: 100%; justify-content: center; min-height: 40px; }
-        .token-details-grid, .lot-sizes-inputs-grid { grid-template-columns: 1fr; gap: 10px; }
+        .section-actions button, .action-btn-primary, .action-btn-secondary { width: 100%; justify-content: center; min-height: 40px; }
+        .token-compact-row { flex-direction: column; align-items: stretch; gap: 10px; }
+        .token-input-col { min-width: 0; width: 100%; }
+        .lot-sizes-inputs-grid, .sessions-grid { grid-template-columns: 1fr; gap: 12px; }
+        .master-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .sub-master-card { padding: 14px; }
+        .session-quick-actions { width: 100%; flex-direction: column; }
+        .session-quick-actions button { width: 100%; justify-content: center; min-height: 40px; }
         .inspector-controls-bar { flex-direction: column; align-items: stretch; gap: 8px; }
         .search-box { min-width: 0; width: 100%; }
         .filter-pills { flex-wrap: wrap; }
         .inspector-tab-content { padding: 12px 10px; }
       }
       @media (max-width: 480px) {
-        .lot-inputs-dual-grid { grid-template-columns: 1fr; gap: 8px; }
+        .master-stats-grid { grid-template-columns: 1fr; }
         .quick-lot-pills { flex-direction: column; }
-        .quick-pill { min-height: 36px; display: flex; align-items: center; justify-content: center; }
+        .quick-pill { min-height: 40px; display: flex; align-items: center; justify-content: center; }
       }
     `,
   ],
@@ -2203,10 +1762,6 @@ export class SettingsPageComponent implements OnInit {
   readonly alertService = inject(AlertService);
   readonly orderService = inject(OrderService);
   private readonly snackBar = inject(MatSnackBar);
-
-  // App User Password Change
-  readonly newPasswordInput = signal('');
-  readonly isChangingPassword = signal(false);
 
   // User Management State (Restricted to 'sarang')
   readonly usersList = signal<UserSummary[]>([]);
@@ -2254,71 +1809,119 @@ export class SettingsPageComponent implements OnInit {
   indicesList: IndexConfigItem[] = [];
 
   constructor() {
-    // Synchronize inputs when lot sizes signal changes
+    // Synchronize inputs when traded instruments signal changes
     effect(() => {
       const cfg = this.instrumentService.lotSizes();
       if (cfg) {
-        const nItem = cfg.indices?.find((i) => i.symbol.toUpperCase().includes('NIFTY 50'));
-        const bItem = cfg.indices?.find((i) => i.symbol.toUpperCase().includes('BANK'));
-        const mItem = cfg.indices?.find((i) => i.symbol.toUpperCase().includes('MIDCAP') || i.symbol.toUpperCase().includes('MIDCP'));
-        const sItem = cfg.indices?.find((i) => i.symbol.toUpperCase().includes('SENSEX'));
+        const list = cfg.instruments || cfg.indices || [];
+        const findItem = (secId: string, match: string) =>
+          list.find(
+            (i) =>
+              String(i.securityId) === secId ||
+              String(i.symbolName || '').toUpperCase() === match ||
+              String(i.displayName || i.symbol || '').toUpperCase().includes(match),
+          );
 
-        this.qtyNifty50 = nItem?.defaultQuantityInOneLot ?? nItem?.lotSize ?? cfg.nifty50 ?? 0;
-        this.qtyBankNifty = bItem?.defaultQuantityInOneLot ?? bItem?.lotSize ?? cfg.bankNifty ?? 0;
-        this.qtyMidcapNifty = mItem?.defaultQuantityInOneLot ?? mItem?.lotSize ?? cfg.midcapNifty ?? 0;
-        this.qtySensex = sItem?.defaultQuantityInOneLot ?? sItem?.lotSize ?? cfg.sensex ?? 0;
+        const nItem = findItem('13', 'NIFTY');
+        const bItem = findItem('25', 'BANK');
+        const mItem = findItem('442', 'MIDCP') || findItem('442', 'MIDCAP');
+        const sItem = findItem('51', 'SENSEX');
 
-        this.lotNifty50 = nItem?.defaultLotSize ?? nItem?.defaultLots ?? cfg.nifty50Lots ?? 0;
-        this.lotBankNifty = bItem?.defaultLotSize ?? bItem?.defaultLots ?? cfg.bankNiftyLots ?? 0;
-        this.lotMidcapNifty = mItem?.defaultLotSize ?? mItem?.defaultLots ?? cfg.midcapNiftyLots ?? 0;
-        this.lotSensex = sItem?.defaultLotSize ?? sItem?.defaultLots ?? cfg.sensexLots ?? 0;
+        this.qtyNifty50 = nItem?.lotSize ?? nItem?.defaultQuantityInOneLot ?? cfg.nifty50 ?? 0;
+        this.qtyBankNifty = bItem?.lotSize ?? bItem?.defaultQuantityInOneLot ?? cfg.bankNifty ?? 0;
+        this.qtyMidcapNifty = mItem?.lotSize ?? mItem?.defaultQuantityInOneLot ?? cfg.midcapNifty ?? 0;
+        this.qtySensex = sItem?.lotSize ?? sItem?.defaultQuantityInOneLot ?? cfg.sensex ?? 0;
 
-        if (cfg.indices && cfg.indices.length > 0) {
-          this.indicesList = cfg.indices.map((i) => ({ ...i }));
-        }
+        this.lotNifty50 = nItem?.preferredLots ?? nItem?.defaultLotSize ?? nItem?.defaultLots ?? cfg.nifty50Lots ?? 0;
+        this.lotBankNifty = bItem?.preferredLots ?? bItem?.defaultLotSize ?? bItem?.defaultLots ?? cfg.bankNiftyLots ?? 0;
+        this.lotMidcapNifty = mItem?.preferredLots ?? mItem?.defaultLotSize ?? mItem?.defaultLots ?? cfg.midcapNiftyLots ?? 0;
+        this.lotSensex = sItem?.preferredLots ?? sItem?.defaultLotSize ?? sItem?.defaultLots ?? cfg.sensexLots ?? 0;
+
+        this.indicesList = list.map((i) => ({
+          ...i,
+          lotSize: i.lotSize ?? i.defaultQuantityInOneLot ?? 0,
+          preferredLots: i.preferredLots ?? i.defaultLotSize ?? i.defaultLots ?? 0,
+        }));
+      } else {
+        this.indicesList = [];
       }
     });
   }
 
-  getIndexConfig(symbol: string): IndexConfigItem | undefined {
-    return this.indicesList.find((i) => i.symbol.toUpperCase() === symbol.toUpperCase());
+  trackBySecurityId(_index: number, item: IndexConfigItem): string {
+    return item.securityId || item.symbolName || String(_index);
   }
 
-  toggleIndexEnabled(symbol: string, event: any): void {
-    const idx = this.getIndexConfig(symbol);
-    if (idx) {
-      idx.enabled = event.target.checked;
-    }
-  }
-
-  onQtyChanged(symbol: string, qty: number): void {
-    const clean = Number(qty) || 0;
-    const idx = this.getIndexConfig(symbol);
-    if (idx) {
-      idx.defaultQuantityInOneLot = clean;
-      idx.lotSize = clean;
-      const lots = idx.defaultLotSize ?? idx.defaultLots ?? 0;
-      idx.defaultQuantity = lots * clean;
-    }
-  }
-
-  onLotsChanged(symbol: string, lots: number): void {
+  onItemLotsChanged(item: IndexConfigItem, lots: number): void {
     const clean = Number(lots) || 0;
-    const idx = this.getIndexConfig(symbol);
+    item.preferredLots = clean;
+    item.defaultLotSize = clean;
+    item.defaultLots = clean;
+    const qtyInOneLot = item.lotSize ?? item.defaultQuantityInOneLot ?? 0;
+    item.defaultQuantity = clean * qtyInOneLot;
+    this.syncScalarFieldsFromList();
+  }
+
+  private syncScalarFieldsFromList(): void {
+    const findItem = (secId: string, match: string) =>
+      this.indicesList.find(
+        (i) =>
+          String(i.securityId) === secId ||
+          String(i.symbolName || '').toUpperCase() === match ||
+          String(i.displayName || i.symbol || '').toUpperCase().includes(match),
+      );
+    const nItem = findItem('13', 'NIFTY');
+    const bItem = findItem('25', 'BANK');
+    const mItem = findItem('442', 'MIDCP') || findItem('442', 'MIDCAP');
+    const sItem = findItem('51', 'SENSEX');
+
+    this.qtyNifty50 = nItem?.lotSize ?? 0;
+    this.qtyBankNifty = bItem?.lotSize ?? 0;
+    this.qtyMidcapNifty = mItem?.lotSize ?? 0;
+    this.qtySensex = sItem?.lotSize ?? 0;
+    this.lotNifty50 = nItem?.preferredLots ?? 0;
+    this.lotBankNifty = bItem?.preferredLots ?? 0;
+    this.lotMidcapNifty = mItem?.preferredLots ?? 0;
+    this.lotSensex = sItem?.preferredLots ?? 0;
+  }
+
+  getIndexConfig(key: string): IndexConfigItem | undefined {
+    const clean = key.trim().toUpperCase();
+    return this.indicesList.find((i) => {
+      if (String(i.securityId) === key.trim()) return true;
+      const sym = String(i.symbolName || i.symbol || '').toUpperCase();
+      const disp = String(i.displayName || i.name || '').toUpperCase();
+      return (
+        sym === clean ||
+        disp === clean ||
+        (clean === 'NIFTY 50' && (sym === 'NIFTY' || disp === 'NIFTY 50')) ||
+        (clean === 'BANK NIFTY' && (sym === 'BANKNIFTY' || disp === 'NIFTY BANK')) ||
+        (clean === 'MIDCAP NIFTY' && (sym === 'MIDCPNIFTY' || disp === 'NIFTY MIDCAP SELECT'))
+      );
+    });
+  }
+
+  onLotsChanged(key: string, lots: number): void {
+    const clean = Number(lots) || 0;
+    const idx = this.getIndexConfig(key);
     if (idx) {
+      idx.preferredLots = clean;
       idx.defaultLotSize = clean;
       idx.defaultLots = clean;
-      const qtyInOneLot = idx.defaultQuantityInOneLot ?? idx.lotSize ?? 0;
+      const qtyInOneLot = idx.lotSize ?? idx.defaultQuantityInOneLot ?? 0;
       idx.defaultQuantity = clean * qtyInOneLot;
     }
+  }
+
+  onSyncTradedInstrumentsFromJson(): void {
+    this.instrumentService.syncTradedInstrumentsFromJson(false).subscribe();
   }
 
   ngOnInit(): void {
     this.authService.refreshStatus();
     this.instrumentService.fetchSyncStatus().subscribe();
-    this.instrumentService.fetchOptionsSyncStatus().subscribe();
-    this.instrumentService.fetchLotSizes().subscribe();
-    this.instrumentService.fetchConfiguredIndices().subscribe();
+    this.instrumentService.fetchLotSizes(true).subscribe();
+    this.instrumentService.fetchConfiguredIndices(true).subscribe();
     this.firestoreApi.refreshStatus().subscribe();
     if (this.userAuthService.isAdmin()) {
       this.loadUsersAndSessions();
@@ -2330,13 +1933,6 @@ export class SettingsPageComponent implements OnInit {
       return;
     }
     this.instrumentService.flushAndReloadEquities().subscribe();
-  }
-
-  onFlushAndReloadOptions(): void {
-    if (!confirm('Are you sure you want to completely flush and reload traded index options contracts from Dhan?')) {
-      return;
-    }
-    this.instrumentService.flushAndReloadOptions().subscribe();
   }
 
   submitTokenUpdate(): void {
@@ -2368,86 +1964,47 @@ export class SettingsPageComponent implements OnInit {
     const midcapNiftyLots = Number(this.lotMidcapNifty) || 0;
     const sensexLots = Number(this.lotSensex) || 0;
 
-    const nifty50Qty = Number(this.qtyNifty50) || 0;
-    const bankNiftyQty = Number(this.qtyBankNifty) || 0;
-    const midcapNiftyQty = Number(this.qtyMidcapNifty) || 0;
-    const sensexQty = Number(this.qtySensex) || 0;
-
     const updatedIndices: IndexConfigItem[] = this.indicesList
-      .filter((idx) => !idx.symbol.toUpperCase().includes('FIN'))
+      .filter((idx) => !String(idx.symbolName || idx.symbol || '').toUpperCase().includes('FIN'))
       .map((idx) => {
-        const sym = idx.symbol.toUpperCase();
-        let lots = idx.defaultLotSize ?? idx.defaultLots ?? 0;
-        let qtyInOneLot = idx.defaultQuantityInOneLot ?? idx.lotSize ?? 0;
+        const secId = String(idx.securityId || '');
+        const sym = String(idx.symbolName || idx.displayName || idx.symbol || '').toUpperCase();
+        let lots = idx.preferredLots ?? idx.defaultLotSize ?? idx.defaultLots ?? 0;
+        const fixedQtyInOneLot = idx.lotSize ?? idx.defaultQuantityInOneLot ?? 0;
 
-        if (sym.includes('BANK')) {
+        if (secId === '25' || sym.includes('BANK')) {
           lots = bankNiftyLots;
-          qtyInOneLot = bankNiftyQty;
-        } else if (sym.includes('MIDCAP') || sym.includes('MIDCP')) {
+        } else if (secId === '442' || sym.includes('MIDCAP') || sym.includes('MIDCP')) {
           lots = midcapNiftyLots;
-          qtyInOneLot = midcapNiftyQty;
-        } else if (sym.includes('SENSEX')) {
+        } else if (secId === '51' || sym.includes('SENSEX')) {
           lots = sensexLots;
-          qtyInOneLot = sensexQty;
-        } else if (sym.includes('NIFTY')) {
+        } else if (secId === '13' || sym.includes('NIFTY')) {
           lots = nifty50Lots;
-          qtyInOneLot = nifty50Qty;
         }
 
         return {
           ...idx,
+          preferredLots: lots,
           defaultLotSize: lots,
-          defaultQuantityInOneLot: qtyInOneLot,
-          lotSize: qtyInOneLot,
+          defaultQuantityInOneLot: fixedQtyInOneLot,
+          lotSize: fixedQtyInOneLot,
           defaultLots: lots,
-          defaultQuantity: lots * qtyInOneLot,
+          defaultQuantity: lots * fixedQtyInOneLot,
         };
       });
 
     this.instrumentService
       .updateLotSizes({
+        instruments: updatedIndices,
         indices: updatedIndices,
-        nifty50: nifty50Qty,
-        bankNifty: bankNiftyQty,
-        midcapNifty: midcapNiftyQty,
-        sensex: sensexQty,
         nifty50Lots,
         bankNiftyLots,
         midcapNiftyLots,
         sensexLots,
       })
       .subscribe(() => {
-        this.instrumentService.fetchConfiguredIndices().subscribe();
+        this.instrumentService.fetchConfiguredIndices(true).subscribe();
       });
-  }
-
-  changeAppPassword(): void {
-    const newPwd = this.newPasswordInput().trim();
-
-    if (!newPwd) {
-      this.snackBar.open('Please enter a new password', 'Dismiss', { duration: 3000 });
-      return;
-    }
-
-    if (newPwd.length < 6) {
-      this.snackBar.open('New password must be at least 6 characters long', 'Dismiss', { duration: 3000 });
-      return;
-    }
-
-    this.isChangingPassword.set(true);
-    this.userAuthService.changePassword({
-      newPassword: newPwd,
-    }).subscribe({
-      next: () => {
-        this.isChangingPassword.set(false);
-        this.newPasswordInput.set('');
-      },
-      error: (err) => {
-        this.isChangingPassword.set(false);
-        const msg = err?.error?.message || 'Failed to change password.';
-        this.snackBar.open(msg, 'Dismiss', { duration: 4000 });
-      },
-    });
   }
 
   // =========================================================================

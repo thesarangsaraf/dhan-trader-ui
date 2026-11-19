@@ -155,26 +155,32 @@ function formatIstDateOffset(deltaDays = 0): string {
             </div>
           </div>
 
-          <!-- Configured Master Indices Universe Strip (config/lot_sizes) -->
+          <!-- Configured Traded Instruments Strip (master_data/traded_instruments) -->
           <div class="universe-strip">
             <span class="universe-label">
               <span class="material-symbols-rounded">hub</span>
-              <span>Configured Indices ({{ screenerService.instrumentCount() }}):</span>
+              <span>Traded Instruments ({{ screenerService.instrumentCount() }}):</span>
             </span>
             <div class="universe-chips" *ngIf="screenerService.instruments().length > 0">
               <span
                 *ngFor="let inst of screenerService.instruments()"
                 class="index-chip mono-val"
-                [matTooltip]="inst.name"
+                [matTooltip]="(inst.exchId || '--') + ' • SecID: ' + (inst.securityId || '--') + ' • Lot: ' + (inst.lotSize || '--')"
               >
-                {{ inst.symbol }}
+                {{ inst.displayName || inst.name || inst.symbol }}
               </span>
             </div>
+            <span
+              *ngIf="!screenerService.isLoadingInstruments() && screenerService.instruments().length === 0 && !screenerService.instrumentsError()"
+              class="universe-empty-badge"
+            >
+              Data not available in database — sync from Master JSON in Settings
+            </span>
             <span
               *ngIf="screenerService.isLoadingInstruments()"
               class="universe-loading"
             >
-              Loading configured indices...
+              Loading traded instruments...
             </span>
           </div>
         </section>
@@ -182,7 +188,7 @@ function formatIstDateOffset(deltaDays = 0): string {
         <!-- SECTION ERROR: INSTRUMENTS LOAD FAILURE -->
         <app-section-error
           *ngIf="screenerService.instrumentsError() as instErr"
-          [title]="'Configured Indices Unavailable'"
+          [title]="'Traded Instruments Unavailable'"
           [message]="instErr"
           (retry)="screenerService.loadInstruments()"
         ></app-section-error>
@@ -192,12 +198,12 @@ function formatIstDateOffset(deltaDays = 0): string {
           <div class="kpi-card">
             <div class="kpi-label">
               <span class="material-symbols-rounded icon-dim">hub</span>
-              <span>Indices Scanned</span>
+              <span>Instruments Scanned</span>
             </div>
             <div class="kpi-value mono-val">
               {{ screenerService.scanResults() ? screenerService.totalScanned() : screenerService.instrumentCount() }}
             </div>
-            <div class="kpi-subtext">From Firestore config/lot_sizes</div>
+            <div class="kpi-subtext">From Firestore master_data/traded_instruments</div>
           </div>
 
           <div class="kpi-card highlight-cyan">
@@ -403,7 +409,7 @@ function formatIstDateOffset(deltaDays = 0): string {
                   [class.sell-row]="rec.signalType === 'SELL'"
                   (click)="scrollToCard(rec.id)"
                 >
-                  <td class="mono-val sym-cell">{{ rec.symbol }}</td>
+                  <td class="mono-val sym-cell">{{ rec.displayName || rec.name || rec.symbol }}</td>
                   <td>
                     <span
                       class="signal-badge"
@@ -478,7 +484,7 @@ function formatIstDateOffset(deltaDays = 0): string {
 
                   <div class="rec-title-wrap">
                     <div class="rec-symbol-line">
-                      <span class="rec-symbol mono-val">{{ rec.symbol }}</span>
+                      <span class="rec-symbol mono-val">{{ rec.displayName || rec.name || rec.symbol }}</span>
                       <span
                         class="level-pill mono-val"
                         [class.pd-pill]="rec.levelType === 'PDH' || rec.levelType === 'PDL'"
@@ -488,7 +494,7 @@ function formatIstDateOffset(deltaDays = 0): string {
                       <span class="session-date-pill mono-val">{{ rec.sessionDate }}</span>
                     </div>
                     <div class="rec-subline">
-                      {{ rec.name }} &bull; Confirmed {{ formatIstDateTime(rec.confirmationTimestamp) }} IST
+                      {{ rec.symbol }} &bull; Confirmed {{ formatIstDateTime(rec.confirmationTimestamp) }} IST
                     </div>
                   </div>
                 </div>
@@ -891,6 +897,18 @@ function formatIstDateOffset(deltaDays = 0): string {
       .universe-loading {
         font-size: 0.78rem;
         color: #64748b;
+      }
+
+      .universe-empty-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 0.76rem;
+        font-weight: 600;
+        color: #fbbf24;
+        background: rgba(245, 158, 11, 0.12);
+        border: 1px solid rgba(245, 158, 11, 0.35);
       }
 
       /* KPI GRID */
@@ -1545,7 +1563,7 @@ export class ScreenerComponent {
 
   readonly matchedSymbols = computed<string[]>(() => {
     const recs = this.screenerService.recommendations();
-    return Array.from(new Set(recs.map((r) => r.symbol))).sort();
+    return Array.from(new Set(recs.map((r) => r.displayName || r.name || r.symbol))).sort();
   });
 
   readonly filteredRecommendations = computed<LiquiditySweepSignal[]>(() => {
@@ -1557,7 +1575,8 @@ export class ScreenerComponent {
     return recs.filter((rec) => {
       if (signalFilter !== 'ALL' && rec.signalType !== signalFilter) return false;
       if (levelFilter !== 'ALL' && rec.levelType !== levelFilter) return false;
-      if (symbolFilter !== 'ALL' && rec.symbol !== symbolFilter) return false;
+      const recDisplay = rec.displayName || rec.name || rec.symbol;
+      if (symbolFilter !== 'ALL' && recDisplay !== symbolFilter && rec.symbol !== symbolFilter) return false;
       return true;
     });
   });
@@ -1656,7 +1675,7 @@ export class ScreenerComponent {
   goToComposerWithSetup(rec: LiquiditySweepSignal): void {
     this.router.navigate(['/'], {
       queryParams: {
-        symbol: rec.symbol,
+        symbol: rec.displayName || rec.name || rec.symbol,
         targetPrice: rec.confirmationClosePrice,
         stopLoss: rec.sweepPrice,
         strategy: `${rec.signalType}_${rec.levelType}_SWEEP`,

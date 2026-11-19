@@ -22,10 +22,10 @@ describe('ScreenerService', () => {
     expect(initReq.request.method).toBe('GET');
     initReq.flush({
       instruments: [
-        { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13', enabled: true },
-        { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25', enabled: true },
-        { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442', enabled: true },
-        { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51', enabled: true },
+        { symbol: 'NIFTY 50', name: 'Nifty 50 Index', securityId: '13' },
+        { symbol: 'BANK NIFTY', name: 'Bank Nifty Index', securityId: '25' },
+        { symbol: 'MIDCAP NIFTY', name: 'Nifty Midcap Select', securityId: '442' },
+        { symbol: 'SENSEX', name: 'BSE Sensex Index', securityId: '51' },
       ],
     });
   });

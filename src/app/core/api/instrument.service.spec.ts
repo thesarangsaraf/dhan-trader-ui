@@ -66,13 +66,13 @@ describe('InstrumentService', () => {
     expect(results?.[0].ltp).toBe(1313.4);
   });
 
-  it('should fetch index lot sizes from backend', () => {
+  it('should fetch traded instruments master config from backend', () => {
     let result: any;
     service.fetchLotSizes().subscribe((res) => {
       result = res;
     });
 
-    const req = httpTesting.expectOne('/api/instruments/lot-sizes');
+    const req = httpTesting.expectOne('/api/instruments/traded-instruments');
     expect(req.request.method).toBe('GET');
     req.flush({
       success: true,
@@ -84,13 +84,13 @@ describe('InstrumentService', () => {
     expect(service.lotSizes().bankNifty).toBe(30);
   });
 
-  it('should update index lot sizes in backend', () => {
+  it('should update traded instruments in backend', () => {
     let result: any;
     service.updateLotSizes({ nifty50: 75, bankNifty: 35 }).subscribe((res) => {
       result = res;
     });
 
-    const req = httpTesting.expectOne('/api/instruments/lot-sizes');
+    const req = httpTesting.expectOne('/api/instruments/traded-instruments');
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual({ nifty50: 75, bankNifty: 35 });
     req.flush({
@@ -101,6 +101,37 @@ describe('InstrumentService', () => {
     expect(result?.success).toBe(true);
     expect(service.lotSizes().nifty50).toBe(75);
     expect(service.lotSizes().bankNifty).toBe(35);
+  });
+
+  it('should sync traded instruments from static master JSON via POST /api/instruments/traded-instruments/sync-json', () => {
+    let result: any;
+    service.syncTradedInstrumentsFromJson(false).subscribe((res) => {
+      result = res;
+    });
+
+    const req = httpTesting.expectOne('/api/instruments/traded-instruments/sync-json');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ resetPreferences: false });
+    req.flush({
+      success: true,
+      data: {
+        source: 'static-master-json',
+        nifty50: 65,
+        bankNifty: 30,
+        midcapNifty: 120,
+        sensex: 20,
+        instruments: [{ symbolName: 'NIFTY', displayName: 'Nifty 50', securityId: '13', lotSize: 65 }],
+      },
+      message: 'Synced 4 traded instruments from static master JSON',
+    });
+
+    // Follow-up refresh of configured indices
+    const idxReq = httpTesting.expectOne('/api/instruments/indices');
+    expect(idxReq.request.method).toBe('GET');
+    idxReq.flush([]);
+
+    expect(result?.success).toBe(true);
+    expect(service.lotSizes().instruments?.[0].displayName).toBe('Nifty 50');
   });
 
   it('should trigger syncEquities and update syncStatus', () => {

@@ -15,11 +15,18 @@ export interface ScreenerCandle {
 
 export interface ScreenerInstrumentItem {
   symbol: string;
+  symbolName?: string;
+  displayName?: string;
   name: string;
+  exchId?: string;
   securityId?: string;
   exchangeSegment?: string;
+  lotSize?: number;
+  smFreezeQty?: number;
+  strikeStep?: number;
+  expiryFlag?: string;
   stopLossPoints?: number;
-  enabled: boolean;
+  enabled?: boolean;
 }
 
 export interface ScreenerInstrumentsResponse {
@@ -29,6 +36,7 @@ export interface ScreenerInstrumentsResponse {
 export interface LiquiditySweepSignal {
   id: string;
   symbol: string;
+  displayName?: string;
   name: string;
   signalType: ScreenerSignalType;
   levelType: LiquidityLevelType;

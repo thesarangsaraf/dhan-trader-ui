@@ -64,6 +64,8 @@ export class InstrumentService {
     indices: [],
   });
   readonly isSavingLotSizes = signal<boolean>(false);
+  readonly isLoadingLotSizes = signal<boolean>(false);
+  readonly isSyncingTradedInstrumentsJson = signal<boolean>(false);
 
   /**
    * Fetch list of tradeable indices configured in Firestore for Conditional Alert Composer dropdown.
@@ -74,59 +76,92 @@ export class InstrumentService {
     }
     return this.http.get<Instrument[]>('/api/instruments/indices').pipe(
       tap((res) => {
-        if (res && res.length > 0) {
-          this.configuredIndices.set(res);
-        }
+        this.configuredIndices.set(Array.isArray(res) ? res : []);
       }),
       catchError((err) => {
         console.warn('Backend /api/instruments/indices unavailable:', err);
+        if (force) {
+          this.configuredIndices.set([]);
+        }
         return of([]);
       })
     );
   }
 
   /**
-   * Fetch current index lot sizes configuration from Firestore.
+   * Fetch current traded instruments configuration from Firestore (master_data/traded_instruments).
    */
   fetchLotSizes(force = false): Observable<LotSizesResponse | null> {
-    if (!force && (this.lotSizes().indices?.length ?? 0) > 0) {
+    if (!force && ((this.lotSizes().instruments?.length ?? this.lotSizes().indices?.length ?? 0) > 0)) {
       return of({ success: true, data: this.lotSizes() });
     }
-    return this.http.get<LotSizesResponse>('/api/instruments/lot-sizes').pipe(
+    this.isLoadingLotSizes.set(true);
+    return this.http.get<LotSizesResponse>('/api/instruments/traded-instruments').pipe(
       tap((res) => {
         if (res?.success && res.data) {
           this.lotSizes.set(res.data);
         }
       }),
       catchError((err) => {
-        console.warn('Backend /api/instruments/lot-sizes unavailable:', err);
+        console.warn('Backend /api/instruments/traded-instruments unavailable:', err);
         return of(null);
-      })
+      }),
+      finalize(() => this.isLoadingLotSizes.set(false))
     );
   }
 
   /**
-   * Update index lot sizes configuration in Firestore.
+   * Update traded instruments configuration in Firestore (master_data/traded_instruments).
    */
   updateLotSizes(dto: UpdateLotSizesDto): Observable<LotSizesResponse | null> {
     this.isSavingLotSizes.set(true);
-    return this.http.put<LotSizesResponse>('/api/instruments/lot-sizes', dto).pipe(
+    return this.http.put<LotSizesResponse>('/api/instruments/traded-instruments', dto).pipe(
       tap((res) => {
         if (res?.success && res.data) {
           this.lotSizes.set(res.data);
-          this.snackBar.open('✅ Index lot sizes updated and saved to Firestore!', 'OK', {
+          this.snackBar.open('✅ Traded instruments saved to Firestore (master_data/traded_instruments)!', 'OK', {
             duration: 4000,
           });
         }
       }),
       catchError((err) => {
-        console.error('Failed to update lot sizes:', err);
-        const errMsg = err?.error?.message || err?.message || 'Failed to update lot sizes';
+        console.error('Failed to update traded instruments:', err);
+        const errMsg = err?.error?.message || err?.message || 'Failed to update traded instruments';
         this.snackBar.open(`❌ ${errMsg}`, 'Dismiss', { duration: 5000 });
         return of(null);
       }),
       finalize(() => this.isSavingLotSizes.set(false))
     );
+  }
+
+  /**
+   * Fast sync of master_data/traded_instruments directly from the static backend JSON file
+   * without downloading the full Dhan CSV. Preserves user preferences unless resetPreferences=true.
+   */
+  syncTradedInstrumentsFromJson(resetPreferences = false): Observable<LotSizesResponse | null> {
+    this.isSyncingTradedInstrumentsJson.set(true);
+    return this.http
+      .post<LotSizesResponse>('/api/instruments/traded-instruments/sync-json', { resetPreferences })
+      .pipe(
+        tap((res) => {
+          if (res?.success && res.data) {
+            this.lotSizes.set(res.data);
+            this.snackBar.open(
+              res.message || '✅ Synced traded instruments from static master JSON to Firestore!',
+              'OK',
+              { duration: 4500 },
+            );
+            this.fetchConfiguredIndices(true).subscribe();
+          }
+        }),
+        catchError((err) => {
+          console.error('Failed to sync traded instruments from master JSON:', err);
+          const errMsg = err?.error?.message || err?.message || 'Sync from master JSON failed';
+          this.snackBar.open(`❌ ${errMsg}`, 'Dismiss', { duration: 5000 });
+          return of(null);
+        }),
+        finalize(() => this.isSyncingTradedInstrumentsJson.set(false)),
+      );
   }
 
   /**

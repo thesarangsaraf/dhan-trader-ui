@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -9,8 +9,6 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { AuthService } from '../../../core/api/auth.service';
 import { OrderService } from '../../../core/api/order.service';
-import { InstrumentService } from '../../../core/api/instrument.service';
-import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 
 @Component({
   selector: 'app-auth-modal',
@@ -24,7 +22,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
     MatInputModule,
     MatProgressBarModule,
     MatChipsModule,
-    IstDatePipe,
   ],
   template: `
     <div class="auth-dialog">
@@ -106,7 +103,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 rows="3"
                 [(ngModel)]="tokenInput"
                 name="token"
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                placeholder="Enter new Dhan access token"
                 required
               ></textarea>
             </mat-form-field>
@@ -124,59 +121,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             </div>
           </form>
         </div>
-
-        <div class="divider"></div>
-
-        <!-- Firestore & Scrip Master Mapping Section -->
-        <div class="mapping-section">
-          <div class="section-header-row">
-            <div>
-              <h3 class="section-title">NSE Security Master & Firestore Sync</h3>
-              <p class="section-desc">Modular collection <code>sec_id_to_name_mapping</code> divided into instruments (Nifty 50, Bank Nifty, Midcap, Indices, Equities).</p>
-            </div>
-            <button
-              mat-flat-button
-              color="primary"
-              class="sync-btn"
-              (click)="instrumentService.syncMaster().subscribe()"
-              [disabled]="instrumentService.isSyncing()"
-            >
-              <span class="material-symbols-rounded" [class.spinning]="instrumentService.isSyncing()">cloud_sync</span>
-              {{ instrumentService.isSyncing() ? 'Syncing...' : 'Sync Master' }}
-            </button>
-          </div>
-
-          <div class="grid-details mini" *ngIf="instrumentService.syncStatus() as sync">
-            <ng-container *ngIf="sync.storedInFirestore && sync.metadata; else noDbScrip">
-              <div class="detail-row">
-                <span class="label">Firestore Collection:</span>
-                <span class="val mono-val">{{ sync.metadata.collection || 'sec_id_to_name_mapping' }}</span>
-              </div>
-              <div class="detail-row">
-                <span class="label">Total Instruments:</span>
-                <span class="val mono-val">{{ sync.metadata.totalInstruments | number }}</span>
-              </div>
-              <div class="detail-row">
-                <span class="label">Options / Indices / Equities:</span>
-                <span class="val mono-val">{{ sync.metadata.totalOptions | number }} / {{ sync.metadata.totalIndices | number }} / {{ sync.metadata.totalEquities | number }}</span>
-              </div>
-              <div class="detail-row">
-                <span class="label">Firestore Documents:</span>
-                <span class="val mono-val">{{ sync.metadata.documentsCount }} modular docs</span>
-              </div>
-              <div class="detail-row" *ngIf="sync.metadata.updatedAt">
-                <span class="label">Last Synced:</span>
-                <span class="val mono-val">{{ sync.metadata.updatedAt | istDate }}</span>
-              </div>
-            </ng-container>
-            <ng-template #noDbScrip>
-              <div class="detail-row warning-text">
-                <span class="material-symbols-rounded">database_off</span>
-                <span>Data is not found in database</span>
-              </div>
-            </ng-template>
-          </div>
-        </div>
       </mat-dialog-content>
     </div>
   `,
@@ -186,22 +130,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         padding: 12px 16px 20px 16px;
         min-width: 480px;
         max-width: 580px;
-      }
-      .section-header-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 12px;
-        margin-bottom: 12px;
-      }
-      .sync-btn {
-        flex-shrink: 0;
-      }
-      .grid-details.mini {
-        padding: 12px;
-        background: var(--bg-card);
-        border-radius: 8px;
-        border: 1px solid var(--border-subtle);
       }
       .key-icon {
         font-size: 32px;
@@ -269,20 +197,16 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
       .quick-actions button {
         flex: 1;
       }
-      .detail-row.warning-text {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        color: #f59e0b;
-        font-weight: 600;
-        font-size: 0.8125rem;
-      }
-      .detail-row.warning-text .material-symbols-rounded {
-        font-size: 18px;
-      }
 
       /* Mobile Optimizations for Auth Modal */
       @media (max-width: 600px) {
+        .auth-dialog {
+          min-width: 0 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box;
+        }
+
         .dialog-header {
           padding: 12px 14px;
         }
@@ -309,19 +233,14 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
     `,
   ],
 })
-export class AuthModalComponent implements OnInit {
+export class AuthModalComponent {
   readonly dialogRef = inject(MatDialogRef<AuthModalComponent>);
   readonly authService = inject(AuthService);
   readonly orderService = inject(OrderService);
-  readonly instrumentService = inject(InstrumentService);
 
   readonly isSubmitting = signal<boolean>(false);
 
   tokenInput = '';
-
-  ngOnInit(): void {
-    this.instrumentService.fetchSyncStatus().subscribe();
-  }
 
   submitManualUpdate(): void {
     const rawToken = this.tokenInput.trim();

@@ -1,13 +1,24 @@
 export interface Instrument {
   symbol: string;
+  displayName?: string;
+  symbolName?: string;
+  underlyingSymbol?: string;
+  exchId?: string;
+  segment?: string;
   customSymbol?: string;
   tradingSymbol?: string;
   name: string;
   securityId: string;
   exchangeSegment: string;
+  fnoExchangeSegment?: string;
   instrumentType: 'INDEX' | 'OPTIDX' | 'EQUITY' | 'FUTIDX' | string;
   ltp: number;
   lotSize?: number;
+  smFreezeQty?: number;
+  tickSize?: number;
+  expiryFlag?: string;
+  strikeStep?: number;
+  preferredLots?: number;
   defaultLotSize?: number;           // Preferred lot size (e.g. 5, 10, 15 lots)
   defaultQuantityInOneLot?: number;  // Quantity in 1 lot (e.g. 65, 30)
   defaultLots?: number;              // Compatibility alias for defaultLotSize
@@ -176,21 +187,44 @@ export interface SyncStatusResult {
 }
 
 export interface IndexConfigItem {
-  symbol: string;
-  name: string;
-  securityId: string;
+  // Official Dhan fields
+  exchId?: string;
+  segment?: string;
   exchangeSegment: string;
-  defaultLotSize?: number;           // 1. Default lot size preferred for this index (e.g. 5 lots)
-  defaultQuantityInOneLot?: number;  // 2. Default quantity in 1 lot size (e.g. 65 shares/lot)
+  securityId: string;
+  isin?: string;
+  instrument?: string;
+  underlyingSecurityId?: string;
+  underlyingSymbol?: string;
+  symbolName?: string;
+  displayName?: string;
+  instrumentType?: string;
+  series?: string;
+  lotSize?: number;
+  indexLotSize?: number;
+  tickSize?: number;
+  expiryFlag?: string;
+  expiryFlags?: string[];
+  smFreezeQty?: number;
+  fnoExchangeSegment?: string;
+  fnoUnderlyingSecurityId?: string;
+  strikeStep?: number;
+  optTickSize?: number;
+  // User trading preferences
+  preferredLots?: number;
   stopLossPoints?: number;
-  enabled: boolean;
   order?: number;
 
   // Compatibility aliases
-  lotSize?: number;
+  symbol: string;
+  name: string;
+  defaultLotSize?: number;
+  defaultQuantityInOneLot?: number;
   defaultLots?: number;
   defaultQuantity?: number;
 }
+
+export type TradedInstrumentRecord = IndexConfigItem;
 
 export interface CachedIndexOption {
   symbolName: string;
@@ -221,6 +255,7 @@ export interface OptionsQueryResult {
 }
 
 export interface IndexLotSizesConfig {
+  source?: string;
   nifty50: number;
   bankNifty: number;
   midcapNifty: number;
@@ -229,9 +264,12 @@ export interface IndexLotSizesConfig {
   bankNiftyLots?: number;
   midcapNiftyLots?: number;
   sensexLots?: number;
+  instruments?: IndexConfigItem[];
   indices?: IndexConfigItem[];
   updatedAt?: string;
 }
+
+export type TradedInstrumentsConfig = IndexLotSizesConfig;
 
 export interface UpdateLotSizesDto {
   nifty50?: number;
@@ -242,6 +280,9 @@ export interface UpdateLotSizesDto {
   bankNiftyLots?: number;
   midcapNiftyLots?: number;
   sensexLots?: number;
+  instruments?: IndexConfigItem[];
   indices?: IndexConfigItem[];
 }
+
+export type UpdateTradedInstrumentsDto = UpdateLotSizesDto;
 

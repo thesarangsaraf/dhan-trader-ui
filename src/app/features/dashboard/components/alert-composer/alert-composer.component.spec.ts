@@ -27,6 +27,7 @@ describe('AlertComposerComponent', () => {
           exchangeSegment: 'IDX_I',
           instrumentType: 'INDEX',
           lotSize: 65,
+          stopLossPoints: 12,
           ltp: 25030.0,
         },
         {
@@ -36,6 +37,7 @@ describe('AlertComposerComponent', () => {
           exchangeSegment: 'IDX_I',
           instrumentType: 'INDEX',
           lotSize: 30,
+          stopLossPoints: 20,
           ltp: 52000.0,
         },
       ]),
@@ -105,6 +107,7 @@ describe('AlertComposerComponent', () => {
           lotSize: 65,
           defaultLots: 5,
           defaultQuantity: 325,
+          stopLossPoints: 12,
           ltp: 25030.0,
         },
         {
@@ -116,6 +119,7 @@ describe('AlertComposerComponent', () => {
           lotSize: 30,
           defaultLots: 5,
           defaultQuantity: 150,
+          stopLossPoints: 20,
           ltp: 52000.0,
         },
       ]),
@@ -709,6 +713,42 @@ describe('AlertComposerComponent', () => {
 
       expect(component.currentLtp).toBe(25045.75);
       expect(component.targetPrice).toBe(24950);
+    });
+
+    it('should show Data not available when Firestore has no traded instruments (zero false defaults)', () => {
+      const emptyCfg = {
+        nifty50: 0,
+        bankNifty: 0,
+        midcapNifty: 0,
+        sensex: 0,
+        nifty50Lots: 0,
+        bankNiftyLots: 0,
+        midcapNiftyLots: 0,
+        sensexLots: 0,
+        instruments: [],
+        indices: [],
+      };
+      mockInstService.fetchConfiguredIndices.mockReturnValueOnce(of([]));
+      mockInstService.fetchLotSizes.mockReturnValueOnce(of({ success: true, data: emptyCfg }));
+      const origImpl = mockInstService.lotSizes.getMockImplementation();
+      mockInstService.lotSizes.mockReturnValue(emptyCfg);
+
+      try {
+        component.loadInstruments();
+        fixture.detectChanges();
+
+        expect(component.instruments().length).toBe(0);
+        expect(component.stopLossPoints()).toBe(0);
+        expect(component.getDefinedSlPoints('NIFTY 50')).toBe(0);
+
+        const compiled = fixture.nativeElement as HTMLElement;
+        expect(compiled.textContent).toContain('Traded instruments data is not available in database');
+        expect(compiled.textContent).toContain('Data not available');
+      } finally {
+        if (origImpl) {
+          mockInstService.lotSizes.mockImplementation(origImpl);
+        }
+      }
     });
   });
 });

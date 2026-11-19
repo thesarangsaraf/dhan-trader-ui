@@ -163,6 +163,13 @@ import { TelegramApiService } from '../../../core/api/telegram.service';
 
       /* Mobile Optimizations for Telegram Modal */
       @media (max-width: 600px) {
+        .telegram-dialog {
+          min-width: 0 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box;
+        }
+
         .dialog-header {
           padding: 12px 14px;
         }
