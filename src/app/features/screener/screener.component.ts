@@ -1,26 +1,36 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ScreenerService } from '../../core/api/screener.service';
 import {
   LiquidityLevelType,
+  LiquiditySweepEvent,
   LiquiditySweepSignal,
+  LiquiditySweepSymbolResult,
+  OrderBlockSymbolResult,
   ScreenerScanMode,
+  ScreenerStrategyType,
+  SweepEntryMode,
 } from '../../core/models/screener.models';
 import { CurrencyInrPipe } from '../../shared/pipes/currency-inr.pipe';
 import { IstDatePipe } from '../../shared/pipes/ist-date.pipe';
 import { SectionErrorComponent } from '../../shared/components/section-error/section-error.component';
 import { SweepChartComponent } from './components/sweep-chart/sweep-chart.component';
+import { OrderBlockChartComponent } from './components/order-block-chart/order-block-chart.component';
 
 const IST_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', {
   timeZone: 'Asia/Kolkata',
   hour: '2-digit',
   minute: '2-digit',
-  hour12: true,
+  hour12: false,
 });
 
 const IST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', {
@@ -29,7 +39,7 @@ const IST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', {
   month: 'short',
   hour: '2-digit',
   minute: '2-digit',
-  hour12: true,
+  hour12: false,
 });
 
 function formatIstDateOffset(deltaDays = 0): string {
@@ -43,36 +53,192 @@ function formatIstDateOffset(deltaDays = 0): string {
   imports: [
     CommonModule,
     FormsModule,
-    MatButtonModule,
-    MatIconModule,
     MatTooltipModule,
     CurrencyInrPipe,
     IstDatePipe,
     SectionErrorComponent,
     SweepChartComponent,
+    OrderBlockChartComponent,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="screener-root">
       <main class="page-body">
+        <!-- STRATEGY SELECTOR TABS -->
+        <div class="strategy-switcher-bar">
+          <div class="strategy-tabs" role="tablist" aria-label="Screener strategy switcher">
+            <button
+              type="button"
+              class="strategy-tab"
+              [class.active]="screenerService.activeStrategy() === 'liquidity-sweep'"
+              (click)="selectStrategy('liquidity-sweep')"
+              role="tab"
+              [attr.aria-selected]="screenerService.activeStrategy() === 'liquidity-sweep'"
+            >
+              <span class="material-symbols-rounded tab-icon">radar</span>
+              <span class="tab-title">Liquidity Sweep &amp; Reversal</span>
+              <span class="strategy-pill">5m Intraday</span>
+            </button>
+
+            <button
+              type="button"
+              class="strategy-tab"
+              [class.active]="screenerService.activeStrategy() === 'order-block'"
+              (click)="selectStrategy('order-block')"
+              role="tab"
+              [attr.aria-selected]="screenerService.activeStrategy() === 'order-block'"
+            >
+              <span class="material-symbols-rounded tab-icon">layers</span>
+              <span class="tab-title">Order Block (SMC / Supply &amp; Demand)</span>
+              <span class="strategy-pill highlight-pill">MTF POI</span>
+            </button>
+          </div>
+        </div>
+
         <!-- TOP CONTROL & ACTION BAR -->
         <section class="control-header-card">
           <div class="header-top-row">
             <div class="title-group">
               <div class="page-title">
-                <span class="material-symbols-rounded page-icon">radar</span>
-                <span>Liquidity Sweep &amp; Reversal Screener</span>
-                <span class="tf-pill mono-val">5m</span>
+                <span class="material-symbols-rounded page-icon">
+                  {{ screenerService.activeStrategy() === 'order-block' ? 'layers' : 'radar' }}
+                </span>
+                <span>
+                  {{ screenerService.activeStrategy() === 'order-block' ? 'Order Block (SMC) Strategy Scanner' : 'Liquidity Sweep Strategy Scanner' }}
+                </span>
+                <span class="tf-pill mono-val">
+                  {{ screenerService.activeStrategy() === 'order-block' ? screenerService.htfTimeframe() + ' + ' + screenerService.ltfTimeframe() : screenerService.sweepTimeframe() }}
+                </span>
               </div>
               <div class="page-subtitle">
-                On-Demand PDH / PDL &amp; Intraday High / Low Sweep Detection &bull; Yahoo Finance 5m OHLC
+                <ng-container *ngIf="screenerService.activeStrategy() === 'order-block'">
+                  Institutional Order Blocks &bull; Fair Value Gaps (FVG) &bull; BoS / CHoCH &bull; Unmitigated POI Sniper Confirmation
+                </ng-container>
+                <ng-container *ngIf="screenerService.activeStrategy() === 'liquidity-sweep'">
+                  Resting Stop Pools (BSL/SSL) &bull; Equal Highs / Lows (EQH/EQL) &bull; Sweep Rejection &bull; Opposing Target TP (1:2.5+ R:R)
+                </ng-container>
                 <span *ngIf="screenerService.lastScannedAt() as lastScan">
                   &bull; Last run at {{ lastScan | istDate : 'timeOnly' }}
                 </span>
               </div>
             </div>
 
-            <!-- Mode Selector + Run Scan CTA -->
+            <!-- Mode Selector + TF Selectors + Run Scan CTA -->
             <div class="controls-toolbar">
+              <!-- Liquidity Sweep Strategy Pickers -->
+              <div *ngIf="screenerService.activeStrategy() === 'liquidity-sweep'" class="mtf-pickers-group">
+                <div class="tf-toggle-wrap">
+                  <span class="tf-caption">Timeframe:</span>
+                  <div class="mini-toggle" role="group">
+                    <button
+                      type="button"
+                      class="mini-toggle-btn"
+                      [class.active]="screenerService.sweepTimeframe() === '5m'"
+                      (click)="selectSweepTf('5m')"
+                      [disabled]="screenerService.isScanning()"
+                    >
+                      5m
+                    </button>
+                    <button
+                      type="button"
+                      class="mini-toggle-btn"
+                      [class.active]="screenerService.sweepTimeframe() === '15m'"
+                      (click)="selectSweepTf('15m')"
+                      [disabled]="screenerService.isScanning()"
+                    >
+                      15m
+                    </button>
+                    <button
+                      type="button"
+                      class="mini-toggle-btn"
+                      [class.active]="screenerService.sweepTimeframe() === '1h'"
+                      (click)="selectSweepTf('1h')"
+                      [disabled]="screenerService.isScanning()"
+                    >
+                      1H
+                    </button>
+                  </div>
+                </div>
+
+                <div class="tf-toggle-wrap">
+                  <span class="tf-caption">Entry Mode:</span>
+                  <div class="mini-toggle" role="group">
+                    <button
+                      type="button"
+                      class="mini-toggle-btn"
+                      [class.active]="screenerService.sweepEntryMode() === 'RECLAIM_CLOSE'"
+                      (click)="selectSweepEntry('RECLAIM_CLOSE')"
+                      [disabled]="screenerService.isScanning()"
+                      title="Immediate Post-Sweep Reclaim Close"
+                    >
+                      Reclaim Close
+                    </button>
+                    <button
+                      type="button"
+                      class="mini-toggle-btn"
+                      [class.active]="screenerService.sweepEntryMode() === 'LTF_STRUCTURE_SHIFT'"
+                      (click)="selectSweepEntry('LTF_STRUCTURE_SHIFT')"
+                      [disabled]="screenerService.isScanning()"
+                      title="Confirmation Entry on LTF Structure Break (CHoCH)"
+                    >
+                      LTF CHoCH
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Order Block MTF Pickers -->
+              <div *ngIf="screenerService.activeStrategy() === 'order-block'" class="mtf-pickers-group">
+                <div class="tf-toggle-wrap">
+                  <span class="tf-caption">HTF POI:</span>
+                  <div class="mini-toggle" role="group">
+                    <button
+                      type="button"
+                      class="mini-toggle-btn"
+                      [class.active]="screenerService.htfTimeframe() === '1h'"
+                      (click)="selectHtf('1h')"
+                      [disabled]="screenerService.isScanning()"
+                    >
+                      1H
+                    </button>
+                    <button
+                      type="button"
+                      class="mini-toggle-btn"
+                      [class.active]="screenerService.htfTimeframe() === '4h'"
+                      (click)="selectHtf('4h')"
+                      [disabled]="screenerService.isScanning()"
+                    >
+                      4H
+                    </button>
+                  </div>
+                </div>
+
+                <div class="tf-toggle-wrap">
+                  <span class="tf-caption">LTF Entry:</span>
+                  <div class="mini-toggle" role="group">
+                    <button
+                      type="button"
+                      class="mini-toggle-btn"
+                      [class.active]="screenerService.ltfTimeframe() === '5m'"
+                      (click)="selectLtf('5m')"
+                      [disabled]="screenerService.isScanning()"
+                    >
+                      5m
+                    </button>
+                    <button
+                      type="button"
+                      class="mini-toggle-btn"
+                      [class.active]="screenerService.ltfTimeframe() === '15m'"
+                      (click)="selectLtf('15m')"
+                      [disabled]="screenerService.isScanning()"
+                    >
+                      15m
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live vs Historical Mode Toggle -->
               <div class="mode-toggle" role="group" aria-label="Scan mode selector">
                 <button
                   type="button"
@@ -80,7 +246,7 @@ function formatIstDateOffset(deltaDays = 0): string {
                   [class.active]="screenerService.scanMode() === 'live'"
                   (click)="selectMode('live')"
                   [disabled]="screenerService.isScanning()"
-                  matTooltip="Evaluates only the latest 2-3 closed 5m candles of the current session"
+                  matTooltip="Evaluates current market bars and unmitigated POIs"
                 >
                   <span class="live-dot" [class.pulsing]="screenerService.scanMode() === 'live'"></span>
                   <span>Live</span>
@@ -103,7 +269,7 @@ function formatIstDateOffset(deltaDays = 0): string {
                 class="run-scan-btn"
                 (click)="runScan()"
                 [disabled]="screenerService.isScanning() || screenerService.instrumentCount() === 0"
-                matTooltip="Execute on-demand 5m Liquidity Sweep scan"
+                matTooltip="Execute on-demand scan"
               >
                 <span
                   class="material-symbols-rounded"
@@ -158,43 +324,45 @@ function formatIstDateOffset(deltaDays = 0): string {
           <!-- Configured Traded Instruments Strip (master_data/traded_instruments) -->
           <div class="universe-strip">
             <span class="universe-label">
-              <span class="material-symbols-rounded">hub</span>
+              <span class="material-symbols-rounded">playlist_add_check</span>
               <span>Traded Instruments ({{ screenerService.instrumentCount() }}):</span>
             </span>
             <div class="universe-chips" *ngIf="screenerService.instruments().length > 0">
               <span
+                class="inst-chip index-chip"
                 *ngFor="let inst of screenerService.instruments()"
-                class="index-chip mono-val"
-                [matTooltip]="(inst.exchId || '--') + ' • SecID: ' + (inst.securityId || '--') + ' • Lot: ' + (inst.lotSize || '--')"
+                [title]="inst.symbol"
               >
                 {{ inst.displayName || inst.name || inst.symbol }}
               </span>
             </div>
-            <span
+            <div
+              class="universe-empty"
               *ngIf="!screenerService.isLoadingInstruments() && screenerService.instruments().length === 0 && !screenerService.instrumentsError()"
-              class="universe-empty-badge"
             >
-              Data not available in database — sync from Master JSON in Settings
-            </span>
-            <span
-              *ngIf="screenerService.isLoadingInstruments()"
+              No traded instruments configured in Firestore. Please add records to master_data/traded_instruments.
+            </div>
+            <div
               class="universe-loading"
+              *ngIf="screenerService.isLoadingInstruments()"
             >
-              Loading traded instruments...
-            </span>
+              <span class="material-symbols-rounded spinning">sync</span>
+              <span>Loading traded instruments...</span>
+            </div>
           </div>
         </section>
 
         <!-- SECTION ERROR: INSTRUMENTS LOAD FAILURE -->
         <app-section-error
           *ngIf="screenerService.instrumentsError() as instErr"
-          [title]="'Traded Instruments Unavailable'"
+          [title]="'Traded Instruments Offline'"
           [message]="instErr"
           (retry)="screenerService.loadInstruments()"
         ></app-section-error>
 
-        <!-- KPI SUMMARY METRICS -->
-        <section class="kpi-grid">
+        <!-- KPI SUMMARY METRICS STRIP -->
+        <!-- 1. LIQUIDITY SWEEP METRICS -->
+        <section *ngIf="screenerService.activeStrategy() === 'liquidity-sweep'" class="kpi-grid">
           <div class="kpi-card">
             <div class="kpi-label">
               <span class="material-symbols-rounded icon-dim">hub</span>
@@ -242,6 +410,64 @@ function formatIstDateOffset(deltaDays = 0): string {
           </div>
         </section>
 
+        <!-- 2. ORDER BLOCK (SMC) METRICS -->
+        <section *ngIf="screenerService.activeStrategy() === 'order-block'" class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">
+              <span class="material-symbols-rounded icon-dim">hub</span>
+              <span>Instruments</span>
+            </div>
+            <div class="kpi-value mono-val">
+              {{ screenerService.orderBlockResults() ? screenerService.orderBlockResults()?.totalScanned : screenerService.instrumentCount() }}
+            </div>
+            <div class="kpi-subtext">Traded master universe</div>
+          </div>
+
+          <div class="kpi-card highlight-cyan">
+            <div class="kpi-label">
+              <span class="material-symbols-rounded icon-cyan">layers</span>
+              <span>Active Unmitigated OBs</span>
+            </div>
+            <div class="kpi-value mono-val">
+              {{ screenerService.totalActiveOrderBlocks() }}
+            </div>
+            <div class="kpi-subtext">{{ screenerService.htfTimeframe() }} POI with FVG confluence</div>
+          </div>
+
+          <div class="kpi-card highlight-amber">
+            <div class="kpi-label">
+              <span class="material-symbols-rounded text-amber">near_me</span>
+              <span>Approaching POI</span>
+            </div>
+            <div class="kpi-value mono-val text-amber">
+              {{ screenerService.approachingCount() }}
+            </div>
+            <div class="kpi-subtext">Within 0.5% of proximal edge</div>
+          </div>
+
+          <div class="kpi-card highlight-coral">
+            <div class="kpi-label">
+              <span class="material-symbols-rounded text-coral">touch_app</span>
+              <span>Active Taps (Mitigating)</span>
+            </div>
+            <div class="kpi-value mono-val text-coral">
+              {{ screenerService.mitigatingCount() }}
+            </div>
+            <div class="kpi-subtext">Price inside [zoneLow, zoneHigh]</div>
+          </div>
+
+          <div class="kpi-card highlight-emerald">
+            <div class="kpi-label">
+              <span class="material-symbols-rounded icon-emerald">gps_fixed</span>
+              <span>Sniper Setups</span>
+            </div>
+            <div class="kpi-value mono-val text-emerald">
+              {{ screenerService.totalSniperSignals() }}
+            </div>
+            <div class="kpi-subtext">LTF CHoCH confirmed (&ge; 1:2.5 R:R)</div>
+          </div>
+        </section>
+
         <!-- SECTION ERROR: SCAN FAILURE -->
         <app-section-error
           *ngIf="screenerService.scanError() as err"
@@ -250,33 +476,38 @@ function formatIstDateOffset(deltaDays = 0): string {
           (retry)="runScan()"
         ></app-section-error>
 
-        <!-- RECOMMENDATIONS CONTAINER -->
-        <section class="setups-container">
+        <!-- ======================================================== -->
+        <!-- STRATEGY 1: LIQUIDITY SWEEP & REVERSAL RESULTS VIEW      -->
+        <!-- ======================================================== -->
+        <section *ngIf="screenerService.activeStrategy() === 'liquidity-sweep'" class="setups-container">
           <div class="setups-header">
             <div class="section-title">
-              <span class="material-symbols-rounded">candlestick_chart</span>
-              <span>Detected Liquidity Sweep Recommendations</span>
-              <span class="count-badge mono-val" *ngIf="screenerService.totalRecommendations() > 0">
+              <span class="material-symbols-rounded">radar</span>
+              <span>Liquidity Sweep Strategy Scanned Instruments &amp; Pools</span>
+              <span class="count-badge mono-val" *ngIf="filteredSweepSymbols().length > 0">
+                {{ filteredSweepSymbols().length }}
+              </span>
+              <span class="count-badge mono-val" *ngIf="filteredSweepSymbols().length === 0 && filteredRecommendations().length > 0">
                 {{ filteredRecommendations().length }}
               </span>
             </div>
 
             <!-- Filters Bar -->
-            <div class="filter-bar" *ngIf="screenerService.totalRecommendations() > 0">
+            <div class="filter-bar" *ngIf="screenerService.liquiditySweepSymbols().length > 0 || screenerService.totalRecommendations() > 0">
               <div class="filter-chips-bar">
                 <button
                   type="button"
                   class="filter-pill"
-                  [class.active]="activeSignalFilter() === 'ALL'"
-                  (click)="activeSignalFilter.set('ALL')"
+                  [class.active]="activeSignalFilter() === 'ALL' && activeSweepFilter() === 'ALL'"
+                  (click)="activeSignalFilter.set('ALL'); activeSweepFilter.set('ALL')"
                 >
-                  All ({{ screenerService.totalRecommendations() }})
+                  All ({{ screenerService.liquiditySweepSymbols().length || screenerService.totalRecommendations() }})
                 </button>
                 <button
                   type="button"
                   class="filter-pill pill-bullish"
-                  [class.active]="activeSignalFilter() === 'BUY'"
-                  (click)="activeSignalFilter.set('BUY')"
+                  [class.active]="activeSignalFilter() === 'BUY' || activeSweepFilter() === 'BUY'"
+                  (click)="activeSignalFilter.set('BUY'); activeSweepFilter.set('BUY')"
                 >
                   <span class="material-symbols-rounded mini-icon">trending_up</span>
                   BUY ({{ screenerService.bullishCount() }})
@@ -284,11 +515,31 @@ function formatIstDateOffset(deltaDays = 0): string {
                 <button
                   type="button"
                   class="filter-pill pill-bearish"
-                  [class.active]="activeSignalFilter() === 'SELL'"
-                  (click)="activeSignalFilter.set('SELL')"
+                  [class.active]="activeSignalFilter() === 'SELL' || activeSweepFilter() === 'SELL'"
+                  (click)="activeSignalFilter.set('SELL'); activeSweepFilter.set('SELL')"
                 >
                   <span class="material-symbols-rounded mini-icon">trending_down</span>
                   SELL ({{ screenerService.bearishCount() }})
+                </button>
+                <button
+                  type="button"
+                  class="filter-pill pill-amber"
+                  [class.active]="activeSweepFilter() === 'SIGNAL'"
+                  (click)="activeSweepFilter.set('SIGNAL')"
+                  *ngIf="screenerService.liquiditySweepSymbols().length > 0"
+                >
+                  <span class="material-symbols-rounded mini-icon">bolt</span>
+                  Signals ({{ screenerService.totalSweepSignals() }})
+                </button>
+                <button
+                  type="button"
+                  class="filter-pill pill-tap"
+                  [class.active]="activeSweepFilter() === 'EQ_POOLS'"
+                  (click)="activeSweepFilter.set('EQ_POOLS')"
+                  *ngIf="screenerService.liquiditySweepSymbols().length > 0"
+                >
+                  <span class="material-symbols-rounded mini-icon">join_inner</span>
+                  EQH / EQL Pools
                 </button>
               </div>
 
@@ -298,6 +549,7 @@ function formatIstDateOffset(deltaDays = 0): string {
                   [ngModel]="activeLevelFilter()"
                   (ngModelChange)="activeLevelFilter.set($event)"
                   aria-label="Filter by liquidity level"
+                  *ngIf="screenerService.liquiditySweepSymbols().length === 0"
                 >
                   <option value="ALL">All Levels</option>
                   <option value="PDL">PDL</option>
@@ -329,15 +581,13 @@ function formatIstDateOffset(deltaDays = 0): string {
             <div class="empty-icon-wrap">
               <span class="material-symbols-rounded">radar</span>
             </div>
-            <div class="empty-title">Ready for On-Demand 5m Liquidity Sweep Scan</div>
+            <div class="empty-title">Ready for Standalone Liquidity Sweep Scan</div>
             <div class="empty-desc">
-              Select <strong>Live</strong> (evaluates the latest 2&ndash;3 closed 5m candles) or
-              <strong>Historical</strong> (backtests full trading sessions by date/range), then click
-              <strong>&ldquo;Run Scan&rdquo;</strong> to detect PDH/PDL and Intraday High/Low sweeps with interactive TradingView charts.
+              Click <strong>Run Scan</strong> to detect resting stop pools (BSL/SSL, EQH/EQL) and confirmed rejection sweeps.
             </div>
             <button
               type="button"
-              class="empty-action-btn"
+              class="run-scan-btn lg"
               (click)="runScan()"
               [disabled]="screenerService.instrumentCount() === 0"
             >
@@ -346,119 +596,144 @@ function formatIstDateOffset(deltaDays = 0): string {
             </button>
           </div>
 
-          <!-- Scanning Loading State -->
+          <!-- Loading State -->
           <div *ngIf="screenerService.isScanning()" class="loading-state-card">
-            <div class="scan-spinner"></div>
-            <div class="loading-title">Scanning 5-Minute Candles via Yahoo Finance...</div>
+            <div class="spinner-large">
+              <span class="material-symbols-rounded spinning">sync</span>
+            </div>
+            <div class="loading-title">Scanning Market Data for Liquidity Sweeps...</div>
             <div class="loading-desc">
-              Evaluating PDH/PDL and causal Intraday High/Low liquidity sweeps across
-              {{ screenerService.instrumentCount() }} configured indices ({{ screenerService.scanMode() }} mode).
+              Analyzing {{ screenerService.sweepTimeframe() }} candles across {{ screenerService.instrumentCount() }} configured indices ({{ screenerService.scanMode() }} mode).
             </div>
           </div>
 
-          <!-- Zero Recommendations Found State -->
+          <!-- Empty Results State (Scan completed with 0 matches) -->
           <div
             *ngIf="
               screenerService.scanResults() &&
+              screenerService.liquiditySweepSymbols().length === 0 &&
               screenerService.totalRecommendations() === 0 &&
               !screenerService.isScanning()
             "
-            class="empty-state-card"
+            class="empty-state-card no-signals"
           >
-            <div class="empty-icon-wrap amber">
-              <span class="material-symbols-rounded">search_off</span>
+            <div class="empty-icon-wrap dim">
+              <span class="material-symbols-rounded">check_circle</span>
             </div>
-            <div class="empty-title">No Liquidity Sweep Setups Detected</div>
+            <div class="empty-title">No Liquidity Sweep Signals Detected</div>
             <div class="empty-desc">
-              <ng-container *ngIf="screenerService.scanResults()?.mode === 'live'; else histEmpty">
-                None of the {{ screenerService.totalScanned() }} configured indices triggered a confirmed
-                5-minute sweep &amp; reversal within the latest 2&ndash;3 closed candles. Try switching to
-                <strong>Historical</strong> mode to inspect earlier sessions.
-              </ng-container>
-              <ng-template #histEmpty>
-                No 5-minute PDH/PDL or Intraday High/Low sweep reversals occurred between
-                <strong>{{ screenerService.scanResults()?.startDate }}</strong> and
-                <strong>{{ screenerService.scanResults()?.endDate }}</strong> across the scanned indices.
-              </ng-template>
+              No confirmed liquidity sweeps were detected across the configured indices for the current lookback.
             </div>
           </div>
 
-          <!-- Compact Summary Jump Table (Desktop) -->
+          <!-- 1. STANDALONE LIQUIDITY SWEEP SYMBOLS VIEW -->
           <div
-            *ngIf="filteredRecommendations().length > 0 && !screenerService.isScanning()"
-            class="summary-table-wrapper desktop-only"
+            *ngIf="filteredSweepSymbols().length > 0 && !screenerService.isScanning()"
+            class="recommendation-cards-list"
           >
-            <table class="summary-table">
-              <thead>
-                <tr>
-                  <th>Index</th>
-                  <th>Signal</th>
-                  <th>Swept Level</th>
-                  <th>Level Price</th>
-                  <th>Sweep Extreme</th>
-                  <th>Confirm Close</th>
-                  <th>Time (IST)</th>
-                  <th class="text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  *ngFor="let rec of filteredRecommendations(); trackBy: trackBySignalId"
-                  class="summary-row"
-                  [class.buy-row]="rec.signalType === 'BUY'"
-                  [class.sell-row]="rec.signalType === 'SELL'"
-                  (click)="scrollToCard(rec.id)"
-                >
-                  <td class="mono-val sym-cell">{{ rec.displayName || rec.name || rec.symbol }}</td>
-                  <td>
-                    <span
-                      class="signal-badge"
-                      [class.badge-buy]="rec.signalType === 'BUY'"
-                      [class.badge-sell]="rec.signalType === 'SELL'"
-                    >
-                      <span class="material-symbols-rounded">
-                        {{ rec.signalType === 'BUY' ? 'trending_up' : 'trending_down' }}
-                      </span>
-                      {{ rec.signalType }}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      class="level-pill mono-val"
-                      [class.pd-pill]="rec.levelType === 'PDH' || rec.levelType === 'PDL'"
-                    >
-                      {{ formatLevelLabel(rec.levelType) }}
-                    </span>
-                  </td>
-                  <td class="mono-val">{{ rec.levelPrice | currencyInr }}</td>
-                  <td class="mono-val sweep-val">{{ rec.sweepPrice | currencyInr }}</td>
-                  <td
-                    class="mono-val"
-                    [class.text-emerald]="rec.signalType === 'BUY'"
-                    [class.text-coral]="rec.signalType === 'SELL'"
+            <article
+              *ngFor="let item of filteredSweepSymbols(); trackBy: trackBySweepSymbol"
+              [id]="'sweep-card-' + item.symbol"
+              class="recommendation-card"
+              [class.buy-card]="item.signal?.action === 'BUY'"
+              [class.sell-card]="item.signal?.action === 'SELL'"
+            >
+              <div class="rec-card-header">
+                <div class="rec-identity">
+                  <span
+                    class="signal-badge lg"
+                    [class.badge-buy]="item.signal?.action === 'BUY'"
+                    [class.badge-sell]="item.signal?.action === 'SELL'"
+                    *ngIf="item.signal"
                   >
-                    {{ rec.confirmationClosePrice | currencyInr }}
-                  </td>
-                  <td class="mono-val time-cell">{{ formatIstDateTime(rec.confirmationTimestamp) }}</td>
-                  <td class="text-right" (click)="$event.stopPropagation()">
-                    <button
-                      type="button"
-                      class="mini-chart-btn"
-                      (click)="scrollToCard(rec.id)"
-                      matTooltip="Jump to interactive chart card"
-                    >
-                      <span class="material-symbols-rounded">candlestick_chart</span>
-                      <span>Chart</span>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    <span class="material-symbols-rounded">
+                      {{ item.signal.action === 'BUY' ? 'trending_up' : 'trending_down' }}
+                    </span>
+                    <span>{{ item.signal.action }} (1:{{ item.signal.rrRatio | number : '1.1-1' }} R:R)</span>
+                  </span>
+
+                  <span
+                    class="signal-badge lg badge-neutral"
+                    *ngIf="!item.signal && item.recentSweeps.length > 0"
+                  >
+                    <span class="material-symbols-rounded">radar</span>
+                    <span>{{ item.recentSweeps[item.recentSweeps.length - 1].direction }} SWEEP</span>
+                  </span>
+
+                  <div class="rec-title-wrap">
+                    <div class="rec-symbol-line">
+                      <span class="rec-symbol mono-val">{{ item.displayName || item.name || item.symbol }}</span>
+                      <span class="level-pill mono-val">{{ item.timeframe }}</span>
+                      <span class="session-date-pill mono-val" *ngIf="item.activePools.length > 0">
+                        {{ item.activePools.length }} Active Pools
+                      </span>
+                    </div>
+                    <div class="rec-subline">
+                      {{ item.symbol }} &bull; {{ getBslPoolsCount(item) }} BSL / {{ getSslPoolsCount(item) }} SSL
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="trade-setup-btn"
+                  (click)="goToComposerWithSweepSymbol(item)"
+                  matTooltip="Pre-fill Conditional Alert Composer on Live Monitor"
+                >
+                  <span class="material-symbols-rounded">bolt</span>
+                  <span>Create Alert</span>
+                </button>
+              </div>
+
+              <!-- Key Metrics Grid -->
+              <div class="rec-metrics-grid mono-val">
+                <div class="metric-box" *ngIf="getLatestSweep(item) as sw">
+                  <span class="metric-label">Latest Swept Level</span>
+                  <span class="metric-value text-amber">
+                    {{ sw.sweptPrice | currencyInr }}
+                  </span>
+                  <span class="metric-meta">{{ sw.poolType }} level</span>
+                </div>
+
+                <div class="metric-box" *ngIf="getLatestSweep(item) as sw">
+                  <span class="metric-label">Extreme Sweep Wick</span>
+                  <span class="metric-value text-amber">
+                    {{ sw.sweepWickExtreme | currencyInr }}
+                  </span>
+                  <span class="metric-meta">Absorption pivot</span>
+                </div>
+
+                <div class="metric-box" *ngIf="item.signal as sig">
+                  <span class="metric-label">Entry ({{ sig.entryMode }})</span>
+                  <span
+                    class="metric-value"
+                    [class.text-emerald]="sig.action === 'BUY'"
+                    [class.text-coral]="sig.action === 'SELL'"
+                  >
+                    {{ sig.entryPrice | currencyInr }}
+                  </span>
+                  <span class="metric-meta">Reclaim Close</span>
+                </div>
+
+                <div class="metric-box" *ngIf="item.signal as sig">
+                  <span class="metric-label">Stop Loss &bull; Target TP</span>
+                  <span class="metric-value text-emerald">
+                    SL: {{ sig.stopLoss | currencyInr }} &bull; TP: {{ sig.takeProfit | currencyInr }}
+                  </span>
+                  <span class="metric-meta">1:{{ sig.rrRatio }} R:R to {{ sig.targetPoolPrice | currencyInr }}</span>
+                </div>
+              </div>
+
+              <!-- Interactive TradingView Lightweight Chart (v5) -->
+              <div class="rec-chart-wrap">
+                <app-sweep-chart [result]="item"></app-sweep-chart>
+              </div>
+            </article>
           </div>
 
-          <!-- INDIVIDUAL RECOMMENDATION CARDS + INTERACTIVE LIGHTWEIGHT CHARTS -->
+          <!-- 2. LEGACY / FALLBACK RECOMMENDATION CARDS VIEW -->
           <div
-            *ngIf="filteredRecommendations().length > 0 && !screenerService.isScanning()"
+            *ngIf="filteredSweepSymbols().length === 0 && filteredRecommendations().length > 0 && !screenerService.isScanning()"
             class="recommendation-cards-list"
           >
             <article
@@ -570,28 +845,386 @@ function formatIstDateOffset(deltaDays = 0): string {
             </article>
           </div>
         </section>
+
+        <!-- ======================================================== -->
+        <!-- STRATEGY 2: ORDER BLOCK (SMC / DEMAND & SUPPLY) VIEW     -->
+        <!-- ======================================================== -->
+        <section *ngIf="screenerService.activeStrategy() === 'order-block'" class="setups-container">
+          <div class="setups-header">
+            <div class="section-title">
+              <span class="material-symbols-rounded">layers</span>
+              <span>Order Block (SMC) Scanned Instruments &amp; POIs</span>
+              <span class="count-badge mono-val" *ngIf="filteredOrderBlocks().length > 0">
+                {{ filteredOrderBlocks().length }}
+              </span>
+            </div>
+
+            <!-- Order Block Filter Bar -->
+            <div class="filter-bar" *ngIf="screenerService.orderBlockSymbols().length > 0">
+              <div class="filter-chips-bar">
+                <button
+                  type="button"
+                  class="filter-pill"
+                  [class.active]="activeObFilter() === 'ALL'"
+                  (click)="activeObFilter.set('ALL')"
+                >
+                  All ({{ screenerService.orderBlockSymbols().length }})
+                </button>
+                <button
+                  type="button"
+                  class="filter-pill pill-bullish"
+                  [class.active]="activeObFilter() === 'DEMAND'"
+                  (click)="activeObFilter.set('DEMAND')"
+                >
+                  <span class="material-symbols-rounded mini-icon">trending_up</span>
+                  Demand OBs
+                </button>
+                <button
+                  type="button"
+                  class="filter-pill pill-bearish"
+                  [class.active]="activeObFilter() === 'SUPPLY'"
+                  (click)="activeObFilter.set('SUPPLY')"
+                >
+                  <span class="material-symbols-rounded mini-icon">trending_down</span>
+                  Supply OBs
+                </button>
+                <button
+                  type="button"
+                  class="filter-pill pill-amber"
+                  [class.active]="activeObFilter() === 'APPROACHING'"
+                  (click)="activeObFilter.set('APPROACHING')"
+                >
+                  <span class="material-symbols-rounded mini-icon">near_me</span>
+                  Approaching ({{ screenerService.approachingCount() }})
+                </button>
+                <button
+                  type="button"
+                  class="filter-pill pill-tap"
+                  [class.active]="activeObFilter() === 'MITIGATING'"
+                  (click)="activeObFilter.set('MITIGATING')"
+                >
+                  <span class="material-symbols-rounded mini-icon">touch_app</span>
+                  Active Tap ({{ screenerService.mitigatingCount() }})
+                </button>
+                <button
+                  type="button"
+                  class="filter-pill pill-sniper"
+                  [class.active]="activeObFilter() === 'SNIPER'"
+                  (click)="activeObFilter.set('SNIPER')"
+                >
+                  <span class="material-symbols-rounded mini-icon">gps_fixed</span>
+                  Sniper Setups ({{ screenerService.totalSniperSignals() }})
+                </button>
+              </div>
+
+              <div class="filter-selects">
+                <select
+                  class="compact-select"
+                  [ngModel]="activeObSymbolFilter()"
+                  (ngModelChange)="activeObSymbolFilter.set($event)"
+                  aria-label="Filter by instrument"
+                >
+                  <option value="ALL">All Instruments</option>
+                  <option *ngFor="let sym of matchedObSymbols()" [value]="sym">
+                    {{ sym }}
+                  </option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Initial State (No Scan Executed Yet) -->
+          <div
+            *ngIf="!screenerService.orderBlockResults() && !screenerService.isScanning()"
+            class="empty-state-card"
+          >
+            <div class="empty-icon-wrap">
+              <span class="material-symbols-rounded">layers</span>
+            </div>
+            <div class="empty-title">Ready for Multi-Timeframe Order Block Scan</div>
+            <div class="empty-desc">
+              Scan institutional Order Blocks across <strong>{{ screenerService.htfTimeframe() }}</strong> HTF and <strong>{{ screenerService.ltfTimeframe() }}</strong> LTF with FVG confluence and structural BoS/CHoCH confirmation.
+            </div>
+            <button
+              type="button"
+              class="run-scan-btn lg"
+              (click)="runScan()"
+              [disabled]="screenerService.instrumentCount() === 0"
+            >
+              <span class="material-symbols-rounded">play_arrow</span>
+              <span>Run {{ screenerService.htfTimeframe() }} + {{ screenerService.ltfTimeframe() }} SMC Scan</span>
+            </button>
+          </div>
+
+          <!-- Loading State -->
+          <div *ngIf="screenerService.isScanning()" class="loading-state-card">
+            <div class="spinner-large">
+              <span class="material-symbols-rounded spinning">sync</span>
+            </div>
+            <div class="loading-title">Scanning HTF &amp; LTF Order Blocks...</div>
+            <div class="loading-desc">
+              Analyzing fractal swings, Fair Value Gaps, and unmitigated POIs across {{ screenerService.instrumentCount() }} configured instruments.
+            </div>
+          </div>
+
+          <!-- Empty Results State (Scan completed with 0 matches) -->
+          <div
+            *ngIf="
+              screenerService.orderBlockResults() &&
+              screenerService.orderBlockSymbols().length === 0 &&
+              !screenerService.isScanning()
+            "
+            class="empty-state-card no-signals"
+          >
+            <div class="empty-icon-wrap dim">
+              <span class="material-symbols-rounded">check_circle</span>
+            </div>
+            <div class="empty-title">No Active Order Blocks Found</div>
+            <div class="empty-desc">
+              All detected historical Order Blocks in this lookback have been mitigated or invalidated.
+            </div>
+          </div>
+
+          <!-- Summary Jump Table for Order Blocks (Desktop) -->
+          <div
+            *ngIf="filteredOrderBlocks().length > 0 && !screenerService.isScanning()"
+            class="summary-table-wrapper desktop-only"
+          >
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th>Instrument</th>
+                  <th>Trend Bias</th>
+                  <th>Active POI</th>
+                  <th>Zone Range</th>
+                  <th>50% EQ</th>
+                  <th>Status</th>
+                  <th>Trade Setup</th>
+                  <th class="text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  *ngFor="let item of filteredOrderBlocks(); trackBy: trackByObSymbol"
+                  class="summary-row"
+                  [class.buy-row]="item.tradeSignal?.signalType === 'BUY'"
+                  [class.sell-row]="item.tradeSignal?.signalType === 'SELL'"
+                  (click)="scrollToObCard(item.symbol)"
+                >
+                  <td class="mono-val sym-cell">{{ item.displayName || item.name || item.symbol }}</td>
+                  <td>
+                    <span
+                      class="bias-badge mono-val"
+                      [class.bias-bullish]="item.trendBias === 'BULLISH'"
+                      [class.bias-bearish]="item.trendBias === 'BEARISH'"
+                      [class.bias-neutral]="item.trendBias === 'NEUTRAL'"
+                    >
+                      {{ item.trendBias }}
+                    </span>
+                  </td>
+                  <td>
+                    <ng-container *ngIf="item.activeOrderBlocks[0] as ob; else noOb">
+                      <span
+                        class="level-pill mono-val"
+                        [class.demand-pill]="ob.type === 'BULLISH'"
+                        [class.supply-pill]="ob.type === 'BEARISH'"
+                      >
+                        {{ ob.type === 'BULLISH' ? 'Demand' : 'Supply' }} ({{ ob.obType }})
+                      </span>
+                    </ng-container>
+                    <ng-template #noOb>
+                      <span class="dim-text mono-val">None active</span>
+                    </ng-template>
+                  </td>
+                  <td class="mono-val">
+                    {{ item.activeOrderBlocks[0] ? (item.activeOrderBlocks[0].zoneLow | currencyInr) + ' – ' + (item.activeOrderBlocks[0].zoneHigh | currencyInr) : '--' }}
+                  </td>
+                  <td class="mono-val">
+                    {{ item.activeOrderBlocks[0] ? (item.activeOrderBlocks[0].equilibrium | currencyInr) : '--' }}
+                  </td>
+                  <td>
+                    <span
+                      class="status-pill mono-val"
+                      [class.status-sniper]="item.tradeSignal"
+                      [class.status-mitigating]="item.proximityStatus === 'MITIGATING' && !item.tradeSignal"
+                      [class.status-approaching]="item.proximityStatus === 'APPROACHING' && !item.tradeSignal"
+                    >
+                      {{ item.tradeSignal ? 'SNIPER ' + item.tradeSignal.signalType : item.proximityStatus }}
+                    </span>
+                  </td>
+                  <td class="mono-val">
+                    <ng-container *ngIf="item.tradeSignal as sig; else noSig">
+                      <span class="text-emerald">Entry {{ sig.entryPrice | currencyInr }} (1:{{ sig.rrRatio }} R:R)</span>
+                    </ng-container>
+                    <ng-template #noSig>
+                      <span class="dim-text">--</span>
+                    </ng-template>
+                  </td>
+                  <td class="text-right" (click)="$event.stopPropagation()">
+                    <button
+                      type="button"
+                      class="mini-chart-btn"
+                      (click)="scrollToObCard(item.symbol)"
+                      matTooltip="Jump to interactive chart card"
+                    >
+                      <span class="material-symbols-rounded">candlestick_chart</span>
+                      <span>Chart</span>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- INDIVIDUAL ORDER BLOCK CARDS + INTERACTIVE LIGHTWEIGHT CHARTS -->
+          <div
+            *ngIf="filteredOrderBlocks().length > 0 && !screenerService.isScanning()"
+            class="recommendation-cards-list"
+          >
+            <article
+              *ngFor="let item of filteredOrderBlocks(); trackBy: trackByObSymbol"
+              [id]="'ob-card-' + item.symbol"
+              class="recommendation-card"
+              [class.buy-card]="item.tradeSignal?.signalType === 'BUY'"
+              [class.sell-card]="item.tradeSignal?.signalType === 'SELL'"
+            >
+              <!-- Card Header -->
+              <div class="rec-card-header">
+                <div class="rec-identity">
+                  <!-- Trade Signal or Status Badge -->
+                  <span
+                    *ngIf="item.tradeSignal as sig; else statusBadgeTpl"
+                    class="signal-badge lg"
+                    [class.badge-buy]="sig.signalType === 'BUY'"
+                    [class.badge-sell]="sig.signalType === 'SELL'"
+                  >
+                    <span class="material-symbols-rounded">
+                      {{ sig.signalType === 'BUY' ? 'trending_up' : 'trending_down' }}
+                    </span>
+                    <span>SNIPER {{ sig.signalType }} (1:{{ sig.rrRatio }} R:R)</span>
+                  </span>
+
+                  <ng-template #statusBadgeTpl>
+                    <span
+                      class="status-badge-lg mono-val"
+                      [class.badge-mitigating]="item.proximityStatus === 'MITIGATING'"
+                      [class.badge-approaching]="item.proximityStatus === 'APPROACHING'"
+                    >
+                      <span class="material-symbols-rounded">
+                        {{ item.proximityStatus === 'MITIGATING' ? 'touch_app' : item.proximityStatus === 'APPROACHING' ? 'near_me' : 'layers' }}
+                      </span>
+                      <span>{{ item.proximityStatus === 'MITIGATING' ? 'ACTIVE TAP' : item.proximityStatus === 'APPROACHING' ? 'APPROACHING' : 'MONITORING' }}</span>
+                    </span>
+                  </ng-template>
+
+                  <div class="rec-title-wrap">
+                    <div class="rec-symbol-line">
+                      <span class="rec-symbol mono-val">{{ item.displayName || item.name || item.symbol }}</span>
+                      <span
+                        class="bias-badge mono-val"
+                        [class.bias-bullish]="item.trendBias === 'BULLISH'"
+                        [class.bias-bearish]="item.trendBias === 'BEARISH'"
+                        [class.bias-neutral]="item.trendBias === 'NEUTRAL'"
+                      >
+                        {{ item.trendBias }}
+                      </span>
+                      <span class="tf-badge mono-val">{{ item.timeframe }}</span>
+                    </div>
+                    <div class="rec-subline">
+                      {{ item.symbol }} &bull; {{ item.activeOrderBlocks.length }} active unmitigated POIs
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="trade-setup-btn"
+                  (click)="goToComposerWithOrderBlock(item)"
+                  matTooltip="Pre-fill Conditional Alert Composer with setup"
+                >
+                  <span class="material-symbols-rounded">bolt</span>
+                  <span>Create Alert</span>
+                </button>
+              </div>
+
+              <!-- Key Metrics Grid -->
+              <div class="rec-metrics-grid mono-val">
+                <div class="metric-box">
+                  <span class="metric-label">Primary POI</span>
+                  <span
+                    class="metric-value"
+                    [class.text-emerald]="item.activeOrderBlocks[0]?.type === 'BULLISH'"
+                    [class.text-coral]="item.activeOrderBlocks[0]?.type === 'BEARISH'"
+                  >
+                    {{ item.activeOrderBlocks[0] ? item.activeOrderBlocks[0].type + ' (' + item.activeOrderBlocks[0].obType + ')' : '--' }}
+                  </span>
+                  <span class="metric-meta">
+                    Zone: {{ item.activeOrderBlocks[0] ? (item.activeOrderBlocks[0].zoneLow | currencyInr) + ' – ' + (item.activeOrderBlocks[0].zoneHigh | currencyInr) : '--' }}
+                  </span>
+                </div>
+
+                <div class="metric-box">
+                  <span class="metric-label">50% Equilibrium (EQ)</span>
+                  <span class="metric-value text-amber">
+                    {{ item.activeOrderBlocks[0] ? (item.activeOrderBlocks[0].equilibrium | currencyInr) : '--' }}
+                  </span>
+                  <span class="metric-meta">Institutional Midline</span>
+                </div>
+
+                <div class="metric-box">
+                  <span class="metric-label">Fair Value Gap (FVG)</span>
+                  <span class="metric-value text-cyan">
+                    {{ item.activeOrderBlocks[0]?.fvgBounds ? (item.activeOrderBlocks[0]!.fvgBounds!.bottom | currencyInr) + ' – ' + (item.activeOrderBlocks[0]!.fvgBounds!.top | currencyInr) : 'None' }}
+                  </span>
+                  <span class="metric-meta">Displacement Imbalance</span>
+                </div>
+
+                <div class="metric-box">
+                  <span class="metric-label">
+                    {{ item.tradeSignal ? 'Sniper Risk:Reward' : 'Proximity Distance' }}
+                  </span>
+                  <span
+                    class="metric-value"
+                    [class.text-emerald]="item.tradeSignal"
+                  >
+                    {{ item.tradeSignal ? '1:' + item.tradeSignal.rrRatio + ' R:R' : (item.activeOrderBlocks[0]?.proximityPercent ? item.activeOrderBlocks[0]?.proximityPercent + '%' : 'Tapped') }}
+                  </span>
+                  <span class="metric-meta">
+                    {{ item.tradeSignal ? 'Entry: ' + (item.tradeSignal.entryPrice | currencyInr) : 'To Proximal Edge' }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Interactive TradingView Lightweight Chart (Order Block Overlay) -->
+              <div class="rec-chart-wrap">
+                <app-order-block-chart [result]="item"></app-order-block-chart>
+              </div>
+            </article>
+          </div>
+        </section>
       </main>
     </div>
   `,
   styles: [
     `
       .screener-root {
-        min-height: calc(100vh - 64px);
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
         background-color: #0b0f19;
-        color: #f1f5f9;
-        padding-bottom: 56px;
-        max-width: 100vw;
-        overflow-x: hidden;
-        font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        color: #e2e8f0;
+        font-family: 'Google Sans', 'Roboto Flex', sans-serif;
+        padding-bottom: 72px;
       }
 
       .page-body {
         max-width: 1400px;
+        width: 100%;
         margin: 0 auto;
-        padding: 20px;
+        padding: 20px 24px 32px;
         display: flex;
         flex-direction: column;
-        gap: 18px;
+        gap: 20px;
         box-sizing: border-box;
       }
 
@@ -599,20 +1232,66 @@ function formatIstDateOffset(deltaDays = 0): string {
         font-family: 'JetBrains Mono', monospace;
       }
 
-      .text-emerald {
-        color: #10b981 !important;
+      /* STRATEGY SWITCHER TABS */
+      .strategy-switcher-bar {
+        width: 100%;
       }
 
-      .text-coral {
-        color: #f43f5e !important;
+      .strategy-tabs {
+        display: inline-flex;
+        align-items: center;
+        background: #151c2c;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 4px;
+        gap: 6px;
+        flex-wrap: wrap;
       }
 
-      .text-amber {
-        color: #f59e0b !important;
-      }
+      .strategy-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: transparent;
+        border: none;
+        border-radius: 8px;
+        color: #94a3b8;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
 
-      .text-cyan {
-        color: #00d2c4 !important;
+        .tab-icon {
+          font-size: 18px;
+        }
+
+        .strategy-pill {
+          padding: 2px 7px;
+          border-radius: 999px;
+          font-size: 0.68rem;
+          font-weight: 700;
+          background: rgba(255, 255, 255, 0.06);
+          color: #94a3b8;
+          font-family: 'JetBrains Mono', monospace;
+
+          &.highlight-pill {
+            background: rgba(0, 210, 196, 0.15);
+            color: #00d2c4;
+          }
+        }
+
+        &:hover {
+          color: #f8fafc;
+          background: rgba(255, 255, 255, 0.04);
+        }
+
+        &.active {
+          color: #f8fafc;
+          background: #1e293b;
+          border: 1px solid rgba(0, 210, 196, 0.35);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+        }
       }
 
       /* CONTROL HEADER CARD */
@@ -620,17 +1299,17 @@ function formatIstDateOffset(deltaDays = 0): string {
         background: #151c2c;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 14px;
-        padding: 18px 22px;
+        padding: 20px 24px;
         display: flex;
         flex-direction: column;
-        gap: 14px;
+        gap: 16px;
       }
 
       .header-top-row {
         display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
         align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
         gap: 16px;
       }
 
@@ -643,31 +1322,30 @@ function formatIstDateOffset(deltaDays = 0): string {
       .page-title {
         display: flex;
         align-items: center;
-        flex-wrap: wrap;
         gap: 10px;
-        font-size: 1.3rem;
+        font-size: 1.25rem;
         font-weight: 700;
         color: #f8fafc;
         letter-spacing: -0.01em;
 
         .page-icon {
           color: #00d2c4;
-          font-size: 26px;
+          font-size: 24px;
+        }
+
+        .tf-pill {
+          font-size: 0.72rem;
+          font-weight: 700;
+          padding: 2px 8px;
+          border-radius: 6px;
+          background: rgba(0, 210, 196, 0.15);
+          color: #00d2c4;
+          border: 1px solid rgba(0, 210, 196, 0.35);
         }
       }
 
-      .tf-pill {
-        font-size: 0.72rem;
-        font-weight: 700;
-        padding: 2px 8px;
-        border-radius: 999px;
-        background: rgba(0, 210, 196, 0.14);
-        color: #00d2c4;
-        border: 1px solid rgba(0, 210, 196, 0.3);
-      }
-
       .page-subtitle {
-        font-size: 0.84rem;
+        font-size: 0.8rem;
         color: #94a3b8;
       }
 
@@ -678,14 +1356,64 @@ function formatIstDateOffset(deltaDays = 0): string {
         gap: 12px;
       }
 
-      /* MODE SELECTOR */
+      /* MTF Pickers */
+      .mtf-pickers-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .tf-toggle-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .tf-caption {
+          font-size: 0.72rem;
+          color: #94a3b8;
+          font-weight: 600;
+        }
+      }
+
+      .mini-toggle {
+        display: inline-flex;
+        background: #0b0f19;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 2px;
+      }
+
+      .mini-toggle-btn {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        padding: 3px 8px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        border-radius: 6px;
+        cursor: pointer;
+        font-family: 'JetBrains Mono', monospace;
+        transition: all 0.15s ease;
+
+        &:hover {
+          color: #f8fafc;
+        }
+
+        &.active {
+          color: #00d2c4;
+          background: #1e293b;
+        }
+      }
+
+      /* Mode Toggle */
       .mode-toggle {
         display: inline-flex;
         background: #0b0f19;
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 10px;
         padding: 3px;
-        gap: 3px;
+        gap: 2px;
       }
 
       .mode-btn {
@@ -695,172 +1423,157 @@ function formatIstDateOffset(deltaDays = 0): string {
         background: transparent;
         border: none;
         color: #94a3b8;
-        padding: 8px 14px;
-        border-radius: 7px;
-        font-size: 0.84rem;
+        padding: 6px 14px;
+        font-size: 0.8rem;
         font-weight: 600;
+        border-radius: 7px;
         cursor: pointer;
         transition: all 0.15s ease;
-        min-height: 36px;
 
         .mode-icon {
-          font-size: 17px;
+          font-size: 16px;
         }
 
-        &:hover:not(:disabled) {
-          color: #f1f5f9;
-          background: rgba(255, 255, 255, 0.04);
+        .live-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #94a3b8;
+
+          &.pulsing {
+            background: #10b981;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+          }
+        }
+
+        &:hover {
+          color: #f8fafc;
         }
 
         &.active {
+          color: #f8fafc;
           background: #1e293b;
-          color: #00d2c4;
-          box-shadow: inset 0 0 0 1px rgba(0, 210, 196, 0.35);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
         }
       }
 
-      .live-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #64748b;
-
-        &.pulsing {
-          background: #10b981;
-          box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
-        }
-      }
-
+      /* Run Scan CTA */
       .run-scan-btn {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
         gap: 8px;
-        background: linear-gradient(135deg, #00d2c4 0%, #0284c7 100%);
+        background: linear-gradient(135deg, #00d2c4, #009688);
         border: none;
         color: #0b0f19;
-        padding: 10px 20px;
-        border-radius: 10px;
-        font-size: 0.88rem;
         font-weight: 700;
+        font-size: 0.85rem;
+        padding: 8px 18px;
+        border-radius: 10px;
         cursor: pointer;
-        min-height: 42px;
         transition: all 0.2s ease;
-        box-shadow: 0 2px 10px rgba(0, 210, 196, 0.28);
+        box-shadow: 0 4px 12px rgba(0, 210, 196, 0.25);
+
+        .material-symbols-rounded {
+          font-size: 20px;
+        }
 
         &:hover:not(:disabled) {
           transform: translateY(-1px);
-          box-shadow: 0 4px 14px rgba(0, 210, 196, 0.45);
+          box-shadow: 0 6px 16px rgba(0, 210, 196, 0.35);
         }
 
         &:disabled {
           opacity: 0.55;
           cursor: not-allowed;
-          box-shadow: none;
         }
 
-        .spinning {
-          animation: spin 1s linear infinite;
+        &.lg {
+          padding: 12px 24px;
+          font-size: 0.95rem;
         }
       }
 
-      @keyframes spin {
-        from {
-          transform: rotate(0deg);
-        }
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      /* HISTORICAL DATE PICKER BAR */
+      /* Historical Bar */
       .historical-bar {
         display: flex;
-        flex-wrap: wrap;
-        align-items: flex-end;
+        align-items: center;
         justify-content: space-between;
-        gap: 14px;
-        padding: 12px 14px;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 12px 16px;
         background: #0b0f19;
-        border: 1px solid rgba(99, 102, 241, 0.25);
+        border: 1px dashed rgba(255, 255, 255, 0.12);
         border-radius: 10px;
       }
 
       .date-inputs-group {
         display: flex;
-        flex-wrap: wrap;
         align-items: center;
         gap: 12px;
+        flex-wrap: wrap;
       }
 
       .date-field {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-
-      .date-label {
-        font-size: 0.72rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.78rem;
         color: #94a3b8;
-      }
 
-      .date-input {
-        background: #151c2c;
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        border-radius: 8px;
-        color: #f8fafc;
-        padding: 8px 12px;
-        font-size: 0.84rem;
-        outline: none;
-        min-height: 38px;
-        color-scheme: dark;
+        .date-input {
+          background: #151c2c;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 6px;
+          color: #f8fafc;
+          padding: 4px 8px;
+          font-size: 0.78rem;
 
-        &:focus {
-          border-color: #00d2c4;
+          &:focus {
+            outline: none;
+            border-color: #00d2c4;
+          }
         }
       }
 
       .date-presets {
         display: flex;
         align-items: center;
-        flex-wrap: wrap;
         gap: 6px;
-      }
-
-      .preset-label {
+        flex-wrap: wrap;
         font-size: 0.75rem;
-        color: #64748b;
-        margin-right: 2px;
-      }
 
-      .preset-chip {
-        background: rgba(99, 102, 241, 0.12);
-        border: 1px solid rgba(99, 102, 241, 0.3);
-        color: #c7d2fe;
-        padding: 6px 10px;
-        border-radius: 7px;
-        font-size: 0.76rem;
-        font-weight: 600;
-        cursor: pointer;
-        min-height: 34px;
-        transition: all 0.15s ease;
+        .preset-label {
+          color: #64748b;
+          font-weight: 600;
+        }
 
-        &:hover {
-          background: rgba(99, 102, 241, 0.25);
-          color: #ffffff;
+        .preset-chip {
+          background: #1e293b;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #94a3b8;
+          border-radius: 6px;
+          padding: 3px 8px;
+          font-size: 0.72rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.15s ease;
+
+          &:hover {
+            color: #00d2c4;
+            border-color: rgba(0, 210, 196, 0.35);
+          }
         }
       }
 
-      /* CONFIGURED INDICES STRIP */
+      /* Universe Strip */
       .universe-strip {
         display: flex;
         align-items: center;
+        gap: 10px;
         flex-wrap: wrap;
-        gap: 8px;
-        padding-top: 10px;
+        font-size: 0.78rem;
+        color: #94a3b8;
+        padding-top: 4px;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
       }
 
@@ -868,53 +1581,48 @@ function formatIstDateOffset(deltaDays = 0): string {
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        font-size: 0.78rem;
         font-weight: 600;
-        color: #94a3b8;
+        color: #cbd5e1;
 
         .material-symbols-rounded {
           font-size: 16px;
-          color: #6366f1;
+          color: #00d2c4;
         }
       }
 
       .universe-chips {
         display: flex;
-        flex-wrap: wrap;
+        align-items: center;
         gap: 6px;
+        flex-wrap: wrap;
       }
 
-      .index-chip {
-        font-size: 0.74rem;
-        font-weight: 600;
-        padding: 3px 9px;
+      .inst-chip {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #cbd5e1;
+        padding: 2px 8px;
         border-radius: 6px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: #e2e8f0;
+        font-size: 0.72rem;
+        font-family: 'JetBrains Mono', monospace;
       }
 
       .universe-loading {
-        font-size: 0.78rem;
-        color: #64748b;
-      }
-
-      .universe-empty-badge {
         display: inline-flex;
         align-items: center;
-        padding: 3px 10px;
-        border-radius: 6px;
-        font-size: 0.76rem;
-        font-weight: 600;
-        color: #fbbf24;
-        background: rgba(245, 158, 11, 0.12);
-        border: 1px solid rgba(245, 158, 11, 0.35);
+        gap: 6px;
+        color: #94a3b8;
+        font-size: 0.75rem;
+
+        .spinning {
+          font-size: 16px;
+        }
       }
 
       /* KPI GRID */
       .kpi-grid {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 14px;
       }
 
@@ -922,21 +1630,25 @@ function formatIstDateOffset(deltaDays = 0): string {
         background: #151c2c;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 12px;
-        padding: 16px 18px;
+        padding: 16px;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
 
         &.highlight-cyan {
-          border-color: rgba(0, 210, 196, 0.22);
+          border-left: 3px solid #00d2c4;
         }
 
         &.highlight-emerald {
-          border-color: rgba(16, 185, 129, 0.22);
+          border-left: 3px solid #10b981;
         }
 
         &.highlight-coral {
-          border-color: rgba(244, 63, 94, 0.22);
+          border-left: 3px solid #f43f5e;
+        }
+
+        &.highlight-amber {
+          border-left: 3px solid #f59e0b;
         }
       }
 
@@ -944,55 +1656,60 @@ function formatIstDateOffset(deltaDays = 0): string {
         display: flex;
         align-items: center;
         gap: 6px;
-        font-size: 0.78rem;
+        font-size: 0.75rem;
         font-weight: 600;
         color: #94a3b8;
 
         .material-symbols-rounded {
-          font-size: 18px;
+          font-size: 16px;
+        }
+
+        .icon-cyan {
+          color: #00d2c4;
+        }
+        .icon-emerald {
+          color: #10b981;
+        }
+        .icon-coral {
+          color: #f43f5e;
         }
       }
 
-      .icon-dim {
-        color: #94a3b8;
-      }
-      .icon-cyan {
-        color: #00d2c4;
-      }
-      .icon-emerald {
-        color: #10b981;
-      }
-      .icon-coral {
-        color: #f43f5e;
-      }
-
       .kpi-value {
-        font-size: 1.65rem;
+        font-size: 1.5rem;
         font-weight: 700;
         color: #f8fafc;
-        line-height: 1.15;
       }
 
       .kpi-subtext {
-        font-size: 0.74rem;
+        font-size: 0.7rem;
         color: #64748b;
+      }
+
+      .text-emerald {
+        color: #10b981 !important;
+      }
+      .text-coral {
+        color: #f43f5e !important;
+      }
+      .text-amber {
+        color: #f59e0b !important;
+      }
+      .text-cyan {
+        color: #00d2c4 !important;
       }
 
       /* SETUPS CONTAINER */
       .setups-container {
-        background: #151c2c;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 14px;
-        padding: 20px;
         display: flex;
         flex-direction: column;
-        gap: 18px;
+        gap: 16px;
       }
 
       .setups-header {
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        justify-content: space-between;
         flex-wrap: wrap;
         gap: 12px;
       }
@@ -1007,19 +1724,20 @@ function formatIstDateOffset(deltaDays = 0): string {
 
         .material-symbols-rounded {
           color: #00d2c4;
-          font-size: 22px;
+          font-size: 20px;
+        }
+
+        .count-badge {
+          background: rgba(0, 210, 196, 0.15);
+          color: #00d2c4;
+          font-size: 0.72rem;
+          padding: 2px 7px;
+          border-radius: 999px;
+          font-weight: 700;
         }
       }
 
-      .count-badge {
-        background: rgba(0, 210, 196, 0.14);
-        color: #00d2c4;
-        padding: 2px 9px;
-        border-radius: 999px;
-        font-size: 0.78rem;
-        font-weight: 700;
-      }
-
+      /* Filter Bar */
       .filter-bar {
         display: flex;
         align-items: center;
@@ -1037,42 +1755,60 @@ function formatIstDateOffset(deltaDays = 0): string {
       .filter-pill {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        background: #0b0f19;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        gap: 5px;
+        background: #151c2c;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 5px 12px;
         color: #94a3b8;
-        padding: 6px 12px;
-        border-radius: 999px;
-        font-size: 0.78rem;
+        font-size: 0.75rem;
         font-weight: 600;
         cursor: pointer;
-        min-height: 34px;
+        transition: all 0.15s ease;
 
         .mini-icon {
-          font-size: 15px;
+          font-size: 14px;
         }
 
         &:hover {
           color: #f8fafc;
-          border-color: rgba(255, 255, 255, 0.25);
+          background: #1e293b;
         }
 
         &.active {
-          background: rgba(0, 210, 196, 0.16);
-          border-color: #00d2c4;
-          color: #00d2c4;
+          color: #f8fafc;
+          background: #1e293b;
+          border-color: rgba(0, 210, 196, 0.45);
         }
 
         &.pill-bullish.active {
-          background: rgba(16, 185, 129, 0.16);
-          border-color: #10b981;
           color: #10b981;
+          border-color: rgba(16, 185, 129, 0.45);
+          background: rgba(16, 185, 129, 0.1);
         }
 
         &.pill-bearish.active {
-          background: rgba(244, 63, 94, 0.16);
-          border-color: #f43f5e;
           color: #f43f5e;
+          border-color: rgba(244, 63, 94, 0.45);
+          background: rgba(244, 63, 94, 0.1);
+        }
+
+        &.pill-amber.active {
+          color: #f59e0b;
+          border-color: rgba(245, 158, 11, 0.45);
+          background: rgba(245, 158, 11, 0.1);
+        }
+
+        &.pill-tap.active {
+          color: #f43f5e;
+          border-color: rgba(244, 63, 94, 0.45);
+          background: rgba(244, 63, 94, 0.1);
+        }
+
+        &.pill-sniper.active {
+          color: #00d2c4;
+          border-color: rgba(0, 210, 196, 0.45);
+          background: rgba(0, 210, 196, 0.12);
         }
       }
 
@@ -1083,260 +1819,343 @@ function formatIstDateOffset(deltaDays = 0): string {
       }
 
       .compact-select {
-        background: #0b0f19;
+        background: #151c2c;
         border: 1px solid rgba(255, 255, 255, 0.12);
-        color: #e2e8f0;
-        padding: 6px 10px;
         border-radius: 8px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        min-height: 34px;
-        outline: none;
+        color: #cbd5e1;
+        padding: 5px 10px;
+        font-size: 0.75rem;
+        cursor: pointer;
 
         &:focus {
+          outline: none;
           border-color: #00d2c4;
         }
       }
 
-      /* EMPTY / LOADING STATES */
-      .empty-state-card,
-      .loading-state-card {
+      /* EMPTY & LOADING STATES */
+      .empty-state-card {
+        background: #151c2c;
+        border: 1px dashed rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        padding: 40px 24px;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
         text-align: center;
-        padding: 40px 20px;
-        background: #0b0f19;
-        border: 1px dashed rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
         gap: 12px;
-      }
 
-      .empty-icon-wrap {
-        width: 56px;
-        height: 56px;
-        border-radius: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(0, 210, 196, 0.12);
-        color: #00d2c4;
+        .empty-icon-wrap {
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          background: rgba(0, 210, 196, 0.12);
+          color: #00d2c4;
+          display: flex;
+          align-items: center;
+          justify-content: center;
 
-        &.amber {
-          background: rgba(245, 158, 11, 0.12);
-          color: #f59e0b;
+          .material-symbols-rounded {
+            font-size: 28px;
+          }
+
+          &.dim {
+            background: rgba(255, 255, 255, 0.05);
+            color: #94a3b8;
+          }
         }
 
-        .material-symbols-rounded {
-          font-size: 30px;
+        .empty-title {
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: #f8fafc;
         }
-      }
 
-      .empty-title,
-      .loading-title {
-        font-size: 1.05rem;
-        font-weight: 700;
-        color: #f8fafc;
-      }
-
-      .empty-desc,
-      .loading-desc {
-        max-width: 560px;
-        font-size: 0.85rem;
-        line-height: 1.5;
-        color: #94a3b8;
-      }
-
-      .empty-action-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: #00d2c4;
-        border: none;
-        color: #0b0f19;
-        padding: 10px 18px;
-        border-radius: 9px;
-        font-size: 0.86rem;
-        font-weight: 700;
-        cursor: pointer;
-        margin-top: 4px;
-        min-height: 40px;
-
-        &:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
+        .empty-desc {
+          font-size: 0.85rem;
+          color: #94a3b8;
+          max-width: 520px;
+          line-height: 1.5;
         }
       }
 
-      .scan-spinner {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        border: 3px solid rgba(0, 210, 196, 0.18);
-        border-top-color: #00d2c4;
-        animation: spin 0.9s linear infinite;
-      }
-
-      /* SUMMARY TABLE (DESKTOP) */
-      .summary-table-wrapper {
-        overflow-x: auto;
+      .loading-state-card {
+        background: #151c2c;
         border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 10px;
-        background: #0b0f19;
+        border-radius: 14px;
+        padding: 48px 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 12px;
+
+        .spinner-large {
+          font-size: 32px;
+          color: #00d2c4;
+
+          .spinning {
+            font-size: 36px;
+          }
+        }
+
+        .loading-title {
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: #f8fafc;
+        }
+
+        .loading-desc {
+          font-size: 0.85rem;
+          color: #94a3b8;
+        }
+      }
+
+      /* SUMMARY JUMP TABLE */
+      .summary-table-wrapper {
+        background: #151c2c;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        overflow-x: auto;
       }
 
       .summary-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.83rem;
+        font-size: 0.8rem;
 
         th {
-          text-align: left;
-          padding: 10px 14px;
+          background: rgba(15, 23, 42, 0.7);
           color: #94a3b8;
-          font-size: 0.72rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
+          font-weight: 600;
+          padding: 10px 14px;
+          text-align: left;
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         td {
           padding: 10px 14px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.04);
           color: #e2e8f0;
         }
 
-        tbody tr:last-child td {
-          border-bottom: none;
+        .summary-row {
+          cursor: pointer;
+          transition: background 0.15s ease;
+
+          &:hover {
+            background: rgba(255, 255, 255, 0.03);
+          }
+
+          &.buy-row {
+            border-left: 3px solid #10b981;
+          }
+
+          &.sell-row {
+            border-left: 3px solid #f43f5e;
+          }
         }
 
-        .text-right {
-          text-align: right;
+        .sym-cell {
+          font-weight: 700;
+          color: #f8fafc;
         }
-      }
-
-      .summary-row {
-        cursor: pointer;
-        transition: background 0.15s ease;
-
-        &:hover {
-          background: rgba(255, 255, 255, 0.04);
-        }
-      }
-
-      .sym-cell {
-        font-weight: 700;
-        color: #f8fafc;
-      }
-
-      .sweep-val {
-        color: #fbbf24;
-      }
-
-      .time-cell {
-        color: #94a3b8;
-        font-size: 0.78rem;
       }
 
       .mini-chart-btn {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        background: rgba(0, 210, 196, 0.12);
-        border: 1px solid rgba(0, 210, 196, 0.3);
-        color: #00d2c4;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #94a3b8;
         padding: 4px 10px;
         border-radius: 6px;
-        font-size: 0.75rem;
-        font-weight: 600;
+        font-size: 0.72rem;
         cursor: pointer;
+        transition: all 0.15s ease;
 
         .material-symbols-rounded {
           font-size: 15px;
         }
+
+        &:hover {
+          color: #00d2c4;
+          border-color: rgba(0, 210, 196, 0.45);
+        }
       }
 
-      /* BADGES */
+      /* BADGES & PILLS */
       .signal-badge {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        padding: 3px 9px;
+        padding: 3px 8px;
         border-radius: 6px;
-        font-size: 0.74rem;
-        font-weight: 800;
-        letter-spacing: 0.03em;
+        font-size: 0.72rem;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
 
         .material-symbols-rounded {
-          font-size: 15px;
+          font-size: 14px;
+        }
+
+        &.badge-buy {
+          background: rgba(16, 185, 129, 0.15);
+          color: #10b981;
+          border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+
+        &.badge-sell {
+          background: rgba(244, 63, 94, 0.15);
+          color: #f43f5e;
+          border: 1px solid rgba(244, 63, 94, 0.35);
         }
 
         &.lg {
           padding: 6px 12px;
-          font-size: 0.84rem;
-          border-radius: 8px;
+          font-size: 0.85rem;
 
           .material-symbols-rounded {
             font-size: 18px;
           }
         }
+      }
 
-        &.badge-buy {
-          background: rgba(16, 185, 129, 0.16);
+      .bias-badge {
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 4px;
+
+        &.bias-bullish {
+          background: rgba(16, 185, 129, 0.15);
           color: #10b981;
-          border: 1px solid rgba(16, 185, 129, 0.38);
         }
 
-        &.badge-sell {
-          background: rgba(244, 63, 94, 0.16);
+        &.bias-bearish {
+          background: rgba(244, 63, 94, 0.15);
           color: #f43f5e;
-          border: 1px solid rgba(244, 63, 94, 0.38);
+        }
+
+        &.bias-neutral {
+          background: rgba(255, 255, 255, 0.06);
+          color: #94a3b8;
+        }
+      }
+
+      .status-pill {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        color: #94a3b8;
+
+        &.status-sniper {
+          background: rgba(0, 210, 196, 0.15);
+          color: #00d2c4;
+          border: 1px solid rgba(0, 210, 196, 0.35);
+        }
+
+        &.status-mitigating {
+          background: rgba(244, 63, 94, 0.15);
+          color: #f43f5e;
+        }
+
+        &.status-approaching {
+          background: rgba(245, 158, 11, 0.15);
+          color: #f59e0b;
+        }
+      }
+
+      .status-badge-lg {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.05);
+        color: #94a3b8;
+
+        .material-symbols-rounded {
+          font-size: 18px;
+        }
+
+        &.badge-mitigating {
+          background: rgba(244, 63, 94, 0.15);
+          color: #f43f5e;
+          border: 1px solid rgba(244, 63, 94, 0.35);
+        }
+
+        &.badge-approaching {
+          background: rgba(245, 158, 11, 0.15);
+          color: #f59e0b;
+          border: 1px solid rgba(245, 158, 11, 0.35);
         }
       }
 
       .level-pill {
         display: inline-flex;
-        align-items: center;
-        padding: 2px 8px;
+        padding: 2px 7px;
         border-radius: 6px;
         font-size: 0.72rem;
-        font-weight: 700;
-        background: rgba(0, 210, 196, 0.12);
+        font-weight: 600;
+        background: rgba(0, 210, 196, 0.1);
         color: #00d2c4;
-        border: 1px solid rgba(0, 210, 196, 0.3);
 
         &.pd-pill {
-          background: rgba(245, 158, 11, 0.14);
+          background: rgba(245, 158, 11, 0.12);
           color: #f59e0b;
-          border-color: rgba(245, 158, 11, 0.35);
         }
+
+        &.demand-pill {
+          background: rgba(16, 185, 129, 0.15);
+          color: #10b981;
+        }
+
+        &.supply-pill {
+          background: rgba(244, 63, 94, 0.15);
+          color: #f43f5e;
+        }
+      }
+
+      .tf-badge {
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #cbd5e1;
       }
 
       .session-date-pill {
         font-size: 0.72rem;
-        color: #94a3b8;
-        background: rgba(255, 255, 255, 0.05);
-        padding: 2px 8px;
-        border-radius: 6px;
+        color: #64748b;
       }
 
       /* RECOMMENDATION CARDS */
       .recommendation-cards-list {
         display: flex;
         flex-direction: column;
-        gap: 18px;
+        gap: 20px;
       }
 
       .recommendation-card {
-        background: #1e293b;
-        border: 1px solid rgba(255, 255, 255, 0.09);
+        background: #151c2c;
+        border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 14px;
-        padding: 18px;
+        padding: 20px;
         display: flex;
         flex-direction: column;
-        gap: 14px;
+        gap: 16px;
+        transition: border-color 0.2s ease;
+
+        &:hover {
+          border-color: rgba(255, 255, 255, 0.16);
+        }
 
         &.buy-card {
           border-left: 4px solid #10b981;
@@ -1365,119 +2184,124 @@ function formatIstDateOffset(deltaDays = 0): string {
       .rec-title-wrap {
         display: flex;
         flex-direction: column;
-        gap: 3px;
+        gap: 2px;
       }
 
       .rec-symbol-line {
         display: flex;
         align-items: center;
-        flex-wrap: wrap;
         gap: 8px;
+        flex-wrap: wrap;
       }
 
       .rec-symbol {
-        font-size: 1.05rem;
-        font-weight: 800;
+        font-size: 1.15rem;
+        font-weight: 700;
         color: #f8fafc;
       }
 
       .rec-subline {
-        font-size: 0.78rem;
+        font-size: 0.75rem;
         color: #94a3b8;
       }
 
       .trade-setup-btn {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
         gap: 6px;
-        background: rgba(99, 102, 241, 0.16);
-        border: 1px solid rgba(99, 102, 241, 0.4);
-        color: #c7d2fe;
-        padding: 8px 14px;
+        background: rgba(0, 210, 196, 0.12);
+        border: 1px solid rgba(0, 210, 196, 0.35);
+        color: #00d2c4;
+        font-weight: 600;
+        font-size: 0.78rem;
+        padding: 6px 14px;
         border-radius: 8px;
-        font-size: 0.82rem;
-        font-weight: 700;
         cursor: pointer;
-        min-height: 38px;
         transition: all 0.15s ease;
 
         .material-symbols-rounded {
-          font-size: 17px;
+          font-size: 16px;
         }
 
         &:hover {
-          background: #6366f1;
-          color: #ffffff;
+          background: #00d2c4;
+          color: #0b0f19;
         }
       }
 
+      /* Rec Metrics Grid */
       .rec-metrics-grid {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        background: #0b0f19;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 12px 16px;
       }
 
       .metric-box {
-        background: #0b0f19;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 10px;
-        padding: 10px 12px;
         display: flex;
         flex-direction: column;
-        gap: 3px;
+        gap: 2px;
       }
 
       .metric-label {
         font-size: 0.7rem;
-        color: #94a3b8;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
+        color: #64748b;
+        font-weight: 600;
       }
 
       .metric-value {
-        font-size: 0.98rem;
+        font-size: 1.05rem;
         font-weight: 700;
         color: #f8fafc;
       }
 
       .metric-meta {
-        font-size: 0.7rem;
-        color: #64748b;
+        font-size: 0.68rem;
+        color: #94a3b8;
       }
 
       .rec-chart-wrap {
         width: 100%;
+        border-radius: 10px;
+        overflow: hidden;
       }
 
-      /* RESPONSIVE BREAKPOINTS (RULE 6) */
+      .spinning {
+        animation: spin 1.2s linear infinite;
+      }
+
+      @keyframes spin {
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* RESPONSIVE DESIGN (Rule 6 compliant) */
       @media (max-width: 1023px) {
-        .kpi-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+        .page-body {
+          padding: 16px;
         }
 
-        .rec-metrics-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+        .desktop-only {
+          display: none !important;
         }
       }
 
       @media (max-width: 768px) {
         .screener-root {
-          padding-bottom: 88px;
+          padding-bottom: 80px;
         }
 
-        .page-body {
-          padding: 14px 12px;
-          gap: 14px;
+        .control-header-card {
+          padding: 16px;
         }
 
-        .control-header-card,
-        .setups-container {
-          padding: 14px;
-        }
-
-        .desktop-only {
-          display: none !important;
+        .header-top-row {
+          flex-direction: column;
+          align-items: flex-start;
         }
 
         .controls-toolbar {
@@ -1485,62 +2309,64 @@ function formatIstDateOffset(deltaDays = 0): string {
           justify-content: space-between;
         }
 
-        .mode-toggle {
+        .mode-toggle,
+        .mini-toggle {
           flex: 1;
         }
 
-        .mode-btn {
+        .mode-btn,
+        .mini-toggle-btn {
           flex: 1;
           justify-content: center;
         }
 
         .run-scan-btn {
           width: 100%;
+          justify-content: center;
         }
 
-        .historical-bar {
-          flex-direction: column;
-          align-items: stretch;
-        }
-
-        .date-inputs-group {
+        .strategy-tabs {
           width: 100%;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px;
         }
 
-        .date-input {
-          width: 100%;
-          box-sizing: border-box;
+        .strategy-tab {
+          flex: 1;
+          justify-content: center;
+          padding: 8px 10px;
         }
 
-        .recommendation-card {
-          padding: 14px;
+        .kpi-grid {
+          grid-template-columns: repeat(2, 1fr);
         }
 
-        .trade-setup-btn {
-          width: 100%;
+        .rec-metrics-grid {
+          grid-template-columns: repeat(2, 1fr);
         }
       }
 
       @media (max-width: 480px) {
-        .page-title {
-          font-size: 1.12rem;
-        }
-
-        .date-inputs-group {
+        .kpi-grid {
           grid-template-columns: 1fr;
         }
 
-        .kpi-value {
-          font-size: 1.35rem;
+        .rec-metrics-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .date-inputs-group {
+          flex-direction: column;
+          width: 100%;
+        }
+
+        .date-field {
+          width: 100%;
+          justify-content: space-between;
         }
 
         .filter-selects {
           width: 100%;
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: 1fr;
         }
 
         .compact-select {
@@ -1557,13 +2383,55 @@ export class ScreenerComponent {
   readonly minHistoricalDate = formatIstDateOffset(-59);
   readonly maxHistoricalDate = formatIstDateOffset(0);
 
+  // --- Liquidity Sweep Filters ---
   readonly activeSignalFilter = signal<'ALL' | 'BUY' | 'SELL'>('ALL');
+  readonly activeSweepFilter = signal<'ALL' | 'BUY' | 'SELL' | 'SIGNAL' | 'EQ_POOLS'>('ALL');
   readonly activeLevelFilter = signal<'ALL' | LiquidityLevelType>('ALL');
   readonly activeSymbolFilter = signal<string>('ALL');
 
+  // --- Order Block Filters ---
+  readonly activeObFilter = signal<'ALL' | 'DEMAND' | 'SUPPLY' | 'APPROACHING' | 'MITIGATING' | 'SNIPER'>('ALL');
+  readonly activeObSymbolFilter = signal<string>('ALL');
+
   readonly matchedSymbols = computed<string[]>(() => {
     const recs = this.screenerService.recommendations();
-    return Array.from(new Set(recs.map((r) => r.displayName || r.name || r.symbol))).sort();
+    const sweepSymbols = this.screenerService.liquiditySweepSymbols();
+    const set = new Set<string>();
+    for (const r of recs) set.add(r.displayName || r.name || r.symbol);
+    for (const s of sweepSymbols) set.add(s.displayName || s.name || s.symbol);
+    return Array.from(set).sort();
+  });
+
+  readonly filteredSweepSymbols = computed<LiquiditySweepSymbolResult[]>(() => {
+    const items = this.screenerService.liquiditySweepSymbols();
+    const filter = this.activeSweepFilter();
+    const symbolFilter = this.activeSymbolFilter();
+
+    return items.filter((item) => {
+      const display = item.displayName || item.name || item.symbol;
+      if (symbolFilter !== 'ALL' && display !== symbolFilter && item.symbol !== symbolFilter) {
+        return false;
+      }
+      if (filter === 'BUY') {
+        return (
+          item.signal?.action === 'BUY' ||
+          item.recentSweeps.some((s) => s.direction === 'BULLISH')
+        );
+      }
+      if (filter === 'SELL') {
+        return (
+          item.signal?.action === 'SELL' ||
+          item.recentSweeps.some((s) => s.direction === 'BEARISH')
+        );
+      }
+      if (filter === 'SIGNAL') {
+        return Boolean(item.signal);
+      }
+      if (filter === 'EQ_POOLS') {
+        return item.activePools.some((p) => p.poolType === 'EQH' || p.poolType === 'EQL');
+      }
+      return true;
+    });
   });
 
   readonly filteredRecommendations = computed<LiquiditySweepSignal[]>(() => {
@@ -1580,6 +2448,63 @@ export class ScreenerComponent {
       return true;
     });
   });
+
+  readonly matchedObSymbols = computed<string[]>(() => {
+    const items = this.screenerService.orderBlockSymbols();
+    return Array.from(new Set(items.map((r) => r.displayName || r.name || r.symbol))).sort();
+  });
+
+  readonly filteredOrderBlocks = computed<OrderBlockSymbolResult[]>(() => {
+    const items = this.screenerService.orderBlockSymbols();
+    const obFilter = this.activeObFilter();
+    const symbolFilter = this.activeObSymbolFilter();
+
+    return items.filter((item) => {
+      const display = item.displayName || item.name || item.symbol;
+      if (symbolFilter !== 'ALL' && display !== symbolFilter && item.symbol !== symbolFilter) {
+        return false;
+      }
+
+      const primaryOB = item.activeOrderBlocks[0];
+
+      if (obFilter === 'DEMAND') {
+        return primaryOB?.type === 'BULLISH' || item.tradeSignal?.signalType === 'BUY';
+      }
+      if (obFilter === 'SUPPLY') {
+        return primaryOB?.type === 'BEARISH' || item.tradeSignal?.signalType === 'SELL';
+      }
+      if (obFilter === 'APPROACHING') {
+        return item.proximityStatus === 'APPROACHING';
+      }
+      if (obFilter === 'MITIGATING') {
+        return item.proximityStatus === 'MITIGATING';
+      }
+      if (obFilter === 'SNIPER') {
+        return Boolean(item.tradeSignal);
+      }
+      return true;
+    });
+  });
+
+  selectStrategy(strategy: ScreenerStrategyType): void {
+    this.screenerService.setStrategy(strategy);
+  }
+
+  selectSweepTf(tf: '5m' | '15m' | '1h'): void {
+    this.screenerService.setSweepTimeframe(tf);
+  }
+
+  selectSweepEntry(mode: SweepEntryMode): void {
+    this.screenerService.setSweepEntryMode(mode);
+  }
+
+  selectHtf(tf: '1h' | '4h'): void {
+    this.screenerService.setHtfTimeframe(tf);
+  }
+
+  selectLtf(tf: '5m' | '15m'): void {
+    this.screenerService.setLtfTimeframe(tf);
+  }
 
   selectMode(mode: ScreenerScanMode): void {
     this.screenerService.setMode(mode);
@@ -1617,11 +2542,58 @@ export class ScreenerComponent {
     this.activeSignalFilter.set('ALL');
     this.activeLevelFilter.set('ALL');
     this.activeSymbolFilter.set('ALL');
+    this.activeObFilter.set('ALL');
+    this.activeObSymbolFilter.set('ALL');
     this.screenerService.runScan();
   }
 
   trackBySignalId(_index: number, item: LiquiditySweepSignal): string {
     return item.id;
+  }
+
+  trackBySweepSymbol(_index: number, item: LiquiditySweepSymbolResult): string {
+    return item.symbol;
+  }
+
+  trackByObSymbol(_index: number, item: OrderBlockSymbolResult): string {
+    return item.symbol;
+  }
+
+  getBslPoolsCount(item: LiquiditySweepSymbolResult): number {
+    return (item.activePools || []).filter((p) => p.side === 'BSL').length;
+  }
+
+  getSslPoolsCount(item: LiquiditySweepSymbolResult): number {
+    return (item.activePools || []).filter((p) => p.side === 'SSL').length;
+  }
+
+  getLatestSweep(item: LiquiditySweepSymbolResult): LiquiditySweepEvent | null {
+    if (!item.recentSweeps || item.recentSweeps.length === 0) return null;
+    return item.recentSweeps[item.recentSweeps.length - 1];
+  }
+
+  goToComposerWithSweepSymbol(item: LiquiditySweepSymbolResult): void {
+    const symbol = item.displayName || item.name || item.symbol;
+    if (item.signal) {
+      this.router.navigate(['/'], {
+        queryParams: {
+          symbol,
+          targetPrice: item.signal.entryPrice,
+          stopLoss: item.signal.stopLoss,
+          strategy: `LIQUIDITY_SWEEP_${item.signal.action}`,
+        },
+      });
+    } else {
+      const latestSweep = this.getLatestSweep(item);
+      this.router.navigate(['/'], {
+        queryParams: {
+          symbol,
+          targetPrice: latestSweep?.sweptPrice,
+          stopLoss: latestSweep?.sweepWickExtreme,
+          strategy: `LIQUIDITY_SWEEP_${latestSweep?.direction || 'SETUP'}`,
+        },
+      });
+    }
   }
 
   formatLevelLabel(levelType: LiquidityLevelType): string {
@@ -1672,6 +2644,13 @@ export class ScreenerComponent {
     }
   }
 
+  scrollToObCard(symbol: string): void {
+    const el = document.getElementById(`ob-card-${symbol}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
   goToComposerWithSetup(rec: LiquiditySweepSignal): void {
     this.router.navigate(['/'], {
       queryParams: {
@@ -1681,5 +2660,27 @@ export class ScreenerComponent {
         strategy: `${rec.signalType}_${rec.levelType}_SWEEP`,
       },
     });
+  }
+
+  goToComposerWithOrderBlock(item: OrderBlockSymbolResult): void {
+    if (item.tradeSignal) {
+      this.router.navigate(['/'], {
+        queryParams: {
+          symbol: item.displayName || item.name || item.symbol,
+          targetPrice: item.tradeSignal.entryPrice,
+          stopLoss: item.tradeSignal.stopLoss,
+          strategy: `ORDER_BLOCK_${item.tradeSignal.signalType}_SNIPER`,
+        },
+      });
+    } else if (item.activeOrderBlocks[0]) {
+      const ob = item.activeOrderBlocks[0];
+      this.router.navigate(['/'], {
+        queryParams: {
+          symbol: item.displayName || item.name || item.symbol,
+          targetPrice: ob.equilibrium,
+          strategy: `ORDER_BLOCK_${ob.type}_${ob.obType}`,
+        },
+      });
+    }
   }
 }

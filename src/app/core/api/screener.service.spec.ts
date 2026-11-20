@@ -83,7 +83,12 @@ describe('ScreenerService', () => {
 
     const scanReq = httpMock.expectOne('/api/screener/scan');
     expect(scanReq.request.method).toBe('POST');
-    expect(scanReq.request.body).toEqual({ mode: 'live' });
+    expect(scanReq.request.body).toEqual({
+      mode: 'live',
+      strategy: 'liquidity-sweep',
+      timeframe: '15m',
+      entryMode: 'RECLAIM_CLOSE',
+    });
     scanReq.flush(mockResponse);
 
     expect(service.isScanning()).toBe(false);
@@ -102,8 +107,11 @@ describe('ScreenerService', () => {
     expect(scanReq.request.method).toBe('POST');
     expect(scanReq.request.body).toEqual({
       mode: 'historical',
+      strategy: 'liquidity-sweep',
       startDate: '2026-11-14',
       endDate: '2026-11-17',
+      timeframe: '15m',
+      entryMode: 'RECLAIM_CLOSE',
     });
 
     scanReq.flush({
@@ -122,6 +130,129 @@ describe('ScreenerService', () => {
 
     expect(service.isScanning()).toBe(false);
     expect(service.totalRecommendations()).toBe(0);
+  });
+
+  it('should support customizing sweep timeframe and entry mode', () => {
+    service.setSweepTimeframe('1h');
+    service.setSweepEntryMode('LTF_STRUCTURE_SHIFT');
+    expect(service.sweepTimeframe()).toBe('1h');
+    expect(service.sweepEntryMode()).toBe('LTF_STRUCTURE_SHIFT');
+
+    service.runScan();
+    const scanReq = httpMock.expectOne('/api/screener/scan');
+    expect(scanReq.request.body).toEqual({
+      mode: 'live',
+      strategy: 'liquidity-sweep',
+      timeframe: '1h',
+      entryMode: 'LTF_STRUCTURE_SHIFT',
+    });
+    scanReq.flush({
+      mode: 'live',
+      strategy: 'LIQUIDITY_SWEEP',
+      timeframe: '1h',
+      scannedAt: '2026-11-19T10:00:00.000Z',
+      instrumentsScanned: [],
+      totalScanned: 2,
+      totalRecommendations: 0,
+      bullishCount: 0,
+      bearishCount: 0,
+      recommendations: [],
+      liquiditySweepData: {
+        mode: 'live',
+        strategy: 'LIQUIDITY_SWEEP',
+        timeframe: '1h',
+        scannedAt: '2026-11-19T10:00:00.000Z',
+        instrumentsScanned: [],
+        totalScanned: 2,
+        totalActivePools: 3,
+        totalSignals: 1,
+        bullishCount: 1,
+        bearishCount: 0,
+        results: [],
+      },
+    });
+    expect(service.totalActivePools()).toBe(3);
+    expect(service.totalSweepSignals()).toBe(1);
+  });
+
+  it('should execute Order Block (SMC) scan when strategy is order-block', () => {
+    service.setStrategy('order-block');
+    service.setHtfTimeframe('4h');
+    service.setLtfTimeframe('15m');
+    service.runScan();
+
+    const scanReq = httpMock.expectOne('/api/screener/scan');
+    expect(scanReq.request.method).toBe('POST');
+    expect(scanReq.request.body).toEqual({
+      mode: 'live',
+      strategy: 'order-block',
+      htfTimeframe: '4h',
+      ltfTimeframe: '15m',
+    });
+
+    scanReq.flush({
+      mode: 'live',
+      strategy: 'order-block',
+      scannedAt: '2026-11-19T10:00:00.000Z',
+      instrumentsScanned: [],
+      totalScanned: 4,
+      totalRecommendations: 1,
+      bullishCount: 1,
+      bearishCount: 0,
+      recommendations: [],
+      orderBlockData: {
+        mode: 'live',
+        strategy: 'order-block',
+        htf: '4h',
+        ltf: '15m',
+        scannedAt: '2026-11-19T10:00:00.000Z',
+        instrumentsScanned: [],
+        totalScanned: 4,
+        totalActiveOrderBlocks: 2,
+        totalSignals: 1,
+        approachingCount: 1,
+        mitigatingCount: 0,
+        sniperSignalCount: 1,
+        results: [
+          {
+            symbol: 'NIFTY',
+            displayName: 'Nifty 50',
+            name: 'Nifty 50',
+            timeframe: '4h + 15m',
+            trendBias: 'BULLISH',
+            activeOrderBlocks: [
+              {
+                id: 'OB_1',
+                type: 'BULLISH',
+                obType: 'EXTREME',
+                candleIndex: 2,
+                createdAt: 1700000000,
+                zoneHigh: 24600,
+                zoneLow: 24500,
+                equilibrium: 24550,
+                bosPrice: 24700,
+                structureBreakType: 'BOS',
+                structureBreakTime: 1700010000,
+                mitigated: false,
+                invalidated: false,
+                status: 'UNMITIGATED',
+              },
+            ],
+            candles: [],
+            chartOverlay: {
+              orderBlocks: [],
+              fvgs: [],
+              breaks: [],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(service.isScanning()).toBe(false);
+    expect(service.totalActiveOrderBlocks()).toBe(2);
+    expect(service.totalSniperSignals()).toBe(1);
+    expect(service.orderBlockSymbols().length).toBe(1);
   });
 
   it('should reject invalid historical date range locally before calling backend', () => {

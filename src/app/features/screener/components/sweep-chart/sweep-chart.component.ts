@@ -29,6 +29,7 @@ import {
 import {
   LiquidityLevelType,
   LiquiditySweepSignal,
+  LiquiditySweepSymbolResult,
   ScreenerCandle,
 } from '../../../../core/models/screener.models';
 
@@ -57,22 +58,53 @@ const IST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', {
     <div class="sweep-chart-shell">
       <div class="chart-mini-bar">
         <div class="chart-legend">
-          <span class="legend-chip level-chip" [class.pd-level]="isPriorDayLevel">
-            <span class="legend-dash"></span>
-            <span>{{ levelAxisLabel }}</span>
-          </span>
-          <span class="legend-chip sweep-chip">
-            <span class="legend-dot"></span>
-            <span>Sweep: {{ signal.sweepPrice | number : '1.2-2' }}</span>
-          </span>
-          <span
-            class="legend-chip confirm-chip"
-            [class.buy-chip]="signal.signalType === 'BUY'"
-            [class.sell-chip]="signal.signalType === 'SELL'"
-          >
-            <span class="legend-arrow">{{ signal.signalType === 'BUY' ? '▲' : '▼' }}</span>
-            <span>{{ signal.signalType }} Close: {{ signal.confirmationClosePrice | number : '1.2-2' }}</span>
-          </span>
+          <!-- Standalone Result Legend -->
+          <ng-container *ngIf="result; else legacySignalLegend">
+            <!-- Active Pools Count -->
+            <span class="legend-chip level-chip" *ngIf="result.activePools.length > 0">
+              <span class="legend-dash"></span>
+              <span>{{ result.activePools.length }} Pools ({{ bslCount }} BSL / {{ sslCount }} SSL)</span>
+            </span>
+
+            <!-- Latest Sweep Marker Chip -->
+            <span class="legend-chip sweep-chip" *ngIf="latestSweep as sw">
+              <span class="legend-dot"></span>
+              <span>Sweep: {{ sw.poolType }} &#64; {{ sw.sweptPrice | number : '1.2-2' }}</span>
+            </span>
+
+            <!-- Trade Signal Chip -->
+            <span
+              *ngIf="result.signal as sig"
+              class="legend-chip confirm-chip"
+              [class.buy-chip]="sig.action === 'BUY'"
+              [class.sell-chip]="sig.action === 'SELL'"
+            >
+              <span class="legend-arrow">{{ sig.action === 'BUY' ? '▲' : '▼' }}</span>
+              <span>{{ sig.action }} (1:{{ sig.rrRatio | number : '1.1-1' }} R:R) &bull; Entry: {{ sig.entryPrice | number : '1.2-2' }} | SL: {{ sig.stopLoss | number : '1.2-2' }} | TP: {{ sig.takeProfit | number : '1.2-2' }}</span>
+            </span>
+          </ng-container>
+
+          <!-- Legacy Signal Legend -->
+          <ng-template #legacySignalLegend>
+            <ng-container *ngIf="signal">
+              <span class="legend-chip level-chip" [class.pd-level]="isPriorDayLevel">
+                <span class="legend-dash"></span>
+                <span>{{ levelAxisLabel }}</span>
+              </span>
+              <span class="legend-chip sweep-chip">
+                <span class="legend-dot"></span>
+                <span>Sweep: {{ signal.sweepPrice | number : '1.2-2' }}</span>
+              </span>
+              <span
+                class="legend-chip confirm-chip"
+                [class.buy-chip]="signal.signalType === 'BUY'"
+                [class.sell-chip]="signal.signalType === 'SELL'"
+              >
+                <span class="legend-arrow">{{ signal.signalType === 'BUY' ? '▲' : '▼' }}</span>
+                <span>{{ signal.signalType }} Close: {{ signal.confirmationClosePrice | number : '1.2-2' }}</span>
+              </span>
+            </ng-container>
+          </ng-template>
         </div>
 
         <div class="chart-controls">
@@ -270,7 +302,8 @@ const IST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', {
   ],
 })
 export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy {
-  @Input({ required: true }) signal!: LiquiditySweepSignal;
+  @Input() signal?: LiquiditySweepSignal;
+  @Input() result?: LiquiditySweepSymbolResult;
 
   @ViewChild('chartContainer', { static: true })
   chartContainerRef!: ElementRef<HTMLDivElement>;
@@ -278,6 +311,7 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
   private chart: IChartApi | null = null;
   private candleSeries: ISeriesApi<'Candlestick', Time> | null = null;
   private levelPriceLine: IPriceLine | null = null;
+  private priceLines: IPriceLine[] = [];
   private markersPlugin: ISeriesMarkersPluginApi<Time> | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private normalizedCandles: ScreenerCandle[] = [];
@@ -295,14 +329,36 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
     return `${this.formatLevelPrefix(this.signal.levelType)}: ${this.signal.levelPrice.toFixed(2)}`;
   }
 
+  get bslCount(): number {
+    return this.result?.activePools.filter((p) => p.side === 'BSL').length || 0;
+  }
+
+  get sslCount(): number {
+    return this.result?.activePools.filter((p) => p.side === 'SSL').length || 0;
+  }
+
+  get poolsCount(): number {
+    return this.result?.activePools?.length || 0;
+  }
+
+  get isResultMode(): boolean {
+    return Boolean(this.result);
+  }
+
+  get latestSweep() {
+    return this.result?.recentSweeps && this.result.recentSweeps.length > 0
+      ? this.result.recentSweeps[this.result.recentSweeps.length - 1]
+      : null;
+  }
+
   ngAfterViewInit(): void {
     this.isViewInitialized = true;
     this.initAndRenderChart();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['signal'] && this.isViewInitialized) {
-      this.renderSignalData();
+    if ((changes['signal'] || changes['result']) && this.isViewInitialized) {
+      this.renderData();
     }
   }
 
@@ -328,13 +384,23 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
    * Zoom into the signal's sweep & confirmation area (±20 candles around confirmation).
    */
   focusOnSignal(): void {
-    if (!this.chart || !this.signal || this.normalizedCandles.length === 0) {
+    if (!this.chart || this.normalizedCandles.length === 0) {
       return;
     }
 
-    const confirmIdx = this.normalizedCandles.findIndex(
-      (c) => c.time === this.signal.confirmationTimestamp,
-    );
+    let targetTime: number | null = null;
+    if (this.result?.signal && this.latestSweep) {
+      targetTime = this.latestSweep.reclaimTime || this.latestSweep.sweepTime;
+    } else if (this.signal) {
+      targetTime = this.signal.confirmationTimestamp;
+    } else if (this.latestSweep) {
+      targetTime = this.latestSweep.sweepTime;
+    }
+
+    const confirmIdx =
+      targetTime != null
+        ? this.normalizedCandles.findIndex((c) => c.time === targetTime)
+        : this.normalizedCandles.length - 1;
 
     this.chart.priceScale('right').setAutoScale(true);
 
@@ -464,7 +530,7 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
     // Attach capture-phase wheel handler for responsive trackpad/mouse zoom (both X time & Y price axes)
     container.addEventListener('wheel', this.handleWheelBound, { passive: false, capture: true });
 
-    this.renderSignalData();
+    this.renderData();
 
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver((entries) => {
@@ -494,7 +560,6 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
     const absX = Math.abs(event.deltaX);
     const absY = Math.abs(event.deltaY);
 
-    // Let native horizontal scroll pass through untouched
     if (absY === 0 || (absX > absY && !event.ctrlKey)) {
       return;
     }
@@ -509,7 +574,6 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
     const priceAxisWidth = Math.max(priceScale.width() || 60, 56);
     const isOverPriceAxis = localX >= rect.width - priceAxisWidth;
 
-    // Normalize wheel delta across mouse wheels & high-resolution macOS trackpads
     const rawDelta =
       event.deltaMode === 1
         ? event.deltaY * 16
@@ -517,11 +581,9 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
           ? event.deltaY * 120
           : event.deltaY;
     const clampedDelta = Math.max(-120, Math.min(120, rawDelta));
-    // Scroll UP (negative deltaY) -> zoom IN (factor < 1); Scroll DOWN (positive deltaY) -> zoom OUT (factor > 1)
     const zoomFactor = Math.exp(clampedDelta * 0.0025);
 
     if (isOverPriceAxis || event.shiftKey || event.altKey) {
-      // Vertical price axis zoom
       const visiblePriceRange = priceScale.getVisibleRange();
       if (visiblePriceRange) {
         const center = (visiblePriceRange.from + visiblePriceRange.to) / 2;
@@ -537,10 +599,150 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
       return;
     }
 
-    // Time axis zoom anchored at cursor X position
     const paneWidth = Math.max(1, rect.width - priceAxisWidth);
     const anchorRatio = Math.min(1, Math.max(0, localX / paneWidth));
     this.zoomBy(zoomFactor, anchorRatio);
+  }
+
+  private clearPriceLines(): void {
+    if (this.candleSeries) {
+      for (const line of this.priceLines) {
+        try {
+          this.candleSeries.removePriceLine(line);
+        } catch {
+          // ignore
+        }
+      }
+      if (this.levelPriceLine) {
+        try {
+          this.candleSeries.removePriceLine(this.levelPriceLine);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    this.priceLines = [];
+    this.levelPriceLine = null;
+  }
+
+  private renderData(): void {
+    if (!this.chart || !this.candleSeries) {
+      return;
+    }
+    if (this.result) {
+      this.renderResultData();
+    } else if (this.signal) {
+      this.renderSignalData();
+    }
+  }
+
+  private renderResultData(): void {
+    if (!this.chart || !this.candleSeries || !this.result) {
+      return;
+    }
+
+    const byTime = new Map<number, ScreenerCandle>();
+    for (const c of this.result.candles || []) {
+      const t = Math.floor(Number(c.time));
+      if (Number.isFinite(t) && t > 0 && !byTime.has(t)) {
+        byTime.set(t, { ...c, time: t });
+      }
+    }
+    this.normalizedCandles = Array.from(byTime.values()).sort((a, b) => a.time - b.time);
+
+    const chartData: CandlestickData<Time>[] = this.normalizedCandles.map((c) => ({
+      time: c.time as UTCTimestamp,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+    this.candleSeries.setData(chartData);
+
+    this.clearPriceLines();
+
+    // 1. Dotted / Dashed Horizontal Liquidity Pool Lines (BSL, SSL, EQH, EQL, PDH, PDL)
+    const overlay = this.result.chartOverlay;
+    for (const pool of overlay?.pools || []) {
+      const line = this.candleSeries.createPriceLine({
+        price: pool.price,
+        color: pool.color,
+        lineWidth: pool.touchCount >= 2 ? 2 : 1,
+        lineStyle: pool.lineStyle === 'dotted' ? LineStyle.Dotted : LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `${pool.side} ${pool.poolType}${pool.touchCount >= 2 ? ' (' + pool.touchCount + 'x)' : ''}: ${pool.price.toFixed(2)}`,
+      });
+      this.priceLines.push(line);
+    }
+
+    // 2. Entry, Stop Loss (at sweep wick extreme), and Take Profit (at opposing pool) lines
+    if (this.result.signal) {
+      const sig = this.result.signal;
+      const entryLine = this.candleSeries.createPriceLine({
+        price: sig.entryPrice,
+        color: '#00D2C4',
+        lineWidth: 2,
+        lineStyle: LineStyle.Solid,
+        axisLabelVisible: true,
+        title: `Entry (${sig.entryMode}): ${sig.entryPrice.toFixed(2)}`,
+      });
+      this.priceLines.push(entryLine);
+
+      const slLine = this.candleSeries.createPriceLine({
+        price: sig.stopLoss,
+        color: '#F43F5E',
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `SL (Sweep Ext): ${sig.stopLoss.toFixed(2)}`,
+      });
+      this.priceLines.push(slLine);
+
+      const tpLine = this.candleSeries.createPriceLine({
+        price: sig.takeProfit,
+        color: '#10B981',
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `TP: ${sig.takeProfit.toFixed(2)} (1:${sig.rrRatio})`,
+      });
+      this.priceLines.push(tpLine);
+    }
+
+    // 3. Distinct Sweep Markers (Sweep ▲ below swept wick, Sweep ▼ above swept wick)
+    const markers: SeriesMarker<Time>[] = [];
+    for (const sw of overlay?.sweeps || []) {
+      const isBull = sw.direction === 'BULLISH';
+      markers.push({
+        time: Math.floor(sw.sweepTime) as UTCTimestamp,
+        position: isBull ? 'belowBar' : 'aboveBar',
+        shape: isBull ? 'arrowUp' : 'arrowDown',
+        color: isBull ? '#10B981' : '#F43F5E',
+        text: isBull ? 'Sweep ▲' : 'Sweep ▼',
+        size: 2,
+      });
+    }
+
+    if (this.result.signal && this.latestSweep) {
+      const isBuy = this.result.signal.action === 'BUY';
+      markers.push({
+        time: Math.floor(this.latestSweep.reclaimTime) as UTCTimestamp,
+        position: isBuy ? 'belowBar' : 'aboveBar',
+        shape: 'circle',
+        color: '#F59E0B',
+        text: `${this.result.signal.action} (1:${this.result.signal.rrRatio})`,
+        size: 1,
+      });
+    }
+
+    const sortedMarkers = markers.sort((a, b) => Number(a.time) - Number(b.time));
+    if (this.markersPlugin) {
+      this.markersPlugin.setMarkers(sortedMarkers);
+    } else {
+      this.markersPlugin = createSeriesMarkers(this.candleSeries, sortedMarkers);
+    }
+
+    this.fitFullSession();
   }
 
   private renderSignalData(): void {
@@ -548,7 +750,7 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
       return;
     }
 
-    // 1. Deduplicate and strictly sort candles ascending in UNIX seconds (defense-in-depth)
+    // Deduplicate and strictly sort candles
     const byTime = new Map<number, ScreenerCandle>();
     for (const c of this.signal.candles || []) {
       const t = Math.floor(Number(c.time));
@@ -567,12 +769,7 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
     }));
 
     this.candleSeries.setData(chartData);
-
-    // 2. Horizontal Liquidity Level Line via createPriceLine
-    if (this.levelPriceLine) {
-      this.candleSeries.removePriceLine(this.levelPriceLine);
-      this.levelPriceLine = null;
-    }
+    this.clearPriceLines();
 
     const levelColor = this.isPriorDayLevel ? '#F59E0B' : '#00D2C4';
     this.levelPriceLine = this.candleSeries.createPriceLine({
@@ -583,8 +780,8 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
       axisLabelVisible: true,
       title: this.levelAxisLabel,
     });
+    this.priceLines.push(this.levelPriceLine);
 
-    // 3. Sweep & Confirmation Markers via v5 createSeriesMarkers
     const markers = this.buildMarkers(this.signal);
     if (this.markersPlugin) {
       this.markersPlugin.setMarkers(markers);
@@ -592,7 +789,6 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
       this.markersPlugin = createSeriesMarkers(this.candleSeries, markers);
     }
 
-    // 4. Display the complete 09:15 – 15:30 session by default, then unlock vertical panning
     this.fitFullSession();
   }
 
@@ -630,7 +826,6 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
     const sweepTime = Math.floor(signal.sweepTimestamp) as UTCTimestamp;
     const confirmTime = Math.floor(signal.confirmationTimestamp) as UTCTimestamp;
 
-    // Mark Sweep Candle extreme
     markers.push({
       time: sweepTime,
       position: isBuy ? 'belowBar' : 'aboveBar',
@@ -640,7 +835,6 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
       size: 1,
     });
 
-    // Mark Confirmation Candle BUY / SELL trigger
     markers.push({
       time: confirmTime,
       position: isBuy ? 'belowBar' : 'aboveBar',
@@ -650,7 +844,6 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
       size: 2,
     });
 
-    // lightweight-charts requires markers sorted ascending by time
     return markers.sort((a, b) => Number(a.time) - Number(b.time));
   }
 
@@ -707,7 +900,7 @@ export class SweepChartComponent implements AfterViewInit, OnChanges, OnDestroy 
       this.markersPlugin.setMarkers([]);
       this.markersPlugin = null;
     }
-    this.levelPriceLine = null;
+    this.clearPriceLines();
     this.candleSeries = null;
     if (this.chart) {
       this.chart.remove();

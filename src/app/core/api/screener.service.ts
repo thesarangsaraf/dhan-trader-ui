@@ -3,12 +3,18 @@ import { HttpClient } from '@angular/common/http';
 import { of } from 'rxjs';
 import { catchError, finalize, tap } from 'rxjs/operators';
 import {
+  LiquiditySweepScanResponse,
   LiquiditySweepSignal,
+  LiquiditySweepSymbolResult,
+  OrderBlockScanResponse,
+  OrderBlockSymbolResult,
   ScreenerInstrumentItem,
   ScreenerInstrumentsResponse,
   ScreenerScanMode,
   ScreenerScanRequest,
   ScreenerScanResponse,
+  ScreenerStrategyType,
+  SweepEntryMode,
 } from '../models/screener.models';
 
 /** Format a local/IST date string YYYY-MM-DD offset by deltaDays */
@@ -23,10 +29,23 @@ function formatIstDateOffset(deltaDays = 0): string {
 export class ScreenerService {
   private readonly http = inject(HttpClient);
 
-  // --- CONFIGURED INDICES (from Firestore config/lot_sizes) ---
+  // --- CONFIGURED INDICES (from Firestore master_data/traded_instruments) ---
   readonly instruments = signal<ScreenerInstrumentItem[]>([]);
   readonly isLoadingInstruments = signal<boolean>(false);
   readonly instrumentsError = signal<string | null>(null);
+
+  // --- STRATEGY SELECTION ('liquidity-sweep' | 'order-block') ---
+  readonly activeStrategy = signal<ScreenerStrategyType>('liquidity-sweep');
+
+  // --- LIQUIDITY SWEEP STANDALONE PARAMETERS & STATE ---
+  readonly sweepTimeframe = signal<'5m' | '15m' | '1h'>('15m');
+  readonly sweepEntryMode = signal<SweepEntryMode>('RECLAIM_CLOSE');
+  readonly liquiditySweepResults = signal<LiquiditySweepScanResponse | null>(null);
+
+  // --- ORDER BLOCK PARAMETERS ---
+  readonly htfTimeframe = signal<'1h' | '4h'>('1h');
+  readonly ltfTimeframe = signal<'5m' | '15m'>('5m');
+  readonly orderBlockResults = signal<OrderBlockScanResponse | null>(null);
 
   // --- ON-DEMAND SCAN STATE ---
   readonly scanMode = signal<ScreenerScanMode>('live');
@@ -38,7 +57,16 @@ export class ScreenerService {
   readonly scanResults = signal<ScreenerScanResponse | null>(null);
   readonly lastScannedAt = signal<string | null>(null);
 
-  // --- COMPUTED SIGNALS ---
+  // --- COMPUTED SIGNALS (Liquidity Sweep Standalone & Legacy) ---
+  readonly liquiditySweepSymbols = computed<LiquiditySweepSymbolResult[]>(
+    () => this.liquiditySweepResults()?.results || [],
+  );
+  readonly totalActivePools = computed<number>(
+    () => this.liquiditySweepResults()?.totalActivePools || 0,
+  );
+  readonly totalSweepSignals = computed<number>(
+    () => this.liquiditySweepResults()?.totalSignals || 0,
+  );
   readonly recommendations = computed<LiquiditySweepSignal[]>(
     () => this.scanResults()?.recommendations || [],
   );
@@ -50,12 +78,29 @@ export class ScreenerService {
   readonly totalScanned = computed<number>(() => this.scanResults()?.totalScanned || 0);
   readonly instrumentCount = computed<number>(() => this.instruments().length);
 
+  // --- COMPUTED SIGNALS (Order Block SMC) ---
+  readonly orderBlockSymbols = computed<OrderBlockSymbolResult[]>(
+    () => this.orderBlockResults()?.results || [],
+  );
+  readonly totalActiveOrderBlocks = computed<number>(
+    () => this.orderBlockResults()?.totalActiveOrderBlocks || 0,
+  );
+  readonly totalSniperSignals = computed<number>(
+    () => this.orderBlockResults()?.totalSignals || 0,
+  );
+  readonly approachingCount = computed<number>(
+    () => this.orderBlockResults()?.approachingCount || 0,
+  );
+  readonly mitigatingCount = computed<number>(
+    () => this.orderBlockResults()?.mitigatingCount || 0,
+  );
+
   constructor() {
     this.loadInstruments();
   }
 
   /**
-   * Load the configured indices universe from Firestore config/lot_sizes.
+   * Load the configured indices universe from Firestore master_data/traded_instruments.
    * Does NOT trigger any scan automatically.
    */
   loadInstruments(): void {
@@ -83,6 +128,27 @@ export class ScreenerService {
       .subscribe();
   }
 
+  setStrategy(strategy: ScreenerStrategyType): void {
+    this.activeStrategy.set(strategy);
+    this.scanError.set(null);
+  }
+
+  setSweepTimeframe(tf: '5m' | '15m' | '1h'): void {
+    this.sweepTimeframe.set(tf);
+  }
+
+  setSweepEntryMode(mode: SweepEntryMode): void {
+    this.sweepEntryMode.set(mode);
+  }
+
+  setHtfTimeframe(tf: '1h' | '4h'): void {
+    this.htfTimeframe.set(tf);
+  }
+
+  setLtfTimeframe(tf: '5m' | '15m'): void {
+    this.ltfTimeframe.set(tf);
+  }
+
   setMode(mode: ScreenerScanMode): void {
     this.scanMode.set(mode);
     this.scanError.set(null);
@@ -95,12 +161,24 @@ export class ScreenerService {
   }
 
   /**
-   * Strictly on-demand 5m Liquidity Sweep & Reversal scan.
-   * Only executed when the user clicks "Run Scan".
+   * Strictly on-demand scan.
+   * Dispatches to either Liquidity Sweep or Order Block scanner based on activeStrategy.
    */
   runScan(override?: Partial<ScreenerScanRequest>): void {
     const mode: ScreenerScanMode = override?.mode || this.scanMode();
-    const payload: ScreenerScanRequest = { mode };
+    const strategy: ScreenerStrategyType = override?.strategy || this.activeStrategy();
+    const payload: ScreenerScanRequest = {
+      mode,
+      strategy,
+    };
+
+    if (strategy === 'order-block' || strategy === 'ORDER_BLOCK') {
+      payload.htfTimeframe = override?.htfTimeframe || this.htfTimeframe();
+      payload.ltfTimeframe = override?.ltfTimeframe || this.ltfTimeframe();
+    } else {
+      payload.timeframe = override?.timeframe || this.sweepTimeframe();
+      payload.entryMode = override?.entryMode || this.sweepEntryMode();
+    }
 
     if (mode === 'historical') {
       const startDate = override?.startDate || override?.date || this.historicalStartDate();
@@ -132,6 +210,17 @@ export class ScreenerService {
         tap((res) => {
           this.scanResults.set(res);
           this.lastScannedAt.set(res.scannedAt || new Date().toISOString());
+          if (res.orderBlockData) {
+            this.orderBlockResults.set(res.orderBlockData);
+          } else if (res.strategy === 'order-block' || res.strategy === 'ORDER_BLOCK') {
+            this.orderBlockResults.set(res as unknown as OrderBlockScanResponse);
+          }
+
+          if (res.liquiditySweepData) {
+            this.liquiditySweepResults.set(res.liquiditySweepData);
+          } else if (res.strategy === 'LIQUIDITY_SWEEP' || res.strategy === 'liquidity-sweep') {
+            this.liquiditySweepResults.set(res as unknown as LiquiditySweepScanResponse);
+          }
         }),
         catchError((err) => {
           const rawMsg = err.error?.message;
@@ -139,7 +228,7 @@ export class ScreenerService {
             ? rawMsg.join(', ')
             : rawMsg ||
               err.message ||
-              'Failed to execute liquidity sweep scan. Please ensure backend is running.';
+              'Failed to execute screener scan. Please ensure backend is running.';
           this.scanError.set(msg);
           return of(null);
         }),
