@@ -74,4 +74,51 @@ describe('AuthModalComponent', () => {
     expect(mockOrderService.refreshAll).toHaveBeenCalled();
     expect(component.tokenInput).toBe('');
   });
+
+  it('should display postback warning banner when postbackUrlConfigured is false or undefined', () => {
+    mockAuthService.tokenStatus.mockReturnValue({
+      configured: true,
+      clientId: '1106885516',
+      status: 'ACTIVE',
+      statusText: 'Active',
+      tokenMasked: 'eyJhbGci...mock',
+      postbackUrlConfigured: false,
+      expectedPostbackUrl: 'https://api.example.com/api/webhooks/dhan',
+    });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.postback-banner.warning')).toBeTruthy();
+    expect(el.textContent).toContain('Postback Webhook URL Missing');
+    expect(el.textContent).toContain('https://api.example.com/api/webhooks/dhan');
+  });
+
+  it('should display postback configured banner when postbackUrlConfigured is true', () => {
+    mockAuthService.tokenStatus.mockReturnValue({
+      configured: true,
+      clientId: '1106885516',
+      status: 'ACTIVE',
+      statusText: 'Active',
+      tokenMasked: 'eyJhbGci...mock',
+      postbackUrlConfigured: true,
+      postbackUrl: 'https://api.example.com/api/webhooks/dhan',
+    });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.postback-banner.configured')).toBeTruthy();
+    expect(el.textContent).toContain('Dhan Postback Webhook Configured');
+    expect(el.textContent).toContain('https://api.example.com/api/webhooks/dhan');
+  });
+
+  it('should copy postback URL to clipboard and show snackbar', () => {
+    const writeTextFn = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextFn,
+      },
+    });
+    const snackBarSpy = vi.spyOn(component.snackBar, 'open').mockReturnValue({} as any);
+
+    component.copyPostbackUrl('https://api.example.com/api/webhooks/dhan');
+    expect(writeTextFn).toHaveBeenCalledWith('https://api.example.com/api/webhooks/dhan');
+  });
 });

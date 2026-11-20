@@ -72,10 +72,17 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
           class="token-expiry-chip"
           [ngClass]="authService.statusColor()"
           (click)="openAuthModal()"
-          matTooltip="Click to inspect JWT token, expiry, or manual renewal"
+          [matTooltip]="authService.tokenStatus?.()?.postbackUrlConfigured === false
+            ? 'Click to inspect JWT token, expiry, or renewal. (⚠️ Postback Webhook URL not configured on Dhan token!)'
+            : 'Click to inspect JWT token, expiry, or manual renewal'"
         >
           <span class="material-symbols-rounded token-icon">timer</span>
           <span class="mono-val text">{{ authService.timeRemainingFormatted() }}</span>
+          <span
+            *ngIf="authService.tokenStatus?.() && authService.tokenStatus?.()?.postbackUrlConfigured === false"
+            class="material-symbols-rounded postback-warn-dot"
+            matTooltip="⚠️ Postback Webhook URL missing on token"
+          >warning</span>
           <button
             *ngIf="authService.isBackendOnline()"
             class="mini-renew-btn"
@@ -266,6 +273,12 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
       .token-icon {
         font-size: 16px;
+      }
+
+      .postback-warn-dot {
+        font-size: 15px;
+        color: #f59e0b;
+        margin-left: 2px;
       }
 
       .mini-renew-btn {

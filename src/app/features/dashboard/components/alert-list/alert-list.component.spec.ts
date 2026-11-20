@@ -224,6 +224,39 @@ describe('AlertListComponent', () => {
     expect(lotsCell?.textContent?.trim()).toBe('15');
   });
 
+  it('should render webhook callback configured pill/icon when webhookConfigured or webhookUrl is set', () => {
+    alertService.alerts.set([
+      {
+        id: 'ALT-WEBHOOK-TEST',
+        instrument: 'NIFTY 50',
+        securityId: '13',
+        exchangeSegment: 'IDX_I',
+        targetPrice: 24500,
+        operator: 'GREATER_THAN_EQUAL',
+        status: 'ACTIVE',
+        remarks: 'Webhook alert',
+        createdAt: '2026-11-20T10:00:00.000Z',
+        webhookConfigured: true,
+        webhookUrl: 'https://api.example.com/api/webhooks/dhan',
+        conditionalOrders: [
+          {
+            symbol: 'NIFTY 28 NOV 24500 CALL',
+            action: 'BUY',
+            quantity: 50,
+            exchangeSegment: 'NSE_FNO',
+          },
+        ],
+      },
+    ]);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const webhookPill = compiled.querySelector('.webhook-pill');
+    expect(webhookPill).toBeTruthy();
+    expect(webhookPill?.textContent).toContain('Webhook');
+    expect(webhookPill?.querySelector('.webhook-icon')?.textContent?.trim()).toBe('webhook');
+  });
+
   it('should NOT show cancel button or breakout/breakdown badges, only delete button', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const items = compiled.querySelectorAll('.alert-item');

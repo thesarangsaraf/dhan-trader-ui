@@ -72,6 +72,8 @@ export interface DhanAlert {
   parentAlertId?: string | null;
   rawDhanJson?: Record<string, any> | any;
   rawAlertJson?: Record<string, any> | any;
+  webhookConfigured?: boolean;
+  webhookUrl?: string;
   dhanMetadata?: {
     monitoringMode?: string;
     exchangeSegment?: string;
@@ -101,6 +103,8 @@ export interface CreateAlertDto {
   };
   expDate?: string;
   stopLoss?: AlertStopLossConfig;
+  webhookConfigured?: boolean;
+  webhookUrl?: string;
 }
 
 export interface UpdateAlertDto {

@@ -40,6 +40,7 @@ describe('HeaderComponent', () => {
     timeRemainingFormatted: signal('23h 50m'),
     isRenewing: signal(false),
     renewToken: vi.fn(),
+    tokenStatus: signal({ configured: true, postbackUrlConfigured: true }),
   };
 
   const mockAlertService = {};

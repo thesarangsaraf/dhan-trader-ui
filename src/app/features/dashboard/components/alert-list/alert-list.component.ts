@@ -195,6 +195,17 @@ export function isClaimedByAnother(
                       {{ alert.status }}
                     </span>
 
+                    <!-- Webhook Callback Configured Badge -->
+                    <span
+                      class="webhook-pill"
+                      *ngIf="alert.webhookConfigured || alert.webhookUrl"
+                      [matTooltip]="'Webhook callback active: ' + (alert.webhookUrl || 'Dhan Postback to backend & Telegram')"
+                      aria-label="Webhook callback configured"
+                    >
+                      <span class="material-symbols-rounded webhook-icon">webhook</span>
+                      <span class="webhook-label">Webhook</span>
+                    </span>
+
                     <!-- Triggered timestamp only when triggered -->
                     <span class="time-trigger mono-val" *ngIf="alert.triggeredAt">
                       &bull; Triggered: {{ alert.triggeredAt | istDate : 'timeOnly' }}
@@ -348,6 +359,17 @@ export function isClaimedByAnother(
                       }"
                     >
                       {{ alert.status }}
+                    </span>
+
+                    <!-- Webhook Callback Configured Badge -->
+                    <span
+                      class="webhook-pill"
+                      *ngIf="alert.webhookConfigured || alert.webhookUrl"
+                      [matTooltip]="'Webhook callback active: ' + (alert.webhookUrl || 'Dhan Postback to backend & Telegram')"
+                      aria-label="Webhook callback configured"
+                    >
+                      <span class="material-symbols-rounded webhook-icon">webhook</span>
+                      <span class="webhook-label">Webhook</span>
                     </span>
 
                     <!-- Triggered timestamp only when triggered -->
@@ -568,6 +590,30 @@ export function isClaimedByAnother(
         font-weight: 700;
         padding: 1px 5px;
         border-radius: 4px;
+        text-transform: uppercase;
+      }
+      .webhook-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 0.625rem;
+        font-weight: 600;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: rgba(14, 165, 233, 0.12);
+        color: #38bdf8;
+        border: 1px solid rgba(14, 165, 233, 0.32);
+        cursor: help;
+        vertical-align: middle;
+      }
+      .webhook-pill .webhook-icon {
+        font-size: 0.75rem;
+        width: 0.75rem;
+        height: 0.75rem;
+        line-height: 0.75rem;
+      }
+      .webhook-pill .webhook-label {
+        letter-spacing: 0.02em;
         text-transform: uppercase;
       }
       .time-trigger {

@@ -4,6 +4,7 @@ export interface TokenPayload {
   userName?: string;
   iat?: number;
   exp?: number;
+  webhookUrl?: string;
   [key: string]: unknown;
 }
 
@@ -21,6 +22,9 @@ export interface TokenInspection {
   timeRemainingFormatted?: string;
   isExpired: boolean;
   isExpiringSoon: boolean;
+  postbackUrl?: string | null;
+  postbackUrlConfigured?: boolean;
+  expectedPostbackUrl?: string;
   payload?: TokenPayload | null;
 }
 
