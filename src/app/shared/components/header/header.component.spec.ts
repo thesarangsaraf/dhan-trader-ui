@@ -11,7 +11,6 @@ import { OrderService } from '../../../core/api/order.service';
 import { AuthService } from '../../../core/api/auth.service';
 import { AlertService } from '../../../core/api/alert.service';
 import { TelegramApiService } from '../../../core/api/telegram.service';
-import { FundsModalComponent } from '../../../features/settings/funds-modal/funds-modal.component';
 import { AuthModalComponent } from '../../../features/settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../../../features/settings/telegram-modal/telegram-modal.component';
 
@@ -135,15 +134,13 @@ describe('HeaderComponent', () => {
     expect(fundsChip?.textContent).toContain('4,12,000');
   });
 
-  it('should open FundsModalComponent when clicking on the Available Balance chip', () => {
+  it('should not open any dialog when clicking on the Available Balance chip', () => {
     fixture.detectChanges();
 
     const fundsChip = fixture.nativeElement.querySelector('.funds-chip') as HTMLElement;
     fundsChip.click();
 
-    expect(mockDialog.open).toHaveBeenCalledWith(FundsModalComponent, {
-      width: '520px',
-    });
+    expect(mockDialog.open).not.toHaveBeenCalled();
   });
 
   it('should trigger orderService.refreshFunds when mini-refresh button inside funds chip is clicked', () => {

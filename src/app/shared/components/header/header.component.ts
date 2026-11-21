@@ -12,7 +12,6 @@ import { TelegramApiService } from '../../../core/api/telegram.service';
 import { UserAuthService } from '../../../core/api/user-auth.service';
 import { AuthModalComponent } from '../../../features/settings/auth-modal/auth-modal.component';
 import { TelegramModalComponent } from '../../../features/settings/telegram-modal/telegram-modal.component';
-import { FundsModalComponent } from '../../../features/settings/funds-modal/funds-modal.component';
 import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
 
 @Component({
@@ -94,11 +93,10 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
           </button>
         </div>
 
-        <!-- Available Balance Option (Strict Real Backend Data) -->
+        <!-- Available Balance Display (Strict Real Backend Data) -->
         <div
           class="funds-chip"
-          (click)="openFundsModal()"
-          [matTooltip]="orderService.funds() ? ((orderService.funds()?.dematHoldingsValue ? 'Demat Portfolio: ' + (orderService.funds()?.dematHoldingsValue | currencyInr : false) + ' | ' : '') + 'Available Trading Cash: ' + (orderService.funds()?.availableBalance | currencyInr : false) + '. Click for full breakdown.') : 'Click to inspect Dhan account funds, margins & limits'"
+          [matTooltip]="orderService.funds() ? ((orderService.funds()?.dematHoldingsValue ? 'Demat Portfolio: ' + (orderService.funds()?.dematHoldingsValue | currencyInr : false) + ' | ' : '') + 'Available Trading Cash: ' + (orderService.funds()?.availableBalance | currencyInr : false)) : 'Dhan Account Balance'"
         >
           <span class="material-symbols-rounded funds-icon">account_balance_wallet</span>
           <span class="funds-label">{{ (orderService.funds()?.availableBalance === 0 && (orderService.funds()?.dematHoldingsValue || 0) > 0) ? 'Demat Value:' : 'Available Balance:' }}</span>
@@ -303,15 +301,10 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
         border-radius: 999px;
         font-size: 0.75rem;
         font-weight: 600;
-        cursor: pointer;
+        cursor: default;
         transition: all 0.15s ease;
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
-      }
-
-      .funds-chip:hover {
-        border-color: var(--dhan-cyan);
-        background: rgba(0, 210, 196, 0.08);
       }
 
       .funds-icon {
@@ -613,12 +606,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   openTelegramModal(): void {
     this.dialog.open(TelegramModalComponent, {
-      width: '520px',
-    });
-  }
-
-  openFundsModal(): void {
-    this.dialog.open(FundsModalComponent, {
       width: '520px',
     });
   }

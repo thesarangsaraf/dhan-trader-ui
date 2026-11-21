@@ -13,6 +13,8 @@ import { InstrumentService } from '../../../core/api/instrument.service';
 import { FirestoreApiService } from '../../../core/api/firestore.service';
 import { AlertService } from '../../../core/api/alert.service';
 import { OrderService } from '../../../core/api/order.service';
+import { NotificationApiService } from '../../../core/api/notification.service';
+import { TelegramApiService } from '../../../core/api/telegram.service';
 import { IndexConfigItem } from '../../../core/models/instrument.models';
 import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
 
@@ -85,6 +87,20 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 {{ instrumentService.syncStatus()?.storedInFirestore
                   ? 'Equities: ' + (instrumentService.syncStatus()?.metadata?.totalInstruments | number) + ' Items'
                   : 'Equities: Data not found in database' }}
+              </span>
+            </div>
+            <!-- Notifications Pill -->
+            <div
+              class="status-pill notif-pill"
+              [ngClass]="{
+                'active': notifTelegramEnabled() || notifNtfyEnabled(),
+                'warning-pill': !notifTelegramEnabled() && !notifNtfyEnabled()
+              }"
+              matTooltip="Order Postback Notification Channels (Telegram & ntfy.sh)"
+            >
+              <span class="material-symbols-rounded">notifications_active</span>
+              <span class="pill-text">
+                Notifications: {{ (notifTelegramEnabled() && notifNtfyEnabled()) ? 'Telegram & ntfy.sh' : notifTelegramEnabled() ? 'Telegram only' : notifNtfyEnabled() ? 'ntfy.sh only' : 'Disabled' }}
               </span>
             </div>
           </div>
@@ -527,6 +543,165 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             </form>
           </section>
 
+          <!-- SECTION: REAL-TIME POSTBACK NOTIFICATIONS (TELEGRAM & NTFY.SH) -->
+          <section class="settings-section-card" id="notifications-section">
+            <div class="section-header">
+              <div class="section-title-wrap">
+                <div class="icon-avatar" style="background: linear-gradient(135deg, #0284C7, #0EA5E9); color: #fff;">
+                  <span class="material-symbols-rounded">notifications_active</span>
+                </div>
+                <div>
+                  <h2 class="section-heading">Order Postback Notifications (Telegram &amp; ntfy.sh)</h2>
+                  <p class="section-subheading">
+                    Enable, disable, and toggle instant trade executions and price alerts push to Telegram and ntfy.sh Android app (Persisted in Firestore: <code>config/notifications</code>).
+                  </p>
+                </div>
+              </div>
+              <div class="section-actions" style="display: flex; gap: 8px;">
+                <button
+                  mat-stroked-button
+                  color="primary"
+                  class="action-btn-secondary"
+                  (click)="notificationApi.sendTestAll()"
+                  [disabled]="notificationApi.isTestingAll() || (!notifTelegramEnabled() && !notifNtfyEnabled())"
+                  matTooltip="Dispatch a test notification to all enabled channels"
+                >
+                  <span class="material-symbols-rounded" [class.spinning]="notificationApi.isTestingAll()">campaign</span>
+                  <span>{{ notificationApi.isTestingAll() ? 'Sending Test...' : 'Send Test (All Enabled)' }}</span>
+                </button>
+                <button
+                  mat-flat-button
+                  color="primary"
+                  class="action-btn-primary"
+                  (click)="saveNotificationSettings()"
+                  [disabled]="notificationApi.isSaving()"
+                  matTooltip="Save channel toggles and ntfy settings to Firestore"
+                >
+                  <span class="material-symbols-rounded">{{ notificationApi.isSaving() ? 'autorenew' : 'save' }}</span>
+                  <span>{{ notificationApi.isSaving() ? 'Saving...' : 'Save Settings' }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Two Channel Cards Grid -->
+            <div class="notif-channels-grid">
+              <!-- CHANNEL 1: TELEGRAM -->
+              <div class="notif-channel-card" [class.channel-disabled]="!notifTelegramEnabled()">
+                <div class="channel-card-header">
+                  <div class="channel-brand">
+                    <span class="material-symbols-rounded channel-icon tg-icon">send</span>
+                    <div>
+                      <div class="channel-name">Telegram Bot Bridge</div>
+                      <div class="channel-status-label">
+                        {{ telegramApi.status()?.configured ? 'Active & Connected' : 'Bot token not set' }}
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Enable/Disable Toggle -->
+                  <label class="toggle-switch-label">
+                    <input
+                      type="checkbox"
+                      [checked]="notifTelegramEnabled()"
+                      (change)="notifTelegramEnabled.set($any($event.target).checked)"
+                    />
+                    <span class="toggle-text">{{ notifTelegramEnabled() ? 'Enabled' : 'Disabled' }}</span>
+                  </label>
+                </div>
+
+                <div class="channel-card-body">
+                  <div class="meta-field-row">
+                    <span class="meta-label">Chat ID:</span>
+                    <span class="mono-val meta-val">{{ telegramApi.status()?.chatId || 'Not Set' }}</span>
+                  </div>
+                  <div class="meta-field-row">
+                    <span class="meta-label">Bot Token:</span>
+                    <span class="mono-val meta-val">{{ telegramApi.status()?.botConfigured ? 'Configured (Active)' : 'Missing' }}</span>
+                  </div>
+                  <p class="channel-hint">
+                    Delivers HTML-formatted alert triggers and attached order execution details directly to your Telegram chat or group.
+                  </p>
+                </div>
+
+                <div class="channel-card-actions">
+                  <button
+                    mat-stroked-button
+                    (click)="telegramApi.sendTest()"
+                    [disabled]="!telegramApi.status()?.configured || telegramApi.isTesting() || !notifTelegramEnabled()"
+                  >
+                    <span class="material-symbols-rounded">send</span>
+                    <span>{{ telegramApi.isTesting() ? 'Sending...' : 'Test Telegram' }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- CHANNEL 2: NTFY.SH (ANDROID APP) -->
+              <div class="notif-channel-card" [class.channel-disabled]="!notifNtfyEnabled()">
+                <div class="channel-card-header">
+                  <div class="channel-brand">
+                    <span class="material-symbols-rounded channel-icon ntfy-icon">notifications</span>
+                    <div>
+                      <div class="channel-name">ntfy.sh (Android Phone Push)</div>
+                      <div class="channel-status-label">
+                        High-priority instant mobile notifications
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Enable/Disable Toggle -->
+                  <label class="toggle-switch-label">
+                    <input
+                      type="checkbox"
+                      [checked]="notifNtfyEnabled()"
+                      (change)="notifNtfyEnabled.set($any($event.target).checked)"
+                    />
+                    <span class="toggle-text">{{ notifNtfyEnabled() ? 'Enabled' : 'Disabled' }}</span>
+                  </label>
+                </div>
+
+                <div class="channel-card-body">
+                  <div class="ntfy-input-group">
+                    <label class="input-label">ntfy.sh Topic Name (Subscribe in Android App)</label>
+                    <div class="topic-input-wrapper">
+                      <input
+                        type="text"
+                        [value]="notifNtfyTopic()"
+                        (input)="notifNtfyTopic.set($any($event.target).value)"
+                        placeholder="e.g. dhan-alerts-sarang-8821"
+                        class="compact-input mono-val"
+                      />
+                      <a
+                        [href]="'https://ntfy.sh/' + (notifNtfyTopic() || 'dhan-alerts-sarang-8821')"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="topic-link-btn"
+                        matTooltip="Open topic in browser on ntfy.sh"
+                      >
+                        <span class="material-symbols-rounded">open_in_new</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div class="ntfy-instructions">
+                    <span class="material-symbols-rounded hint-icon">smartphone</span>
+                    <div>
+                      <strong>How to subscribe on Android:</strong> Open the <em>ntfy</em> app on your phone, tap <strong>+</strong>, enter topic <code>{{ notifNtfyTopic() || 'dhan-alerts-sarang-8821' }}</code>, and tap <strong>Subscribe</strong>.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="channel-card-actions">
+                  <button
+                    mat-stroked-button
+                    (click)="notificationApi.sendNtfyTest(notifNtfyTopic())"
+                    [disabled]="notificationApi.isTestingNtfy() || !notifNtfyEnabled() || !notifNtfyTopic().trim()"
+                  >
+                    <span class="material-symbols-rounded">smartphone</span>
+                    <span>{{ notificationApi.isTestingNtfy() ? 'Sending...' : 'Test ntfy.sh' }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <!-- SECTION 2: TRADED INSTRUMENTS MASTER DATA (master_data/traded_instruments) -->
           <section class="settings-section-card" id="lots-section">
             <div class="section-header">
@@ -648,7 +823,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 <div>
                   <h2 class="section-heading">NSE Security Masters & Firestore Sync</h2>
                   <p class="section-subheading">
-                    Cash equities &amp; benchmark indices stored in Firestore collection <code>sec_id_to_name_mapping</code>
+                    Master data stored in Firestore collections <code>sec_id_to_name_mapping</code> &amp; <code>index_options</code>
                   </p>
                 </div>
               </div>
@@ -665,6 +840,19 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                     {{ instrumentService.isFlushingEquities() ? 'sync' : 'restart_alt' }}
                   </span>
                   <span>{{ instrumentService.isFlushingEquities() ? 'Flushing & Reloading Equities...' : 'Flush & Reload Equities' }}</span>
+                </button>
+                <button
+                  mat-flat-button
+                  color="accent"
+                  class="action-btn-accent flush-options-btn"
+                  (click)="onFlushAndReloadOptions()"
+                  [disabled]="instrumentService.isFlushingOptions()"
+                  matTooltip="Flush index_options and reload fresh option contracts from Dhan"
+                >
+                  <span class="material-symbols-rounded" [class.spinning]="instrumentService.isFlushingOptions()">
+                    {{ instrumentService.isFlushingOptions() ? 'sync' : 'restart_alt' }}
+                  </span>
+                  <span>{{ instrumentService.isFlushingOptions() ? 'Flushing & Reloading Options...' : 'Flush & Reload Options' }}</span>
                 </button>
               </div>
             </div>
@@ -731,6 +919,71 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 <div class="flush-inline-banner" *ngIf="instrumentService.lastFlushEquitiesResult() as eqRes">
                   <span class="material-symbols-rounded">check_circle</span>
                   <span>Equities flushed & reloaded: <strong class="mono-val">{{ eqRes.totalInstruments | number }}</strong> total ({{ eqRes.totalEquities | number }} equities, {{ eqRes.totalIndices | number }} indices)</span>
+                </div>
+              </div>
+
+              <!-- TRADED INDEX OPTIONS -->
+              <div class="sub-master-card">
+                <div class="sub-master-header">
+                  <div class="sub-master-title">
+                    <span class="material-symbols-rounded sub-icon options-icon">stacked_line_chart</span>
+                    <span>Traded Index Options</span>
+                  </div>
+                  <span class="collection-badge options-badge">index_options</span>
+                </div>
+
+                <!-- Options Not Found in Database Banner -->
+                <div class="db-not-found-banner" *ngIf="!instrumentService.optionsSyncStatus()?.storedInFirestore">
+                  <div class="db-not-found-icon">
+                    <span class="material-symbols-rounded">database_off</span>
+                  </div>
+                  <div class="db-not-found-content">
+                    <h4 class="db-not-found-title">Data is not found in database</h4>
+                    <p class="db-not-found-msg">
+                      Firestore collection <code>index_options</code> contains no option contracts.
+                      Click <strong>Flush & Reload Options</strong> above to download live option contracts for your traded indices.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Options Stats Grid -->
+                <div class="master-stats-grid" *ngIf="instrumentService.optionsSyncStatus()?.metadata as optMeta">
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ optMeta.totalItems | number }}</div>
+                    <div class="stat-lbl">Total Option Contracts</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ (optMeta.documentIds?.length || optMeta.totalChunks) ? ((optMeta.documentIds?.length || optMeta.totalChunks) | number) : '--' }}</div>
+                    <div class="stat-lbl">Index Documents</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ optMeta.maxExpiriesPerIndex ? (optMeta.maxExpiriesPerIndex | number) : 3 }}</div>
+                    <div class="stat-lbl">Max Expiries / Index</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-val mono-val">{{ (instrumentService.optionsSyncStatus()?.tradedIndices?.length ?? 4) }}</div>
+                    <div class="stat-lbl">Traded Indices</div>
+                  </div>
+                </div>
+
+                <!-- Dedicated Index Documents Badges Box -->
+                <div class="documents-breakdown-box" *ngIf="instrumentService.optionsSyncStatus()?.metadata as optMeta">
+                  <div class="breakdown-title">Dedicated Index Documents in Firestore:</div>
+                  <div class="doc-chips">
+                    <span class="traded-index-pill" *ngFor="let idx of (optMeta.documentIds || instrumentService.optionsSyncStatus()?.tradedIndices || [])">
+                      <span class="material-symbols-rounded">description</span>
+                      {{ idx }} (3 Expiries)
+                    </span>
+                  </div>
+                  <div class="sync-timestamp" *ngIf="optMeta.updatedAt">
+                    Last synchronized: {{ optMeta.updatedAt | istDate : 'full' }}
+                  </div>
+                </div>
+
+                <!-- Options Flush & Reload Success Banner -->
+                <div class="flush-inline-banner" *ngIf="instrumentService.lastFlushOptionsResult() as optRes">
+                  <span class="material-symbols-rounded">check_circle</span>
+                  <span>Options flushed & reloaded: <strong class="mono-val">{{ optRes.totalItems | number }}</strong> contracts across {{ optRes.documentIds?.length || optRes.totalChunks }} indices</span>
                 </div>
               </div>
             </div>
@@ -985,6 +1238,26 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         flex: 1;
         min-width: 240px;
       }
+      .notif-channels-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 14px; }
+      .notif-channel-card { background: #0B0F19; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px; transition: opacity 0.2s; &.channel-disabled { opacity: 0.6; } }
+      .channel-card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+      .channel-brand { display: flex; align-items: center; gap: 10px; }
+      .channel-icon { font-size: 26px; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; &.tg-icon { background: rgba(34, 158, 217, 0.15); color: #229ED9; } &.ntfy-icon { background: rgba(2, 132, 199, 0.15); color: #38bdf8; } }
+      .channel-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); }
+      .channel-status-label { font-size: 0.75rem; color: var(--text-secondary); }
+      .toggle-switch-label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--dhan-cyan); cursor: pointer; } .toggle-text { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); } }
+      .channel-card-body { display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; }
+      .meta-field-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.05); }
+      .meta-label { color: var(--text-muted); }
+      .meta-val { color: var(--text-primary); font-weight: 500; }
+      .channel-hint { font-size: 0.75rem; color: var(--text-muted); line-height: 1.35; margin: 2px 0 0; }
+      .ntfy-input-group { display: flex; flex-direction: column; gap: 4px; }
+      .input-label { font-size: 0.75rem; color: var(--text-secondary); font-weight: 500; }
+      .topic-input-wrapper { display: flex; align-items: center; gap: 6px; }
+      .compact-input { flex: 1; padding: 7px 10px; background: #060910; border: 1px solid var(--border-subtle); border-radius: 6px; color: #fff; font-size: 0.8rem; outline: none; &:focus { border-color: var(--dhan-cyan); } }
+      .topic-link-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); text-decoration: none; &:hover { background: rgba(0, 210, 196, 0.15); color: var(--dhan-cyan); } }
+      .ntfy-instructions { display: flex; align-items: flex-start; gap: 6px; padding: 8px 10px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 6px; font-size: 0.75rem; color: #bae6fd; line-height: 1.35; .hint-icon { font-size: 16px; color: #38bdf8; flex-shrink: 0; margin-top: 1px; } code { background: rgba(0, 0, 0, 0.3); padding: 1px 4px; border-radius: 4px; color: #fff; font-weight: 600; } }
+      .channel-card-actions { display: flex; justify-content: flex-end; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.05); button { font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; } }
       .documents-breakdown-box, .sub-master-card {
         background: rgba(0, 0, 0, 0.2);
         border: 1px solid var(--border-subtle);
@@ -1204,9 +1477,22 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         font-weight: 700;
         color: var(--text-primary);
       }
+      .action-btn-accent {
+        background: #9333ea !important;
+        color: #fff !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+        border-radius: 8px;
+        padding: 0 16px;
+        height: 38px;
+        &:hover { background: #7e22ce !important; }
+      }
       .sub-icon {
         color: var(--dhan-cyan);
         font-size: 20px;
+        &.options-icon { color: #c084fc; }
       }
       .collection-badge {
         font-family: var(--font-mono);
@@ -1216,6 +1502,24 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         background: rgba(0, 210, 196, 0.12);
         color: var(--dhan-cyan);
         border: 1px solid rgba(0, 210, 196, 0.3);
+        &.options-badge {
+          background: rgba(168, 85, 247, 0.12);
+          color: #c084fc;
+          border-color: rgba(168, 85, 247, 0.3);
+        }
+      }
+      .traded-index-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(168, 85, 247, 0.15);
+        border: 1px solid rgba(168, 85, 247, 0.4);
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #e9d5ff;
+        .material-symbols-rounded { font-size: 14px; color: #c084fc; }
       }
       .master-inspector-card {
         margin-top: 24px;
@@ -1761,7 +2065,15 @@ export class SettingsPageComponent implements OnInit {
   readonly firestoreApi = inject(FirestoreApiService);
   readonly alertService = inject(AlertService);
   readonly orderService = inject(OrderService);
+  readonly notificationApi = inject(NotificationApiService);
+  readonly telegramApi = inject(TelegramApiService);
   private readonly snackBar = inject(MatSnackBar);
+
+  // Notification Channel Toggles & Settings
+  readonly notifTelegramEnabled = signal<boolean>(true);
+  readonly notifNtfyEnabled = signal<boolean>(true);
+  readonly notifNtfyTopic = signal<string>('dhan-alerts-sarang-8821');
+  readonly notifNtfyServerUrl = signal<string>('https://ntfy.sh');
 
   // User Management State (Restricted to 'sarang')
   readonly usersList = signal<UserSummary[]>([]);
@@ -1846,6 +2158,17 @@ export class SettingsPageComponent implements OnInit {
         this.indicesList = [];
       }
     });
+
+    // Synchronize notification toggles from settings API
+    effect(() => {
+      const s = this.notificationApi.settings();
+      if (s) {
+        this.notifTelegramEnabled.set(s.telegram.enabled);
+        this.notifNtfyEnabled.set(s.ntfy.enabled);
+        if (s.ntfy.topic) this.notifNtfyTopic.set(s.ntfy.topic);
+        if (s.ntfy.serverUrl) this.notifNtfyServerUrl.set(s.ntfy.serverUrl);
+      }
+    });
   }
 
   trackBySecurityId(_index: number, item: IndexConfigItem): string {
@@ -1919,7 +2242,10 @@ export class SettingsPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.authService.refreshStatus();
+    this.notificationApi.refreshSettings();
+    this.telegramApi.refreshStatus();
     this.instrumentService.fetchSyncStatus().subscribe();
+    this.instrumentService.fetchOptionsSyncStatus().subscribe();
     this.instrumentService.fetchLotSizes(true).subscribe();
     this.instrumentService.fetchConfiguredIndices(true).subscribe();
     this.firestoreApi.refreshStatus().subscribe();
@@ -1928,11 +2254,29 @@ export class SettingsPageComponent implements OnInit {
     }
   }
 
+  saveNotificationSettings(): void {
+    this.notificationApi
+      .updateSettings({
+        telegramEnabled: this.notifTelegramEnabled(),
+        ntfyEnabled: this.notifNtfyEnabled(),
+        ntfyTopic: this.notifNtfyTopic().trim(),
+        ntfyServerUrl: this.notifNtfyServerUrl().trim(),
+      })
+      .subscribe();
+  }
+
   onFlushAndReloadEquities(): void {
     if (!confirm('Are you sure you want to completely flush and reload cash equities and benchmark indices from Dhan?')) {
       return;
     }
     this.instrumentService.flushAndReloadEquities().subscribe();
+  }
+
+  onFlushAndReloadOptions(): void {
+    if (!confirm('Are you sure you want to completely flush and reload traded index option contracts from Dhan?')) {
+      return;
+    }
+    this.instrumentService.flushAndReloadOptions().subscribe();
   }
 
   submitTokenUpdate(): void {
