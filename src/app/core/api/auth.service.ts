@@ -141,8 +141,4 @@ export class AuthService {
       })
     );
   }
-
-  verifyToken() {
-    return this.http.get<TokenVerifyResult>('/api/auth/verify');
-  }
 }

@@ -206,26 +206,11 @@ export class UserAuthService {
   // ACTIVE SESSIONS MANAGEMENT
   // =========================================================================
 
-  public getMySessions(): Observable<ActiveSession[]> {
-    const refreshToken = this.getRefreshToken() || '';
-    return this.http.get<ActiveSession[]>('/api/user-auth/sessions', {
-      headers: { 'x-refresh-token': refreshToken },
-    });
-  }
-
   public getAllSessions(): Observable<ActiveSession[]> {
     const refreshToken = this.getRefreshToken() || '';
     return this.http.get<ActiveSession[]>('/api/user-auth/all-sessions', {
       headers: { 'x-refresh-token': refreshToken },
     });
-  }
-
-  public killSession(sessionId: string): Observable<{ success: boolean; message: string }> {
-    return this.http.delete<{ success: boolean; message: string }>(`/api/user-auth/sessions/${encodeURIComponent(sessionId)}`).pipe(
-      tap((res) => {
-        this.snackBar.open(res.message || 'Session terminated successfully', 'OK', { duration: 4000 });
-      }),
-    );
   }
 
   public killOtherSessions(): Observable<{ success: boolean; message: string; revokedCount: number }> {
@@ -237,10 +222,6 @@ export class UserAuthService {
         this.snackBar.open(res.message || 'Other active sessions terminated', 'OK', { duration: 4000 });
       }),
     );
-  }
-
-  public getUserSessions(username: string): Observable<ActiveSession[]> {
-    return this.http.get<ActiveSession[]>(`/api/user-auth/users/${encodeURIComponent(username)}/sessions`);
   }
 
   public killUserSession(username: string, sessionId: string): Observable<{ success: boolean; message: string }> {

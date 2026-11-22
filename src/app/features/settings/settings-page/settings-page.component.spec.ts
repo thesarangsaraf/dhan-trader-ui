@@ -31,13 +31,6 @@ describe('SettingsPageComponent', () => {
     refreshStatus: vi.fn(),
     renewToken: vi.fn(),
     updateToken: vi.fn().mockReturnValue(of({ success: true })),
-    verifyToken: vi.fn().mockReturnValue(
-      of({
-        valid: true,
-        message: 'Token verified',
-        profile: { userName: 'SARANG', clientId: '1106885516' },
-      })
-    ),
   };
 
   const mockInstrumentService = {
@@ -100,14 +93,8 @@ describe('SettingsPageComponent', () => {
     fetchConfiguredIndices: vi.fn().mockReturnValue(of([])),
     updateLotSizes: vi.fn().mockReturnValue(of({ success: true })),
     syncMaster: vi.fn().mockReturnValue(of({ success: true })),
-    syncEquities: vi.fn().mockReturnValue(of({ success: true })),
-    syncOptions: vi.fn().mockReturnValue(of({ success: true })),
-    flushAndReloadMaster: vi.fn().mockReturnValue(of({ success: true })),
     flushAndReloadEquities: vi.fn().mockReturnValue(of({ success: true })),
     flushAndReloadOptions: vi.fn().mockReturnValue(of({ success: true })),
-    syncCsv: vi.fn().mockReturnValue(of({ success: true })),
-    queryEquities: vi.fn().mockReturnValue(of({ total: 10193, items: [], limit: 20, offset: 0 })),
-    queryOptions: vi.fn().mockReturnValue(of({ total: 9809, items: [], limit: 20, offset: 0, expiries: [], tradedIndices: ['NIFTY', 'BANKNIFTY', 'MIDCPNIFTY', 'SENSEX'] })),
   };
 
   const mockFirestoreApi = {

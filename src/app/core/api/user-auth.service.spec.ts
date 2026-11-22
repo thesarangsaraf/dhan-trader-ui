@@ -199,42 +199,6 @@ describe('UserAuthService', () => {
   });
 
   describe('Active session management', () => {
-    it('should list user sessions via GET /api/user-auth/sessions with x-refresh-token header', () => {
-      localStorage.setItem('dhan_refresh_token', 'my-refresh-token');
-
-      const mockSessions: ActiveSession[] = [
-        {
-          id: 'sess-1',
-          username: 'admin',
-          browser: 'Chrome',
-          os: 'macOS',
-          deviceType: 'Desktop',
-          createdAt: '2026-11-15T00:00:00Z',
-          expiresAt: '2027-11-15T00:00:00Z',
-          isCurrent: true,
-        },
-      ];
-
-      service.getMySessions().subscribe((sessions) => {
-        expect(sessions).toEqual(mockSessions);
-      });
-
-      const req = httpMock.expectOne('/api/user-auth/sessions');
-      expect(req.request.method).toBe('GET');
-      expect(req.request.headers.get('x-refresh-token')).toBe('my-refresh-token');
-      req.flush(mockSessions);
-    });
-
-    it('should kill session via DELETE /api/user-auth/sessions/:id', () => {
-      service.killSession('sess-1').subscribe((res) => {
-        expect(res.success).toBe(true);
-      });
-
-      const req = httpMock.expectOne('/api/user-auth/sessions/sess-1');
-      expect(req.request.method).toBe('DELETE');
-      req.flush({ success: true, message: 'Session terminated' });
-    });
-
     it('should kill all other sessions via DELETE /api/user-auth/sessions?othersOnly=true', () => {
       localStorage.setItem('dhan_refresh_token', 'my-refresh-token');
 
@@ -246,27 +210,6 @@ describe('UserAuthService', () => {
       expect(req.request.method).toBe('DELETE');
       expect(req.request.headers.get('x-refresh-token')).toBe('my-refresh-token');
       req.flush({ success: true, message: '2 other sessions terminated', revokedCount: 2 });
-    });
-
-    it('should list another user sessions for admin via GET /api/user-auth/users/:username/sessions', () => {
-      service.getUserSessions('trader1').subscribe((sessions) => {
-        expect(sessions.length).toBe(1);
-      });
-
-      const req = httpMock.expectOne('/api/user-auth/users/trader1/sessions');
-      expect(req.request.method).toBe('GET');
-      req.flush([
-        {
-          id: 'sess-trader',
-          username: 'trader1',
-          browser: 'Safari',
-          os: 'iOS',
-          deviceType: 'Mobile',
-          createdAt: '2026-11-15T00:00:00Z',
-          expiresAt: '2027-11-15T00:00:00Z',
-          isCurrent: false,
-        },
-      ]);
     });
 
     it('should kill all sessions for a user via DELETE /api/user-auth/users/:username/sessions', () => {

@@ -151,14 +151,4 @@ export class AlertService {
       })
     );
   }
-
-  fetchInstrumentName(securityId: string) {
-    const clean = (securityId || '').trim();
-    if (!clean) return of(null);
-    return this.http
-      .get<{ securityId: string; instrumentName: string; symbol: string; exchangeSegment?: string; lotSize?: number }>(
-        `/api/alerts/instrument-name/${encodeURIComponent(clean)}`
-      )
-      .pipe(catchError(() => of(null)));
-  }
 }

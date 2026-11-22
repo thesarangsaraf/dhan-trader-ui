@@ -165,32 +165,6 @@ export class InstrumentService {
   }
 
   /**
-   * Upload and sync raw CSV content to Firestore collection sec_id_to_name_mapping.
-   */
-  syncCsv(csvContent: string): Observable<SyncMasterResult | null> {
-    this.isSyncing.set(true);
-    return this.http.post<SyncMasterResult>('/api/instruments/sync/csv', { csvContent }).pipe(
-      tap((res) => {
-        if (res?.success) {
-          this.snackBar.open(
-            `✅ Synced ${res.totalInstruments} instruments from CSV to Firestore!`,
-            'OK',
-            { duration: 5000 }
-          );
-          this.fetchSyncStatus().subscribe();
-        }
-      }),
-      catchError((err) => {
-        console.error('Failed to sync CSV to Firestore:', err);
-        const errMsg = err?.error?.message || err?.message || 'CSV sync failed';
-        this.snackBar.open(`❌ CSV sync failed: ${errMsg}`, 'Dismiss', { duration: 6000 });
-        return of(null);
-      }),
-      finalize(() => this.isSyncing.set(false))
-    );
-  }
-
-  /**
    * Trigger on-demand sync of NSE Security ID to Name mapping (options + equities + indices) to Firestore.
    */
   syncMaster(force = true): Observable<SyncMasterResult | null> {
@@ -213,90 +187,8 @@ export class InstrumentService {
           const errMsg = err?.error?.message || err?.message || 'Sync failed. Check backend connection.';
           this.snackBar.open(`❌ Sync failed: ${errMsg}`, 'Dismiss', { duration: 6000 });
           return of(null);
-        }),
-        finalize(() => this.isSyncing.set(false))
+        })
       );
-  }
-
-  /**
-   * Synchronize NSE cash equities & benchmark indices into Firestore collection sec_id_to_name_mapping.
-   */
-  syncEquities(force = true): Observable<SyncEquitiesResult | null> {
-    this.isSyncingEquities.set(true);
-    return this.http.post<SyncEquitiesResult>('/api/instruments/sync/equities', { force }).pipe(
-      tap((res) => {
-        if (res?.success) {
-          this.snackBar.open(
-            `✅ Synced ${res.totalInstruments} NSE cash equities & indices into sec_id_to_name_mapping!`,
-            'OK',
-            { duration: 5000 }
-          );
-          this.fetchSyncStatus().subscribe();
-        }
-      }),
-      catchError((err) => {
-        console.error('Failed to sync equities to Firestore:', err);
-        const errMsg = err?.error?.message || err?.message || 'Equities sync failed. Check backend connection.';
-        this.snackBar.open(`❌ Equities sync failed: ${errMsg}`, 'Dismiss', { duration: 6000 });
-        return of(null);
-      }),
-      finalize(() => this.isSyncingEquities.set(false))
-    );
-  }
-
-  /**
-   * Synchronize traded index options (NIFTY, BANKNIFTY, MIDCPNIFTY, SENSEX) into Firestore collection index_options.
-   */
-  syncOptions(force = true): Observable<SyncOptionsResult | null> {
-    this.isSyncingOptions.set(true);
-    return this.http.post<SyncOptionsResult>('/api/instruments/sync/options', { force }).pipe(
-      tap((res) => {
-        if (res?.success) {
-          this.snackBar.open(
-            `✅ Synced ${res.totalItems} traded index options (${res.tradedIndices?.join(', ')}) into index_options!`,
-            'OK',
-            { duration: 5000 }
-          );
-          this.fetchOptionsSyncStatus().subscribe();
-        }
-      }),
-      catchError((err) => {
-        console.error('Failed to sync index options to Firestore:', err);
-        const errMsg = err?.error?.message || err?.message || 'Options sync failed. Check backend connection.';
-        this.snackBar.open(`❌ Options sync failed: ${errMsg}`, 'Dismiss', { duration: 6000 });
-        return of(null);
-      }),
-      finalize(() => this.isSyncingOptions.set(false))
-    );
-  }
-
-  /**
-   * Totally flush all master data from Firestore (sec_id_to_name_mapping & index_options)
-   * and reload fresh official instruments from Dhan.
-   */
-  flushAndReloadMaster(): Observable<FlushAndReloadResult | null> {
-    this.isFlushingAndReloading.set(true);
-    return this.http.post<FlushAndReloadResult>('/api/instruments/flush-and-reload', {}).pipe(
-      tap((res) => {
-        if (res?.success) {
-          this.lastFlushReloadResult.set(res);
-          this.snackBar.open(
-            `✅ Master data flushed and reloaded: ${res.reloaded.totalInstruments} instruments (${res.reloaded.totalEquities} equities, ${res.reloaded.totalOptions} options)`,
-            'OK',
-            { duration: 6000 }
-          );
-          this.fetchSyncStatus().subscribe();
-          this.fetchOptionsSyncStatus().subscribe();
-        }
-      }),
-      catchError((err) => {
-        console.error('Failed to flush and reload master data:', err);
-        const errMsg = err?.error?.message || err?.message || 'Flush and reload failed';
-        this.snackBar.open(`❌ Flush and reload failed: ${errMsg}`, 'Dismiss', { duration: 6000 });
-        return of(null);
-      }),
-      finalize(() => this.isFlushingAndReloading.set(false))
-    );
   }
 
   /**
@@ -387,17 +279,6 @@ export class InstrumentService {
     );
   }
 
-  getInstruments(limit = 20): Observable<Instrument[]> {
-    return this.http
-      .get<Instrument[]>(`/api/instruments?limit=${limit}`)
-      .pipe(
-        catchError((err) => {
-          console.warn('Backend /api/instruments unavailable:', err);
-          return of([]);
-        })
-      );
-  }
-
   getExpiries(instrument = 'NIFTY 50'): Observable<OptionExpiryItem[]> {
     const clean = (instrument || 'NIFTY 50').trim();
     return this.http
@@ -444,21 +325,6 @@ export class InstrumentService {
       );
   }
 
-  getBySecurityId(securityId: string): Observable<Instrument | null> {
-    const clean = (securityId || '').trim();
-    if (!clean) {
-      return of(null);
-    }
-    return this.http
-      .get<Instrument>(`/api/instruments/by-security-id/${encodeURIComponent(clean)}`)
-      .pipe(
-        catchError((err) => {
-          console.warn(`Backend /api/instruments/by-security-id unavailable for ${clean}:`, err);
-          return of(null);
-        })
-      );
-  }
-
   getLtp(symbol: string): Observable<InstrumentLtpResponse> {
     const clean = (symbol || '').trim();
     if (!clean) {
@@ -472,45 +338,5 @@ export class InstrumentService {
           return of({ symbol: clean, ltp: null });
         })
       );
-  }
-
-  queryEquities(
-    q = '',
-    segment = '',
-    limit = 50,
-    offset = 0
-  ): Observable<EquitiesQueryResult> {
-    let url = `/api/instruments/equities?limit=${limit}&offset=${offset}`;
-    if (q) url += `&q=${encodeURIComponent(q.trim())}`;
-    if (segment) url += `&segment=${encodeURIComponent(segment.trim())}`;
-    return this.http.get<EquitiesQueryResult>(url).pipe(
-      catchError((err) => {
-        console.warn('Backend /api/instruments/equities unavailable:', err);
-        return of({ total: 0, items: [], limit, offset });
-      })
-    );
-  }
-
-  queryOptions(
-    index = '',
-    expiry = '',
-    strike?: number | null,
-    optionType = '',
-    q = '',
-    limit = 50,
-    offset = 0
-  ): Observable<OptionsQueryResult> {
-    let url = `/api/instruments/options?limit=${limit}&offset=${offset}`;
-    if (index) url += `&index=${encodeURIComponent(index.trim())}`;
-    if (expiry) url += `&expiry=${encodeURIComponent(expiry.trim())}`;
-    if (strike !== undefined && strike !== null) url += `&strike=${strike}`;
-    if (optionType) url += `&optionType=${encodeURIComponent(optionType.trim())}`;
-    if (q) url += `&q=${encodeURIComponent(q.trim())}`;
-    return this.http.get<OptionsQueryResult>(url).pipe(
-      catchError((err) => {
-        console.warn('Backend /api/instruments/options unavailable:', err);
-        return of({ total: 0, items: [], limit, offset, expiries: [], tradedIndices: [] });
-      })
-    );
   }
 }

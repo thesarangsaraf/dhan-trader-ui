@@ -134,67 +134,6 @@ describe('InstrumentService', () => {
     expect(service.lotSizes().instruments?.[0].displayName).toBe('Nifty 50');
   });
 
-  it('should trigger syncEquities and update syncStatus', () => {
-    let result: any;
-    service.syncEquities().subscribe((res) => {
-      result = res;
-    });
-
-    const syncReq = httpTesting.expectOne('/api/instruments/sync/equities');
-    expect(syncReq.request.method).toBe('POST');
-    expect(syncReq.request.body).toEqual({ force: true });
-    syncReq.flush({
-      success: true,
-      collection: 'sec_id_to_name_mapping',
-      totalInstruments: 10189,
-      totalEquities: 10070,
-      totalIndices: 119,
-      documents: ['indices', 'equities_chunk_01'],
-      syncedAt: new Date().toISOString(),
-    });
-
-    const statusReq = httpTesting.expectOne('/api/instruments/sync/status');
-    expect(statusReq.request.method).toBe('GET');
-    statusReq.flush({
-      storedInFirestore: true,
-      metadata: { totalInstruments: 10189, totalEquities: 10070, totalIndices: 119 },
-    });
-
-    expect(result?.success).toBe(true);
-    expect(result?.totalInstruments).toBe(10189);
-  });
-
-  it('should trigger syncOptions and update optionsSyncStatus', () => {
-    let result: any;
-    service.syncOptions().subscribe((res) => {
-      result = res;
-    });
-
-    const syncReq = httpTesting.expectOne('/api/instruments/sync/options');
-    expect(syncReq.request.method).toBe('POST');
-    expect(syncReq.request.body).toEqual({ force: true });
-    syncReq.flush({
-      success: true,
-      collection: 'index_options',
-      totalItems: 9809,
-      totalChunks: 20,
-      writeTime: new Date().toISOString(),
-      tradedIndices: ['NIFTY', 'BANKNIFTY', 'MIDCPNIFTY', 'SENSEX'],
-    });
-
-    const optStatusReq = httpTesting.expectOne('/api/instruments/sync/options/status');
-    expect(optStatusReq.request.method).toBe('GET');
-    optStatusReq.flush({
-      storedInFirestore: true,
-      metadata: { totalItems: 9809, totalChunks: 20 },
-      tradedIndices: ['NIFTY', 'BANKNIFTY', 'MIDCPNIFTY', 'SENSEX'],
-    });
-
-    expect(result?.success).toBe(true);
-    expect(result?.totalItems).toBe(9809);
-    expect(service.optionsSyncStatus()?.storedInFirestore).toBe(true);
-  });
-
   it('should fetch optionsSyncStatus from backend', () => {
     let result: any;
     service.fetchOptionsSyncStatus().subscribe((res) => {
@@ -212,40 +151,6 @@ describe('InstrumentService', () => {
 
     expect(result?.storedInFirestore).toBe(true);
     expect(service.optionsSyncStatus()?.metadata?.totalItems).toBe(9809);
-  });
-
-  it('should trigger flushAndReloadMaster and refresh sync statuses', () => {
-    let result: any;
-    service.flushAndReloadMaster().subscribe((res) => {
-      result = res;
-    });
-
-    const flushReq = httpTesting.expectOne('/api/instruments/flush-and-reload');
-    expect(flushReq.request.method).toBe('POST');
-    flushReq.flush({
-      success: true,
-      flushed: { secIdMappingDeleted: 7, indexOptionsDeleted: 4 },
-      reloaded: {
-        totalInstruments: 19967,
-        totalEquities: 10158,
-        totalIndices: 4,
-        totalOptions: 9805,
-      },
-      message: 'Master data flushed and reloaded',
-    });
-
-    // fetchSyncStatus triggers both /api/instruments/sync/options/status and /api/instruments/sync/status
-    // plus fetchOptionsSyncStatus triggers /api/instruments/sync/options/status
-    const optReqs = httpTesting.match('/api/instruments/sync/options/status');
-    expect(optReqs.length).toBeGreaterThanOrEqual(1);
-    optReqs.forEach((r) => r.flush({ storedInFirestore: true, metadata: null }));
-
-    const statusReq = httpTesting.expectOne('/api/instruments/sync/status');
-    statusReq.flush({ storedInFirestore: true, metadata: null });
-
-    expect(result?.success).toBe(true);
-    expect(result?.reloaded.totalInstruments).toBe(19967);
-    expect(service.lastFlushReloadResult()).toEqual(result);
   });
 
   it('should trigger flushAndReloadEquities and update syncStatus', () => {

@@ -18,30 +18,6 @@ describe('AlertComposerComponent', () => {
   };
 
   const mockInstService = {
-    getInstruments: vi.fn().mockReturnValue(
-      of([
-        {
-          symbol: 'NIFTY 50',
-          name: 'Nifty 50 Index',
-          securityId: '13',
-          exchangeSegment: 'IDX_I',
-          instrumentType: 'INDEX',
-          lotSize: 65,
-          stopLossPoints: 12,
-          ltp: 25030.0,
-        },
-        {
-          symbol: 'NIFTY BANK',
-          name: 'Bank Nifty Index',
-          securityId: '25',
-          exchangeSegment: 'IDX_I',
-          instrumentType: 'INDEX',
-          lotSize: 30,
-          stopLossPoints: 20,
-          ltp: 52000.0,
-        },
-      ]),
-    ),
     getLtp: vi.fn().mockReturnValue(of({ symbol: 'NIFTY 50', ltp: 25030.0 })),
     getExpiries: vi.fn().mockReturnValue(of([{ expiryDate: '2026-11-12', displayExpiry: '12 Nov 2026', shortExpiry: '12NOV' }])),
     getOptionContracts: vi.fn().mockReturnValue(
