@@ -140,16 +140,6 @@ describe('SettingsPageComponent', () => {
     expect(component.lotSensex).toBe(5);
   });
 
-  it('should update token using existing client ID when submitted', () => {
-    component.tokenInput = 'eyMockToken123';
-    component.submitTokenUpdate();
-    expect(mockAuthService.updateToken).toHaveBeenCalledWith({
-      token: 'eyMockToken123',
-      clientId: '1106885516',
-    });
-    expect(component.tokenInput).toBe('');
-  });
-
   it('should not display account holder, client id text box, verify live, or refresh status button', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.textContent).not.toContain('Account Holder');
@@ -194,27 +184,11 @@ describe('SettingsPageComponent', () => {
     expect(mockInstrumentService.flushAndReloadEquities).toHaveBeenCalled();
   });
 
-  it('should render compact Dhan HQ API Token Lifecycle section with only manual token input and renew button', () => {
+  it('should not display Dhan HQ API Token Lifecycle section or token pill', () => {
     const el = fixture.nativeElement as HTMLElement;
-    const tokenSection = el.querySelector('#token-section');
-    expect(tokenSection).toBeTruthy();
-
-    // Must have manual token text box and Renew Token button
-    expect(tokenSection?.querySelector('input[name="accessToken"]')).toBeTruthy();
-    const renewBtn = tokenSection?.querySelector('.renew-token-btn') as HTMLButtonElement;
-    expect(renewBtn).toBeTruthy();
-    expect(renewBtn.textContent).toContain('Renew Token');
-
-    // Must NOT show token metadata grid or extra descriptive text
-    expect(tokenSection?.querySelector('.token-details-grid')).toBeNull();
-    expect(tokenSection?.textContent).not.toContain('Client ID');
-    expect(tokenSection?.textContent).not.toContain('Token Status');
-    expect(tokenSection?.textContent).not.toContain('Time Remaining');
-    expect(tokenSection?.textContent).not.toContain('Masked Access Token');
-    expect(tokenSection?.textContent).not.toContain('Issued At');
-    expect(tokenSection?.textContent).not.toContain('Expires At');
-    expect(tokenSection?.textContent).not.toContain('Manual Token Update (Hot-Reload)');
-    expect(tokenSection?.textContent).not.toContain('Clear Input');
+    expect(el.textContent).not.toContain('Dhan HQ API Token Lifecycle');
+    expect(el.querySelector('#token-section')).toBeNull();
+    expect(el.querySelector('.token-pill')).toBeNull();
   });
 
   it('should not display Quantity in 1 Lot inputs or Dropdown checkboxes in Traded Instruments Master Data', () => {

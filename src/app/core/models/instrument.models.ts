@@ -284,5 +284,3 @@ export interface UpdateLotSizesDto {
   indices?: IndexConfigItem[];
 }
 
-export type UpdateTradedInstrumentsDto = UpdateLotSizesDto;
-

@@ -14,10 +14,6 @@ export interface LoginResponse {
   user: UserProfile;
 }
 
-export interface RefreshTokenDto {
-  refreshToken: string;
-}
-
 export interface RefreshResponse {
   accessToken: string;
   user?: UserProfile;

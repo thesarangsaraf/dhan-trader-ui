@@ -6,7 +6,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { AuthService } from '../../../core/api/auth.service';
 import { UserAuthService } from '../../../core/api/user-auth.service';
 import { ActiveSession, UserSummary } from '../../../core/models/user-auth.models';
 import { InstrumentService } from '../../../core/api/instrument.service';
@@ -45,22 +44,12 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
               <span>Platform Settings & Engine Configuration</span>
             </div>
             <div class="page-subtitle">
-              Manage Dhan HQ v2 JWT tokens, dynamic index lot sizes, and Google Cloud Firestore security master sync.
+              Manage dynamic index lot sizes and Google Cloud Firestore security master sync.
             </div>
           </div>
 
           <!-- Top Quick Status Ribbon -->
           <div class="quick-status-ribbon">
-            <!-- Token Status Pill -->
-            <div
-              class="status-pill token-pill"
-              [ngClass]="authService.statusColor()"
-              matTooltip="Dhan HQ JWT Token Status"
-            >
-              <span class="material-symbols-rounded">timer</span>
-              <span class="pill-text mono-val">Token: {{ authService.timeRemainingFormatted() }}</span>
-            </div>
-
             <!-- Firestore Pill -->
             <div
               class="status-pill fs-pill"
@@ -479,55 +468,7 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
             </div>
           </section>
 
-          <!-- SECTION 1: DHAN JWT TOKEN MANAGEMENT -->
-          <section class="settings-section-card compact-token-card" id="token-section">
-            <div class="section-header compact-section-header">
-              <div class="section-title-wrap">
-                <div class="icon-avatar token-avatar">
-                  <span class="material-symbols-rounded">vpn_key</span>
-                </div>
-                <h2 class="section-heading">Dhan HQ API Token Lifecycle</h2>
-              </div>
-              <div class="section-actions">
-                <button
-                  mat-flat-button
-                  color="primary"
-                  class="action-btn-primary renew-token-btn"
-                  (click)="authService.renewToken()"
-                  [disabled]="authService.isRenewing()"
-                >
-                  <span class="material-symbols-rounded" [class.spinning]="authService.isRenewing()">autorenew</span>
-                  <span>{{ authService.isRenewing() ? 'Renewing...' : 'Renew Token' }}</span>
-                </button>
-              </div>
-            </div>
-
-            <form (ngSubmit)="submitTokenUpdate()" class="token-compact-row">
-              <div class="token-input-col">
-                <input
-                  type="text"
-                  [(ngModel)]="tokenInput"
-                  name="accessToken"
-                  placeholder="Enter new Dhan access token"
-                  class="compact-password-input mono-val"
-                  autocomplete="off"
-                  required
-                />
-              </div>
-              <button
-                mat-flat-button
-                color="primary"
-                type="submit"
-                class="action-btn-primary"
-                [disabled]="!tokenInput.trim() || isUpdatingToken()"
-              >
-                <span class="material-symbols-rounded">{{ isUpdatingToken() ? 'autorenew' : 'save' }}</span>
-                <span>{{ isUpdatingToken() ? 'Updating...' : 'Update Token' }}</span>
-              </button>
-            </form>
-          </section>
-
-          <!-- SECTION 2: TRADED INSTRUMENTS MASTER DATA (master_data/traded_instruments) -->
+          <!-- SECTION: TRADED INSTRUMENTS MASTER DATA (master_data/traded_instruments) -->
           <section class="settings-section-card" id="lots-section">
             <div class="section-header">
               <div class="section-title-wrap">
@@ -1038,30 +979,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         &:focus {
           border-color: var(--dhan-cyan);
         }
-      }
-      .compact-token-card {
-        padding: 16px 20px;
-      }
-      .compact-section-header {
-        align-items: center;
-        margin-bottom: 12px;
-        padding-bottom: 12px;
-      }
-      .compact-section-header .section-title-wrap {
-        align-items: center;
-      }
-      .compact-section-header .section-heading {
-        margin: 0;
-      }
-      .token-compact-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-      .token-input-col {
-        flex: 1;
-        min-width: 240px;
       }
       .documents-breakdown-box, .sub-master-card {
         background: rgba(0, 0, 0, 0.2);
@@ -1839,12 +1756,10 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
         .quick-status-ribbon { gap: 6px; }
         .status-pill { padding: 4px 8px; font-size: 0.7rem; }
         .settings-container { gap: 16px; }
-        .settings-section-card, .compact-token-card { padding: 14px 16px; border-radius: 10px; max-width: 100%; box-sizing: border-box; }
-        .section-header, .compact-section-header { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; }
+        .settings-section-card { padding: 14px 16px; border-radius: 10px; max-width: 100%; box-sizing: border-box; }
+        .section-header { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; }
         .section-actions { width: 100%; }
         .section-actions button, .action-btn-primary, .action-btn-secondary { width: 100%; justify-content: center; min-height: 40px; }
-        .token-compact-row { flex-direction: column; align-items: stretch; gap: 10px; }
-        .token-input-col { min-width: 0; width: 100%; }
         .lot-sizes-inputs-grid, .sessions-grid { grid-template-columns: 1fr; gap: 12px; }
         .master-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
         .sub-master-card { padding: 14px; }
@@ -1864,7 +1779,6 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
   ],
 })
 export class SettingsPageComponent implements OnInit {
-  readonly authService = inject(AuthService);
   readonly userAuthService = inject(UserAuthService);
   readonly instrumentService = inject(InstrumentService);
   readonly firestoreApi = inject(FirestoreApiService);
@@ -1899,10 +1813,6 @@ export class SettingsPageComponent implements OnInit {
     if (f === 'ALL') return list;
     return list.filter((s) => s.username?.toLowerCase() === f.toLowerCase());
   });
-
-  // Token Update Form
-  tokenInput = '';
-  readonly isUpdatingToken = signal(false);
 
   // Quantities in 1 lot
   qtyNifty50 = 0;
@@ -2027,7 +1937,6 @@ export class SettingsPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.authService.refreshStatus();
     this.instrumentService.fetchSyncStatus().subscribe();
     this.instrumentService.fetchOptionsSyncStatus().subscribe();
     this.instrumentService.fetchLotSizes(true).subscribe();
@@ -2050,29 +1959,6 @@ export class SettingsPageComponent implements OnInit {
       return;
     }
     this.instrumentService.flushAndReloadOptions().subscribe();
-  }
-
-  submitTokenUpdate(): void {
-    const rawToken = this.tokenInput.trim();
-    if (!rawToken) return;
-
-    this.isUpdatingToken.set(true);
-    const existingClientId = this.authService.tokenStatus()?.clientId;
-    this.authService
-      .updateToken({
-        token: rawToken,
-        clientId: existingClientId || undefined,
-      })
-      .subscribe({
-        next: () => {
-          this.isUpdatingToken.set(false);
-          this.tokenInput = '';
-        },
-        error: (err) => {
-          this.isUpdatingToken.set(false);
-          this.snackBar.open(`Update failed: ${err.message}`, 'Dismiss', { duration: 5000 });
-        },
-      });
   }
 
   saveLotSizes(): void {
