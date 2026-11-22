@@ -9,8 +9,6 @@ import { SettingsPageComponent } from './settings-page.component';
 import { AuthService } from '../../../core/api/auth.service';
 import { InstrumentService } from '../../../core/api/instrument.service';
 import { FirestoreApiService } from '../../../core/api/firestore.service';
-import { NotificationApiService } from '../../../core/api/notification.service';
-import { TelegramApiService } from '../../../core/api/telegram.service';
 
 describe('SettingsPageComponent', () => {
   let component: SettingsPageComponent;
@@ -125,33 +123,6 @@ describe('SettingsPageComponent', () => {
     testConnection: vi.fn().mockReturnValue(of({ success: true, latencyMs: 15 })),
   };
 
-  const mockNotificationApi = {
-    settings: vi.fn().mockReturnValue({
-      telegram: { enabled: true, configured: true, chatId: '123***789', botConfigured: true },
-      ntfy: { enabled: true, configured: true, topic: 'dhan-alerts-sarang-8821', serverUrl: 'https://ntfy.sh' },
-    }),
-    isLoading: vi.fn().mockReturnValue(false),
-    isSaving: vi.fn().mockReturnValue(false),
-    isTestingAll: vi.fn().mockReturnValue(false),
-    isTestingNtfy: vi.fn().mockReturnValue(false),
-    refreshSettings: vi.fn(),
-    updateSettings: vi.fn().mockReturnValue(of({ success: true, message: 'Settings saved' })),
-    sendTestAll: vi.fn().mockReturnValue(of(null)),
-    sendNtfyTest: vi.fn().mockReturnValue(of(null)),
-  };
-
-  const mockTelegramApi = {
-    status: vi.fn().mockReturnValue({
-      configured: true,
-      chatId: '123***789',
-      botConfigured: true,
-    }),
-    isTesting: vi.fn().mockReturnValue(false),
-    refreshStatus: vi.fn(),
-    sendTest: vi.fn(),
-    updateCredentials: vi.fn().mockReturnValue(of({ success: true })),
-  };
-
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [SettingsPageComponent],
@@ -163,8 +134,6 @@ describe('SettingsPageComponent', () => {
         { provide: AuthService, useValue: mockAuthService },
         { provide: InstrumentService, useValue: mockInstrumentService },
         { provide: FirestoreApiService, useValue: mockFirestoreApi },
-        { provide: NotificationApiService, useValue: mockNotificationApi },
-        { provide: TelegramApiService, useValue: mockTelegramApi },
       ],
     }).compileComponents();
 
@@ -207,29 +176,6 @@ describe('SettingsPageComponent', () => {
     expect(el.textContent).not.toContain('Telegram Bot & Notifications Bridge');
     expect(el.querySelector('#telegram-section')).toBeNull();
     expect(el.querySelector('.tg-pill')).toBeNull();
-  });
-
-  it('should display Order Postback Notifications section with Telegram and ntfy.sh channels', () => {
-    const el = fixture.nativeElement as HTMLElement;
-    const notifSection = el.querySelector('#notifications-section');
-    expect(notifSection).toBeTruthy();
-    expect(notifSection?.textContent).toContain('Order Postback Notifications');
-    expect(notifSection?.textContent).toContain('Telegram Bot Bridge');
-    expect(notifSection?.textContent).toContain('ntfy.sh (Android Phone Push)');
-    expect(notifSection?.textContent).toContain('dhan-alerts-sarang-8821');
-  });
-
-  it('should call notificationApi.updateSettings when saving notification settings', () => {
-    component.notifTelegramEnabled.set(false);
-    component.notifNtfyEnabled.set(true);
-    component.notifNtfyTopic.set('dhan-alerts-sarang-custom');
-    component.saveNotificationSettings();
-    expect(mockNotificationApi.updateSettings).toHaveBeenCalledWith({
-      telegramEnabled: false,
-      ntfyEnabled: true,
-      ntfyTopic: 'dhan-alerts-sarang-custom',
-      ntfyServerUrl: 'https://ntfy.sh',
-    });
   });
 
   it('should call updateLotSizes when saving lot sizes', () => {
