@@ -1742,7 +1742,7 @@ export class AlertComposerComponent implements OnInit {
     if (!this.selectedInstrumentSymbol) return;
     this.isLoadingOptions.set(true);
 
-    const price = this.targetPrice || this.currentLtp || undefined;
+    const price = this.targetPrice || this.currentLtp || this.selectedInstrument?.ltp || undefined;
     this.instrumentService
       .getOptionContracts(this.selectedInstrumentSymbol, price, this.selectedExpiry || undefined)
       .subscribe({
