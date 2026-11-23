@@ -115,7 +115,7 @@ This document provides operational context, architectural contracts, design rule
   - The application features a persistent bottom navigation bar on mobile (`height: 56px + env(safe-area-inset-bottom)`).
   - Never wrap page content in nested `height: 100%; overflow-y: auto;` containers that prevent scroll awareness; use `min-height: 100%;` and ensure proper bottom padding so that the lowest action buttons, cards, or table rows are never hidden behind the navigation bar.
 - **Card-Based Mobile Layouts for Complex Tables**:
-  - Wide multi-column tables (e.g. Stock Screener, Positions, Order Book, Trade History) are unwieldy on mobile phone screens. Always provide dedicated responsive mobile card views (`.results-cards-list` / `.setup-mobile-card`) or adaptive flex layouts that highlight critical metrics (Symbol, Price, P&L, Strategy) and prominent touch action buttons without requiring horizontal scrolling.
+  - Wide multi-column tables (e.g. Positions, Order Book, Trade History) are unwieldy on mobile phone screens. Always provide dedicated responsive mobile card views (`.results-cards-list` / `.setup-mobile-card`) or adaptive flex layouts that highlight critical metrics (Symbol, Price, P&L, Strategy) and prominent touch action buttons without requiring horizontal scrolling.
 - **Touch Target & Button Ergonomics**:
   - All interactive elements (buttons, toggles, chips, icon triggers) on mobile must have touch targets of at least 36px–44px with comfortable spacing.
   - Directional toggles (CALL/PUT) should sit side-by-side (50% width each) on mobile rather than consuming excessive vertical screen space.

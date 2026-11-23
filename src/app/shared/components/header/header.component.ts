@@ -50,10 +50,6 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
           <span class="material-symbols-rounded">account_balance_wallet</span>
           <span>Positions</span>
         </a>
-        <a routerLink="/screener" class="nav-tab" routerLinkActive="active">
-          <span class="material-symbols-rounded">radar</span>
-          <span>Stock Screener</span>
-        </a>
         <a routerLink="/trades" class="nav-tab" routerLinkActive="active">
           <span class="material-symbols-rounded">history</span>
           <span>Trade History</span>
