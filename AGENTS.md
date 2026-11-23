@@ -92,7 +92,7 @@ This document provides operational context, architectural contracts, design rule
   - The `/login` route is protected by `guestGuard`, redirecting authenticated users to the dashboard (`/`).
   - The top navigation bar (`<app-header>`) is hidden when unauthenticated.
 - **Account Management & Password Updates**:
-  - Users can change their application password via the Settings page (`PUT /api/user-auth/password`).
+  - Admin can reset user passwords via the Settings page (`PUT /api/user-auth/users/{username}`).
   - Never display credentials, default hints, or pre-filled passwords in any UI component or label.
 - **Role-Based Access Control (RBAC) & User Management (Restricted to 'admin' role)**:
   - User accounts and roles (`admin`, `trader`, `viewer`) are stored in Google Cloud Firestore collection `users` (document ID = `username.toLowerCase()`).
@@ -139,7 +139,6 @@ This document provides operational context, architectural contracts, design rule
 | `/api/user-auth/refresh` | `POST` | User Auth | Silently renew short-lived access token using persistent refresh token |
 | `/api/user-auth/logout` | `POST` | User Auth | Revoke active refresh token session |
 | `/api/user-auth/me` | `GET` | User Auth | Retrieve profile information of authenticated user |
-| `/api/user-auth/password` | `PUT` | User Auth | Update user password in Firestore `users/{username}` |
 | `/api/user-auth/status` | `GET` | User Auth | Check user authentication readiness and configuration |
 | `/api/user-auth/sessions` | `GET`, `DELETE` | User Auth | List current user active sessions or kill all other sessions |
 | `/api/user-auth/sessions/{id}` | `DELETE` | User Auth | Terminate/kill a specific active session for current user |
@@ -154,9 +153,8 @@ This document provides operational context, architectural contracts, design rule
 | `/api/auth/update` | `POST` | Auth | Hot-reload manual token update |
 | `/api/alerts` | `GET`, `POST` | Alerts | List all price alerts or create a new alert |
 | `/api/alerts/indices` | `GET` | Alerts | Real-time popular benchmark NSE indices |
-| `/api/alerts/grouped` | `GET` | Alerts | Alerts grouped by instrument |
 | `/api/alerts/{id}/cancel` | `POST` | Alerts | Cancel an active alert |
-| `/api/alerts/{id}` | `PUT`, `DELETE` | Alerts | Update or permanently delete an alert |
+| `/api/alerts/{id}` | `DELETE` | Alerts | Permanently delete an alert |
 | `/api/alerts/test-chime` | `POST` | Alerts | Trigger simulated chime notification |
 | `/api/orders` | `GET`, `POST` | Orders | Order book inspection and placement |
 | `/api/orders/{id}` | `DELETE` | Orders | Cancel an open pending order |

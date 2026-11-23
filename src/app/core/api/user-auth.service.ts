@@ -5,7 +5,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable, catchError, map, of, tap, throwError } from 'rxjs';
 import {
   ActiveSession,
-  ChangePasswordDto,
   CreateUserPayload,
   LoginDto,
   LoginResponse,
@@ -160,14 +159,6 @@ export class UserAuthService {
     if (redirectToLogin) {
       this.router.navigate(['/login']);
     }
-  }
-
-  public changePassword(dto: ChangePasswordDto): Observable<{ success: boolean; message: string }> {
-    return this.http.put<{ success: boolean; message: string }>('/api/user-auth/password', dto).pipe(
-      tap((res) => {
-        this.snackBar.open(res.message || 'Password changed successfully', 'OK', { duration: 4000 });
-      }),
-    );
   }
 
   // =========================================================================

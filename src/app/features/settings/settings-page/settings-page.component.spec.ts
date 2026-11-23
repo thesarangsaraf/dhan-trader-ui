@@ -104,10 +104,7 @@ describe('SettingsPageComponent', () => {
       databaseId: 'dhan-trader-firebase-db',
       clientEmail: 'dhan-trader-sv-account@dhan-trader-514002.iam.gserviceaccount.com',
     }),
-    isTesting: vi.fn().mockReturnValue(false),
-    lastTestResult: vi.fn().mockReturnValue(null),
     refreshStatus: vi.fn().mockReturnValue(of(null)),
-    testConnection: vi.fn().mockReturnValue(of({ success: true, latencyMs: 15 })),
   };
 
   beforeEach(async () => {

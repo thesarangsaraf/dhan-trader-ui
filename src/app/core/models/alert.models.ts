@@ -107,21 +107,6 @@ export interface CreateAlertDto {
   webhookUrl?: string;
 }
 
-export interface UpdateAlertDto {
-  targetPrice?: number;
-  operator?: AlertOperator;
-  remarks?: string;
-  status?: AlertStatus;
-}
-
-export interface GroupedAlert {
-  instrument: string;
-  currentPrice: number | null;
-  activeCount: number;
-  triggeredCount: number;
-  alerts: DhanAlert[];
-}
-
 export interface AlertTriggerEvent {
   id: string;
   instrument: string;
