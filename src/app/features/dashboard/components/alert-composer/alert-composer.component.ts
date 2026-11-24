@@ -214,12 +214,6 @@ import { environment } from '../../../../../environments/environment';
                         (click)="selectStrike(strike.strikePrice)"
                       >
                         <span class="strike-val mono-val">{{ getContractFullName(strike) }}</span>
-                        <span class="strike-ltp mono-val" *ngIf="orderAction === 'BUY'">
-                          LTP: {{ strike.call.ltp | currencyInr : false }}
-                        </span>
-                        <span class="strike-ltp mono-val" *ngIf="orderAction === 'SELL'">
-                          LTP: {{ strike.put.ltp | currencyInr : false }}
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -666,13 +660,11 @@ import { environment } from '../../../../../environments/environment';
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
         border-radius: 8px;
-        padding: 8px 12px;
+        padding: 9px 14px;
         cursor: pointer;
         display: flex;
         flex-direction: row;
-        justify-content: space-between;
         align-items: center;
-        gap: 12px;
         transition: all 0.15s ease;
       }
       .strike-chip:hover {
@@ -690,13 +682,6 @@ import { environment } from '../../../../../environments/environment';
         font-family: var(--font-mono);
         color: var(--text-primary);
         letter-spacing: 0.02em;
-      }
-      .strike-ltp {
-        font-size: 0.75rem;
-        font-weight: 600;
-        font-family: var(--font-mono);
-        color: var(--dhan-cyan);
-        white-space: nowrap;
       }
       .lots-selector-box {
         grid-column: span 2;
@@ -991,20 +976,12 @@ import { environment } from '../../../../../environments/environment';
         }
 
         .strike-chip {
-          padding: 8px 10px;
-          gap: 6px;
-          flex-wrap: wrap;
+          padding: 8px 12px;
         }
 
         .strike-val {
           font-size: 0.75rem;
-          flex: 1 1 180px;
           word-break: break-word;
-        }
-
-        .strike-ltp {
-          font-size: 0.75rem;
-          margin-left: auto;
         }
 
         .order-qty-summary-box {

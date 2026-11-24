@@ -330,7 +330,7 @@ describe('AlertComposerComponent', () => {
     });
   });
 
-  it('should render 3 option contracts vertically with exact customSymbol from NSE and LTP', () => {
+  it('should render option contracts vertically with exact customSymbol from NSE without displaying LTP', () => {
     component.executeOrderOnTrigger = true;
     component.selectedInstrumentSymbol = 'NIFTY 50';
     component.orderAction = 'BUY';
@@ -345,7 +345,58 @@ describe('AlertComposerComponent', () => {
     const chips = compiled.querySelectorAll('.strike-chip');
     expect(chips.length).toBe(1);
     expect(chips[0].textContent).toContain('NIFTY 12 NOV 25000 CALL');
-    expect(chips[0].textContent).toContain('120');
+    expect(chips[0].textContent).not.toContain('LTP');
+  });
+
+  it('should render strike chip with clean contract name and no LTP span', () => {
+    component.executeOrderOnTrigger = true;
+    component.selectedInstrumentSymbol = 'NIFTY 50';
+    component.orderAction = 'BUY';
+    component.strikePairs.set([
+      {
+        strikePrice: 25000,
+        call: {
+          symbol: 'NIFTY 28 NOV 25000 CALL',
+          tradingSymbol: 'NIFTY-28Nov2026-25000-CE',
+          customSymbol: 'NIFTY 28 NOV 25000 CALL',
+          instrumentName: 'NIFTY 50',
+          strikePrice: 25000,
+          optionType: 'CE',
+          expiryDate: '2026-11-28',
+          expiryType: 'CURRENT',
+          securityId: '45021',
+          exchangeSegment: 'NSE_FNO',
+          lotSize: 65,
+          ltp: 0,
+          moneyness: 'ATM',
+        },
+        put: {
+          symbol: 'NIFTY 28 NOV 25000 PUT',
+          tradingSymbol: 'NIFTY-28Nov2026-25000-PE',
+          customSymbol: 'NIFTY 28 NOV 25000 PUT',
+          instrumentName: 'NIFTY 50',
+          strikePrice: 25000,
+          optionType: 'PE',
+          expiryDate: '2026-11-28',
+          expiryType: 'CURRENT',
+          securityId: '45022',
+          exchangeSegment: 'NSE_FNO',
+          lotSize: 65,
+          ltp: 0,
+          moneyness: 'ATM',
+        },
+      },
+    ]);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const chip = compiled.querySelector('.strike-chip');
+    expect(chip).not.toBeNull();
+    expect(chip!.textContent).toContain('NIFTY 28 NOV 25000 CALL');
+    expect(chip!.textContent).not.toContain('LTP');
+    expect(chip!.textContent).not.toContain('₹');
+    expect(compiled.querySelector('.strike-ltp')).toBeNull();
+    expect(compiled.querySelector('.data-api-notice')).toBeNull();
   });
 
   it('should display exact contract name fetched from NSE using customSymbol without any modifications', () => {

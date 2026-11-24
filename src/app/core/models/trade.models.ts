@@ -6,6 +6,15 @@ export interface FinancialYearOption {
   isCurrent: boolean;
 }
 
+export interface ChargesBreakdown {
+  brokerage?: number;
+  stt?: number;
+  gst?: number;
+  exchangeCharges?: number;
+  stampDuty?: number;
+  sebiTax?: number;
+}
+
 export interface HistoricalTradeItem {
   tradeId: string;
   symbol: string; // Human-readable symbol (e.g. "NIFTY 28 NOV 24500 CALL", "RELIANCE")
@@ -13,11 +22,13 @@ export interface HistoricalTradeItem {
   tradingSymbol?: string;
   securityId: string;
   quantity: number;
+  tradeValue?: number | null;
   buyPrice: number | null;
   sellPrice: number | null;
   pnl: number | null;
   pnlPercentage: number | null;
   totalCharges?: number | null;
+  chargesBreakdown?: ChargesBreakdown;
   netPnL?: number | null;
   status: 'CLOSED' | 'OPEN_BUY' | 'OPEN_SELL';
   isProfit: boolean | null;
@@ -25,6 +36,7 @@ export interface HistoricalTradeItem {
   executionTime: string;
   buyTime?: string;
   sellTime?: string;
+  holdingDuration?: string | null;
 }
 
 export interface TradeSummary {

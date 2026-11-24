@@ -21,10 +21,22 @@ describe('TradeHistoryComponent', () => {
       sellPrice: 145.0,
       pnl: 750.0,
       pnlPercentage: 11.54,
+      totalCharges: 25.5,
+      netPnL: 724.5,
+      tradeValue: 13750.0,
+      chargesBreakdown: {
+        brokerage: 20.0,
+        stt: 3.5,
+        gst: 1.5,
+        exchangeCharges: 0.5,
+      },
       status: 'CLOSED',
       isProfit: true,
       tradeDate: '2026-05-10',
       executionTime: '2026-05-10T10:15:00',
+      buyTime: '2026-05-10T10:00:00',
+      sellTime: '2026-05-10T10:15:00',
+      holdingDuration: '15m 0s',
     },
     {
       tradeId: 'PAIR-2',
@@ -35,10 +47,16 @@ describe('TradeHistoryComponent', () => {
       sellPrice: 2496.0,
       pnl: -200.0,
       pnlPercentage: -0.16,
+      totalCharges: 30.0,
+      netPnL: -230.0,
+      tradeValue: 249800.0,
       status: 'CLOSED',
       isProfit: false,
       tradeDate: '2026-05-12',
       executionTime: '2026-05-12T14:30:00',
+      buyTime: '2026-05-12T14:00:00',
+      sellTime: '2026-05-12T14:30:00',
+      holdingDuration: '30m 0s',
     },
   ]);
 
@@ -133,13 +151,16 @@ describe('TradeHistoryComponent', () => {
     expect(component.isCustomMode()).toBe(false);
   });
 
-  it('should render consolidated single trade rows with buy and sell prices', () => {
+  it('should render consolidated single trade rows with buy, sell, trade value, and Realized P&L without Net Realized P&L', () => {
     const el: HTMLElement = fixture.nativeElement;
     const rows = el.querySelectorAll('.trade-row');
     expect(rows.length).toBe(2);
 
     const firstRowSymbol = el.querySelector('.trade-row .symbol-name');
     expect(firstRowSymbol?.textContent).toContain('NIFTY 28 NOV 24500 CALL');
+
+    const tradeValCell = el.querySelector('.trade-row .trade-val-cell');
+    expect(tradeValCell?.textContent).toContain('13,750.00');
 
     const buyPriceCell = el.querySelector('.trade-row .buy-cell');
     expect(buyPriceCell?.textContent).toContain('130.00');
@@ -149,8 +170,14 @@ describe('TradeHistoryComponent', () => {
 
     const pnlCell = el.querySelector('.trade-row .pnl-cell');
     expect(pnlCell?.textContent).toContain('+₹750.00');
-    expect(el.querySelector('.pnl-pct')).toBeNull();
     expect(pnlCell?.textContent).not.toContain('%');
+    expect(pnlCell?.classList.contains('profit-text')).toBe(true);
+
+    const netPnlCell = el.querySelector('.trade-row .net-pnl-cell');
+    expect(netPnlCell).toBeNull();
+
+    const secondRowPnlCell = rows[1].querySelector('.pnl-cell');
+    expect(secondRowPnlCell?.classList.contains('loss-text')).toBe(true);
   });
 
   it('should allow filtering by profit or loss status', () => {
@@ -158,6 +185,25 @@ describe('TradeHistoryComponent', () => {
     const profitBtn = el.querySelector('.profit-pill') as HTMLButtonElement;
     profitBtn.click();
     expect(mockTradeService.setStatusFilter).toHaveBeenCalledWith('PROFIT');
+  });
+
+  it('should render charges in separate column, show duration and not show IST in timing', () => {
+    const el: HTMLElement = fixture.nativeElement;
+    const timeCell = el.querySelector('.trade-row .time-cell');
+    expect(timeCell?.textContent).not.toContain('IST');
+    expect(timeCell?.textContent).toContain('15m 0s');
+
+    const headers = el.querySelectorAll('th');
+    const headerTexts = Array.from(headers).map(th => th.textContent?.trim());
+    expect(headerTexts).toContain('Charges');
+    expect(headerTexts).toContain('Buy / Sell / Duration');
+    expect(headerTexts).toContain('Trade Value');
+    expect(headerTexts).toContain('Realized P&L');
+    expect(headerTexts).not.toContain('Net Realized P&L');
+    expect(headerTexts).not.toContain('Execution Time (IST)');
+
+    const chargesCell = el.querySelector('.trade-row .charges-cell');
+    expect(chargesCell?.textContent).toContain('25.50');
   });
 
   it('should render section error when tradeService reports an error', () => {

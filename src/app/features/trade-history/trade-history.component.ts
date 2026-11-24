@@ -8,6 +8,7 @@ import { TradeService } from '../../core/api/trade.service';
 import { CurrencyInrPipe } from '../../shared/pipes/currency-inr.pipe';
 import { IstDatePipe } from '../../shared/pipes/ist-date.pipe';
 import { SectionErrorComponent } from '../../shared/components/section-error/section-error.component';
+import { HistoricalTradeItem } from '../../core/models/trade.models';
 
 @Component({
   selector: 'app-trade-history',
@@ -107,20 +108,20 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
 
         <!-- KPI SUMMARY CARDS (FOCUSED ON P&L AND TRADES) -->
         <section class="summary-cards-grid" *ngIf="tradeService.summary() as sum">
-          <!-- Net Realized P&L Card -->
+          <!-- Realized P&L Card -->
           <div
             class="kpi-card pnl-kpi"
-            [ngClass]="(sum.netRealizedPnL ?? sum.totalRealizedPnL ?? 0) >= 0 ? 'profit' : 'loss'"
+            [ngClass]="(sum.totalRealizedPnL || 0) >= 0 ? 'profit' : 'loss'"
           >
             <div class="kpi-icon-wrap">
-              <span class="material-symbols-rounded">{{ (sum.netRealizedPnL ?? sum.totalRealizedPnL ?? 0) >= 0 ? 'trending_up' : 'trending_down' }}</span>
+              <span class="material-symbols-rounded">{{ (sum.totalRealizedPnL || 0) >= 0 ? 'trending_up' : 'trending_down' }}</span>
             </div>
             <div class="kpi-content">
-              <div class="kpi-label">Net Realized P&L</div>
-              <div class="kpi-value mono-val">{{ (sum.netRealizedPnL ?? sum.totalRealizedPnL ?? 0) | currencyInr : true }}</div>
+              <div class="kpi-label">Realized P&L</div>
+              <div class="kpi-value mono-val">{{ (sum.totalRealizedPnL || 0) | currencyInr : true }}</div>
               <div class="kpi-hint">
-                Gross: {{ (sum.totalRealizedPnL || 0) | currencyInr : true }}
-                <span *ngIf="sum.totalCharges">&bull; Charges: -{{ sum.totalCharges | currencyInr : false }}</span>
+                <span *ngIf="sum.totalCharges">Charges: -{{ sum.totalCharges | currencyInr : false }}</span>
+                <span *ngIf="!sum.totalCharges">Gross Realized Profit & Loss</span>
               </div>
             </div>
           </div>
@@ -230,20 +231,42 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
             <table class="trades-table" *ngIf="!tradeService.isLoading() && tradeService.filteredTrades().length > 0">
               <thead>
                 <tr>
-                  <th>Execution Time (IST)</th>
+                  <th class="time-col">Buy / Sell / Duration</th>
                   <th>Instrument Name</th>
                   <th class="num-col">Quantity</th>
+                  <th class="num-col">Trade Value</th>
                   <th class="num-col">Buy Price</th>
                   <th class="num-col">Sell Price</th>
+                  <th class="num-col">Charges</th>
                   <th class="num-col">Realized P&L</th>
                   <th class="center-col">Status</th>
                 </tr>
               </thead>
               <tbody>
                 <tr *ngFor="let t of tradeService.filteredTrades(); let isEven = even; let isOdd = odd; let isFirst = first; let isLast = last" class="trade-row" [ngClass]="{ 'row-even': isEven, 'row-odd': isOdd, 'row-first': isFirst, 'row-last': isLast }">
-                  <!-- Execution Time -->
+                  <!-- Buy / Sell / Duration -->
                   <td class="time-cell mono-val">
-                    {{ t.executionTime | istDate }}
+                    <div class="time-date">
+                      {{ (t.tradeDate || t.executionTime) | istDate : 'full' : false | slice : 0 : 11 }}
+                    </div>
+                    <div class="timing-sub-row">
+                      <span class="fill-time buy-tag" *ngIf="t.buyTime">
+                        <span class="side-char">B:</span>{{ t.buyTime | istDate : 'timeOnly' : false }}
+                      </span>
+                      <span class="time-arrow" *ngIf="t.buyTime && t.sellTime">&rarr;</span>
+                      <span class="fill-time sell-tag" *ngIf="t.sellTime">
+                        <span class="side-char">S:</span>{{ t.sellTime | istDate : 'timeOnly' : false }}
+                      </span>
+                      <span *ngIf="!t.buyTime && !t.sellTime">
+                        {{ t.executionTime | istDate : 'timeOnly' : false }}
+                      </span>
+                    </div>
+                    <div class="duration-badge-wrap" *ngIf="getTradeDuration(t)">
+                      <span class="duration-badge">
+                        <span class="material-symbols-rounded timer-icon">timer</span>
+                        {{ getTradeDuration(t) }}
+                      </span>
+                    </div>
                   </td>
 
                   <!-- Instrument Name (Human Readable) -->
@@ -254,6 +277,11 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
                   <!-- Quantity -->
                   <td class="num-col qty-cell mono-val">
                     {{ t.quantity }}
+                  </td>
+
+                  <!-- Trade Value (Turnover) -->
+                  <td class="num-col trade-val-cell mono-val">
+                    <span>{{ getTradeTurnover(t) | currencyInr : false }}</span>
                   </td>
 
                   <!-- Buy Price -->
@@ -268,14 +296,21 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
                     <span *ngIf="t.sellPrice === null || t.sellPrice === undefined" class="muted">--</span>
                   </td>
 
-                  <!-- Realized P&L -->
+                  <!-- Charges with Itemized Breakdown Tooltip -->
+                  <td
+                    class="num-col charges-cell mono-val"
+                    [matTooltip]="getChargesBreakdownTooltip(t)"
+                    matTooltipPosition="above"
+                  >
+                    <span *ngIf="t.totalCharges !== null && t.totalCharges !== undefined && t.totalCharges > 0" class="charges-amount">
+                      {{ t.totalCharges | currencyInr : false }}
+                    </span>
+                    <span *ngIf="!t.totalCharges" class="muted">--</span>
+                  </td>
+
+                  <!-- Realized P&L (Gross) -->
                   <td class="num-col pnl-cell mono-val" [ngClass]="{ 'profit-text': (t.pnl || 0) > 0, 'loss-text': (t.pnl || 0) < 0 }">
-                    <div *ngIf="t.pnl !== null && t.pnl !== undefined" class="pnl-val-wrap">
-                      <span class="pnl-amount">{{ t.pnl | currencyInr : true }}</span>
-                      <div *ngIf="t.totalCharges" class="charges-subtext" [matTooltip]="'Dhan Brokerage & Statutory Taxes: ₹' + t.totalCharges">
-                        Charges: ₹{{ t.totalCharges }}
-                      </div>
-                    </div>
+                    <span *ngIf="t.pnl !== null && t.pnl !== undefined">{{ t.pnl | currencyInr : true }}</span>
                     <span *ngIf="t.pnl === null || t.pnl === undefined" class="muted">--</span>
                   </td>
 
@@ -749,7 +784,7 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
 
       .trades-table {
         width: 100%;
-        min-width: 880px;
+        min-width: 1040px;
         border-collapse: separate;
         border-spacing: 0;
         text-align: left;
@@ -788,11 +823,72 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         text-align: center;
       }
 
+      .time-date {
+        color: #ffffff;
+        font-weight: 600;
+        font-size: 13px;
+      }
+
+      .timing-sub-row {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 3px;
+      }
+
+      .fill-time {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+      }
+
+      .buy-tag .side-char {
+        color: #10b981;
+        font-weight: 700;
+      }
+
+      .sell-tag .side-char {
+        color: #f43f5e;
+        font-weight: 700;
+      }
+
+      .time-arrow {
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 11px;
+      }
+
+      .duration-badge-wrap {
+        margin-top: 4px;
+      }
+
+      .duration-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: rgba(99, 102, 241, 0.15);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        color: #a5b4fc;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 10.5px;
+        font-weight: 600;
+      }
+
+      .timer-icon {
+        font-size: 12px;
+      }
+
       .symbol-name {
         font-weight: 700;
         font-size: 13.5px;
         color: #ffffff;
         letter-spacing: 0.2px;
+      }
+
+      .trade-val-cell {
+        color: rgba(255, 255, 255, 0.85);
       }
 
       .buy-cell {
@@ -803,31 +899,27 @@ import { SectionErrorComponent } from '../../shared/components/section-error/sec
         color: rgba(255, 255, 255, 0.85);
       }
 
+      .charges-cell {
+        color: rgba(255, 255, 255, 0.7);
+        cursor: help;
+        transition: color 0.15s;
+      }
+
+      .charges-cell:hover {
+        color: #00d2c4;
+      }
+
       .pnl-cell {
         font-weight: 700;
         font-size: 13.5px;
       }
 
-      .pnl-val-wrap {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 2px;
-      }
-
       .profit-text {
-        color: #10b981;
+        color: #10b981 !important;
       }
 
       .loss-text {
-        color: #f43f5e;
-      }
-
-      .charges-subtext {
-        font-size: 10px;
-        color: rgba(255, 255, 255, 0.45);
-        font-weight: 500;
-        cursor: help;
+        color: #f43f5e !important;
       }
 
       .status-pill {
@@ -1055,5 +1147,47 @@ export class TradeHistoryComponent {
     if (this.customFrom && this.customTo) {
       this.tradeService.setCustomDateRange(this.customFrom, this.customTo);
     }
+  }
+
+  getTradeDuration(t: HistoricalTradeItem): string | null {
+    if (t.holdingDuration) return t.holdingDuration;
+    if (!t.buyTime || !t.sellTime) return null;
+    const d1 = new Date(t.buyTime).getTime();
+    const d2 = new Date(t.sellTime).getTime();
+    if (isNaN(d1) || isNaN(d2) || d1 <= 0 || d2 <= 0) return null;
+    const diffSec = Math.max(0, Math.round(Math.abs(d2 - d1) / 1000));
+    const days = Math.floor(diffSec / 86400);
+    const hours = Math.floor((diffSec % 86400) / 3600);
+    const mins = Math.floor((diffSec % 3600) / 60);
+    const secs = diffSec % 60;
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
+  }
+
+  getTradeTurnover(t: HistoricalTradeItem): number {
+    if (t.tradeValue !== null && t.tradeValue !== undefined && t.tradeValue > 0) {
+      return t.tradeValue;
+    }
+    const buy = (t.buyPrice || 0) * t.quantity;
+    const sell = (t.sellPrice || 0) * t.quantity;
+    return Math.round((buy + sell) * 100) / 100;
+  }
+
+  getChargesBreakdownTooltip(t: HistoricalTradeItem): string {
+    if (!t.totalCharges) return 'No charges levied';
+    const b = t.chargesBreakdown;
+    if (b && (b.brokerage || b.stt || b.gst || b.exchangeCharges || b.stampDuty || b.sebiTax)) {
+      const parts: string[] = [];
+      if (b.brokerage !== undefined) parts.push(`Brokerage: ₹${b.brokerage.toFixed(2)}`);
+      if (b.stt !== undefined) parts.push(`STT: ₹${b.stt.toFixed(2)}`);
+      if (b.exchangeCharges !== undefined) parts.push(`Exchange: ₹${b.exchangeCharges.toFixed(2)}`);
+      if (b.gst !== undefined) parts.push(`GST: ₹${b.gst.toFixed(2)}`);
+      if (b.stampDuty !== undefined) parts.push(`Stamp Duty: ₹${b.stampDuty.toFixed(2)}`);
+      if (b.sebiTax !== undefined) parts.push(`SEBI: ₹${b.sebiTax.toFixed(2)}`);
+      return parts.join(' • ');
+    }
+    return `Dhan Brokerage & Statutory Taxes: ₹${t.totalCharges}`;
   }
 }
