@@ -54,6 +54,10 @@ import { CurrencyInrPipe } from '../../pipes/currency-inr.pipe';
           <span class="material-symbols-rounded">history</span>
           <span>Trade History</span>
         </a>
+        <a routerLink="/screener" class="nav-tab" routerLinkActive="active">
+          <span class="material-symbols-rounded">query_stats</span>
+          <span>Screener</span>
+        </a>
         <a routerLink="/settings" class="nav-tab" routerLinkActive="active">
           <span class="material-symbols-rounded">settings</span>
           <span>Settings</span>
