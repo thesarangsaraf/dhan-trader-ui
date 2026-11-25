@@ -29,7 +29,6 @@ export interface HistoricalTradeItem {
   pnlPercentage: number | null;
   totalCharges?: number | null;
   chargesBreakdown?: ChargesBreakdown;
-  netPnL?: number | null;
   status: 'CLOSED' | 'OPEN_BUY' | 'OPEN_SELL';
   isProfit: boolean | null;
   tradeDate?: string;
@@ -47,7 +46,6 @@ export interface TradeSummary {
   winRate: number;
   totalRealizedPnL: number;
   totalCharges?: number;
-  netRealizedPnL?: number;
   totalQuantity: number;
 }
 

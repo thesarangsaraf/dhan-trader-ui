@@ -10,6 +10,8 @@ import { UserAuthService } from '../../../core/api/user-auth.service';
 import { ActiveSession, UserSummary } from '../../../core/models/user-auth.models';
 import { InstrumentService } from '../../../core/api/instrument.service';
 import { FirestoreApiService } from '../../../core/api/firestore.service';
+import { HistoricalDataService, HistoricalIndexKey } from '../../../core/api/historical-data.service';
+import { HistoricalDataStatusResult, HistoricalDataSyncResult } from '../../../core/models/historical-data.models';
 import { AlertService } from '../../../core/api/alert.service';
 import { OrderService } from '../../../core/api/order.service';
 import { IndexConfigItem } from '../../../core/models/instrument.models';
@@ -750,6 +752,119 @@ import { IstDatePipe } from '../../../shared/pipes/ist-date.pipe';
                 <div class="flush-inline-banner" *ngIf="instrumentService.lastFlushOptionsResult() as optRes">
                   <span class="material-symbols-rounded">check_circle</span>
                   <span>Options flushed & reloaded: <strong class="mono-val">{{ optRes.totalItems | number }}</strong> contracts across {{ optRes.documentIds?.length || optRes.totalChunks }} indices</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- SECTION 4: HISTORICAL 5-MINUTE DATA ARCHIVE -->
+          <section class="settings-section-card" id="historical-data-section">
+            <div class="section-header">
+              <div class="section-title-wrap">
+                <div class="icon-avatar historical-avatar" style="background: linear-gradient(135deg, #0ea5e9, #10b981);">
+                  <span class="material-symbols-rounded">candlestick_chart</span>
+                </div>
+                <div>
+                  <h2 class="section-heading">Historical 5-Minute Data</h2>
+                  <p class="section-subheading">
+                    Fetches 1m CSVs from GitHub, resamples to 5m (09:15 IST aligned), and stores archive durations in Firestore (<code>historical_candles</code>)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="dual-master-grid">
+              <div class="sub-master-card" *ngFor="let cfg of historicalIndexConfigs" [attr.data-index-key]="cfg.key">
+                <div class="sub-master-header">
+                  <div class="sub-master-title">
+                    <span class="material-symbols-rounded sub-icon">timeline</span>
+                    <span>{{ cfg.label }} · 5-Minute OHLCV Archive</span>
+                    <span class="collection-badge">{{ cfg.collection }}</span>
+                  </div>
+                  <div class="section-actions dual-sync-actions">
+                    <button
+                      mat-flat-button
+                      color="primary"
+                      class="action-btn-primary"
+                      [ngClass]="cfg.syncBtnClass"
+                      (click)="onSyncHistorical(cfg.key, false)"
+                      [disabled]="isHistoricalSyncing(cfg.key) || !userAuthService.isAdmin()"
+                      matTooltip="Incremental sync: fetches only missing or latest month CSVs and updates Firestore (low reads/writes)"
+                    >
+                      <span class="material-symbols-rounded" [class.spinning]="isHistoricalSyncing(cfg.key) && getHistoricalSyncMode(cfg.key) === 'incremental'">
+                        {{ isHistoricalSyncing(cfg.key) && getHistoricalSyncMode(cfg.key) === 'incremental' ? 'sync' : 'cloud_sync' }}
+                      </span>
+                      <span>{{ isHistoricalSyncing(cfg.key) && getHistoricalSyncMode(cfg.key) === 'incremental' ? 'Syncing Latest...' : 'Sync Latest 5m Data' }}</span>
+                    </button>
+                    <button
+                      mat-stroked-button
+                      class="action-btn-secondary"
+                      [ngClass]="cfg.rebuildBtnClass"
+                      (click)="onSyncHistorical(cfg.key, true)"
+                      [disabled]="isHistoricalSyncing(cfg.key) || !userAuthService.isAdmin()"
+                      [matTooltip]="'Full rebuild: downloads all 1m CSVs (' + cfg.startYear + '–present) from GitHub, resamples to 5m, and rewrites all monthly docs'"
+                    >
+                      <span class="material-symbols-rounded" [class.spinning]="isHistoricalSyncing(cfg.key) && getHistoricalSyncMode(cfg.key) === 'full'">
+                        {{ isHistoricalSyncing(cfg.key) && getHistoricalSyncMode(cfg.key) === 'full' ? 'sync' : 'restart_alt' }}
+                      </span>
+                      <span>{{ isHistoricalSyncing(cfg.key) && getHistoricalSyncMode(cfg.key) === 'full' ? 'Rebuilding All Months...' : 'Full Rebuild' }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Not Found in Database Banner -->
+                <div class="db-not-found-banner" *ngIf="!getHistoricalStatus(cfg.key)?.storedInFirestore">
+                  <div class="db-not-found-icon">
+                    <span class="material-symbols-rounded">database_off</span>
+                  </div>
+                  <div class="db-not-found-content">
+                    <h4 class="db-not-found-title">Historical 5m data not found in database</h4>
+                    <p class="db-not-found-msg">
+                      Firestore document <code>{{ cfg.collection }}</code> has not been populated yet.
+                      Click <strong>Sync Latest 5m Data</strong> to fetch 1-minute {{ cfg.label }} data from GitHub and store 5m candles in Firestore.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Available Duration Summary (no DB counts) -->
+                <ng-container *ngIf="getHistoricalStatus(cfg.key)?.metadata as hMeta">
+                  <div class="master-stats-grid">
+                    <div class="stat-card">
+                      <div class="stat-val mono-val">{{ hMeta.firstMonth }} → {{ hMeta.lastMonth }}</div>
+                      <div class="stat-lbl">Available Duration</div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-val mono-val">{{ formatMonthDuration(hMeta.firstMonth, hMeta.lastMonth) }}</div>
+                      <div class="stat-lbl">Total Span</div>
+                    </div>
+                    <div class="stat-card" *ngIf="hMeta.firstEpoch && hMeta.lastEpoch">
+                      <div class="stat-val mono-val">{{ formatEpochIstDate(hMeta.firstEpoch) }} → {{ formatEpochIstDate(hMeta.lastEpoch) }}</div>
+                      <div class="stat-lbl">Date Coverage (IST)</div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-val mono-val">{{ hMeta.symbol }} · {{ hMeta.timeframe }}</div>
+                      <div class="stat-lbl">Instrument &amp; Interval</div>
+                    </div>
+                  </div>
+
+                  <div class="documents-breakdown-box">
+                    <div class="sync-timestamp" *ngIf="hMeta.updatedAt">
+                      Last synchronized: {{ hMeta.updatedAt | istDate : 'full' }} · Source:
+                      <a [href]="hMeta.sourceRepo" target="_blank" rel="noopener noreferrer" style="color: var(--dhan-cyan); text-decoration: none;">
+                        {{ cfg.repoSlug }}
+                      </a>
+                    </div>
+                  </div>
+                </ng-container>
+
+                <!-- Sync Result Banner -->
+                <div class="flush-inline-banner" *ngIf="getLastHistoricalSync(cfg.key) as hRes">
+                  <span class="material-symbols-rounded">check_circle</span>
+                  <span>
+                    {{ hRes.mode === 'full' ? 'Full rebuild' : 'Incremental sync' }} complete:
+                    <strong class="mono-val">{{ hRes.firstMonth }} → {{ hRes.lastMonth }}</strong> available
+                    ({{ (hRes.durationMs / 1000).toFixed(1) }}s)
+                  </span>
                 </div>
               </div>
             </div>
@@ -1782,6 +1897,7 @@ export class SettingsPageComponent implements OnInit {
   readonly userAuthService = inject(UserAuthService);
   readonly instrumentService = inject(InstrumentService);
   readonly firestoreApi = inject(FirestoreApiService);
+  readonly historicalDataService = inject(HistoricalDataService);
   readonly alertService = inject(AlertService);
   readonly orderService = inject(OrderService);
   private readonly snackBar = inject(MatSnackBar);
@@ -1942,9 +2058,106 @@ export class SettingsPageComponent implements OnInit {
     this.instrumentService.fetchLotSizes(true).subscribe();
     this.instrumentService.fetchConfiguredIndices(true).subscribe();
     this.firestoreApi.refreshStatus().subscribe();
+    this.historicalDataService.fetchStatus().subscribe();
+    this.historicalDataService.fetchBankNiftyStatus().subscribe();
     if (this.userAuthService.isAdmin()) {
       this.loadUsersAndSessions();
     }
+  }
+
+  readonly historicalIndexConfigs: Array<{
+    key: HistoricalIndexKey;
+    label: string;
+    collection: string;
+    repoSlug: string;
+    startYear: string;
+    syncBtnClass: string;
+    rebuildBtnClass: string;
+  }> = [
+    {
+      key: 'NIFTY50',
+      label: 'NIFTY 50',
+      collection: 'historical_candles/NIFTY50_5M',
+      repoSlug: 'technovusin/nifty50-historical-data',
+      startYear: '2017',
+      syncBtnClass: 'sync-historical-btn',
+      rebuildBtnClass: 'rebuild-historical-btn',
+    },
+    {
+      key: 'BANKNIFTY',
+      label: 'BANK NIFTY',
+      collection: 'historical_candles/BANKNIFTY_5M',
+      repoSlug: 'technovusin/banknifty-historical-data',
+      startYear: '2021',
+      syncBtnClass: 'sync-banknifty-historical-btn',
+      rebuildBtnClass: 'rebuild-banknifty-historical-btn',
+    },
+  ];
+
+  getHistoricalStatus(key: HistoricalIndexKey): HistoricalDataStatusResult | null {
+    return key === 'BANKNIFTY'
+      ? this.historicalDataService.bankNiftyStatus()
+      : this.historicalDataService.status();
+  }
+
+  isHistoricalSyncing(key: HistoricalIndexKey): boolean {
+    return key === 'BANKNIFTY'
+      ? this.historicalDataService.isSyncingBankNifty()
+      : this.historicalDataService.isSyncing();
+  }
+
+  getHistoricalSyncMode(key: HistoricalIndexKey): 'incremental' | 'full' | null {
+    return key === 'BANKNIFTY'
+      ? this.historicalDataService.bankNiftySyncMode()
+      : this.historicalDataService.syncMode();
+  }
+
+  getLastHistoricalSync(key: HistoricalIndexKey): HistoricalDataSyncResult | null {
+    return key === 'BANKNIFTY'
+      ? this.historicalDataService.lastBankNiftySyncResult()
+      : this.historicalDataService.lastSyncResult();
+  }
+
+  onSyncHistorical(key: HistoricalIndexKey, force = false): void {
+    const cfg = this.historicalIndexConfigs.find((c) => c.key === key);
+    if (
+      force &&
+      cfg &&
+      !confirm(
+        `Full rebuild will re-download all 1-minute ${cfg.label} CSVs (${cfg.startYear}–present) from GitHub, resample to 5m, and rewrite all monthly documents in Firestore. Continue?`,
+      )
+    ) {
+      return;
+    }
+
+    if (key === 'BANKNIFTY') {
+      this.historicalDataService.syncBankNiftyFiveMin(force).subscribe();
+    } else {
+      this.historicalDataService.syncNifty50FiveMin(force).subscribe();
+    }
+  }
+
+  formatMonthDuration(firstMonth: string, lastMonth: string): string {
+    if (!firstMonth || !lastMonth) return '--';
+    const [y1, m1] = firstMonth.split('-').map(Number);
+    const [y2, m2] = lastMonth.split('-').map(Number);
+    if (!Number.isFinite(y1) || !Number.isFinite(m1) || !Number.isFinite(y2) || !Number.isFinite(m2)) {
+      return '--';
+    }
+    const totalMonths = (y2 - y1) * 12 + (m2 - m1) + 1;
+    if (totalMonths <= 0) return '--';
+    const years = Math.floor(totalMonths / 12);
+    const months = totalMonths % 12;
+    const parts: string[] = [];
+    if (years > 0) parts.push(`${years} yr${years > 1 ? 's' : ''}`);
+    if (months > 0) parts.push(`${months} mo${months > 1 ? 's' : ''}`);
+    return parts.join(' ') || '0 mos';
+  }
+
+  formatEpochIstDate(epochSeconds: number): string {
+    if (!epochSeconds) return '--';
+    // Shift UTC by +05:30 (19800s) to format the IST calendar date
+    return new Date((epochSeconds + 19800) * 1000).toISOString().slice(0, 10);
   }
 
   onFlushAndReloadEquities(): void {

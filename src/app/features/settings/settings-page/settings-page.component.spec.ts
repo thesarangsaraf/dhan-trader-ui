@@ -9,6 +9,7 @@ import { SettingsPageComponent } from './settings-page.component';
 import { AuthService } from '../../../core/api/auth.service';
 import { InstrumentService } from '../../../core/api/instrument.service';
 import { FirestoreApiService } from '../../../core/api/firestore.service';
+import { HistoricalDataService } from '../../../core/api/historical-data.service';
 
 describe('SettingsPageComponent', () => {
   let component: SettingsPageComponent;
@@ -107,6 +108,63 @@ describe('SettingsPageComponent', () => {
     refreshStatus: vi.fn().mockReturnValue(of(null)),
   };
 
+  const mockHistoricalDataService = {
+    status: vi.fn().mockReturnValue({
+      storedInFirestore: true,
+      syncInProgress: false,
+      sourceRepo: 'https://github.com/technovusin/nifty50-historical-data',
+      collection: 'historical_candles/NIFTY50_5M',
+      metadata: {
+        symbol: 'NIFTY 50',
+        securityId: '13',
+        timeframe: '5m',
+        sourceRepo: 'https://github.com/technovusin/nifty50-historical-data',
+        collection: 'historical_candles/NIFTY50_5M',
+        totalCandles: 178452,
+        totalMonths: 116,
+        firstEpoch: 1491191100,
+        lastEpoch: 1795427700,
+        firstMonth: '2017-04',
+        lastMonth: '2026-11',
+        months: ['2017-04', '2026-11'],
+        monthCounts: { '2017-04': 1425, '2026-11': 1245 },
+        updatedAt: '2026-11-24T17:00:00.000Z',
+      },
+    }),
+    isSyncing: vi.fn().mockReturnValue(false),
+    syncMode: vi.fn().mockReturnValue(null),
+    lastSyncResult: vi.fn().mockReturnValue(null),
+    fetchStatus: vi.fn().mockReturnValue(of(null)),
+    syncNifty50FiveMin: vi.fn().mockReturnValue(of({ success: true })),
+    bankNiftyStatus: vi.fn().mockReturnValue({
+      storedInFirestore: true,
+      syncInProgress: false,
+      sourceRepo: 'https://github.com/technovusin/banknifty-historical-data',
+      collection: 'historical_candles/BANKNIFTY_5M',
+      metadata: {
+        symbol: 'BANK NIFTY',
+        securityId: '25',
+        timeframe: '5m',
+        sourceRepo: 'https://github.com/technovusin/banknifty-historical-data',
+        collection: 'historical_candles/BANKNIFTY_5M',
+        totalCandles: 98210,
+        totalMonths: 64,
+        firstEpoch: 1628051400,
+        lastEpoch: 1795427700,
+        firstMonth: '2021-08',
+        lastMonth: '2026-11',
+        months: ['2021-08', '2026-11'],
+        monthCounts: { '2021-08': 1425, '2026-11': 1245 },
+        updatedAt: '2026-11-25T14:00:00.000Z',
+      },
+    }),
+    isSyncingBankNifty: vi.fn().mockReturnValue(false),
+    bankNiftySyncMode: vi.fn().mockReturnValue(null),
+    lastBankNiftySyncResult: vi.fn().mockReturnValue(null),
+    fetchBankNiftyStatus: vi.fn().mockReturnValue(of(null)),
+    syncBankNiftyFiveMin: vi.fn().mockReturnValue(of({ success: true })),
+  };
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [SettingsPageComponent],
@@ -118,6 +176,7 @@ describe('SettingsPageComponent', () => {
         { provide: AuthService, useValue: mockAuthService },
         { provide: InstrumentService, useValue: mockInstrumentService },
         { provide: FirestoreApiService, useValue: mockFirestoreApi },
+        { provide: HistoricalDataService, useValue: mockHistoricalDataService },
       ],
     }).compileComponents();
 
@@ -400,5 +459,52 @@ describe('SettingsPageComponent', () => {
     expect(lotsSection?.querySelectorAll('.lot-card').length).toBe(0);
     const saveBtn = lotsSection?.querySelector('.action-btn-primary') as HTMLButtonElement;
     expect(saveBtn?.disabled).toBe(true);
+  });
+
+  it('should render common Historical 5-Minute Data section with NIFTY 50 & BANK NIFTY durations (no DB counts) and trigger syncs', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    component.userAuthService.currentUser.set({ username: 'sarang', role: 'admin' });
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('#banknifty-historical-data-section')).toBeNull();
+
+    const histSection = el.querySelector('#historical-data-section');
+    expect(histSection).toBeTruthy();
+    expect(histSection?.textContent).toContain('Historical 5-Minute Data');
+    expect(histSection?.textContent).toContain('NIFTY 50 · 5-Minute OHLCV Archive');
+    expect(histSection?.textContent).toContain('BANK NIFTY · 5-Minute OHLCV Archive');
+    expect(histSection?.textContent).toContain('2017-04 → 2026-11');
+    expect(histSection?.textContent).toContain('9 yrs 8 mos');
+    expect(histSection?.textContent).toContain('2021-08 → 2026-11');
+    expect(histSection?.textContent).toContain('5 yrs 4 mos');
+
+    // Should NOT display candle or document counts saved in Firestore
+    expect(histSection?.textContent).not.toContain('178,452');
+    expect(histSection?.textContent).not.toContain('98,210');
+    expect(histSection?.textContent).not.toContain('Total 5m Candles');
+    expect(histSection?.textContent).not.toContain('Monthly Documents');
+
+    const niftySyncBtn = histSection?.querySelector('.sync-historical-btn') as HTMLButtonElement;
+    expect(niftySyncBtn).toBeTruthy();
+    expect(niftySyncBtn.disabled).toBe(false);
+    niftySyncBtn.click();
+    expect(mockHistoricalDataService.syncNifty50FiveMin).toHaveBeenCalledWith(false);
+
+    const niftyRebuildBtn = histSection?.querySelector('.rebuild-historical-btn') as HTMLButtonElement;
+    expect(niftyRebuildBtn).toBeTruthy();
+    niftyRebuildBtn.click();
+    expect(mockHistoricalDataService.syncNifty50FiveMin).toHaveBeenCalledWith(true);
+
+    const bnSyncBtn = histSection?.querySelector('.sync-banknifty-historical-btn') as HTMLButtonElement;
+    expect(bnSyncBtn).toBeTruthy();
+    expect(bnSyncBtn.disabled).toBe(false);
+    bnSyncBtn.click();
+    expect(mockHistoricalDataService.syncBankNiftyFiveMin).toHaveBeenCalledWith(false);
+
+    const bnRebuildBtn = histSection?.querySelector('.rebuild-banknifty-historical-btn') as HTMLButtonElement;
+    expect(bnRebuildBtn).toBeTruthy();
+    bnRebuildBtn.click();
+    expect(mockHistoricalDataService.syncBankNiftyFiveMin).toHaveBeenCalledWith(true);
   });
 });

@@ -141,7 +141,6 @@ export class TradeService {
           pnl: t.pnl !== undefined && t.pnl !== null ? Number(t.pnl) : null,
           pnlPercentage: t.pnlPercentage !== undefined && t.pnlPercentage !== null ? Number(t.pnlPercentage) : null,
           totalCharges: t.totalCharges !== undefined && t.totalCharges !== null ? Number(t.totalCharges) : null,
-          netPnL: t.netPnL !== undefined && t.netPnL !== null ? Number(t.netPnL) : (t.pnl !== undefined && t.pnl !== null ? Number(t.pnl) : null),
           status: t.status || 'CLOSED',
           isProfit: t.isProfit ?? (t.pnl !== null && t.pnl !== undefined ? t.pnl >= 0 : null),
           tradeDate: t.tradeDate || '',
@@ -335,7 +334,6 @@ export class TradeService {
       ? Number(rawSum.totalRealizedPnL)
       : (rawSum?.netRealizedValue !== undefined ? Number(rawSum.netRealizedValue) : Math.round(totalRealizedPnL * 100) / 100);
     const sumCharges = rawSum?.totalCharges !== undefined ? Number(rawSum.totalCharges) : Math.round(totalCharges * 100) / 100;
-    const netPnL = rawSum?.netRealizedPnL !== undefined ? Number(rawSum.netRealizedPnL) : Math.round((grossPnL - sumCharges) * 100) / 100;
 
     return {
       totalTrades: trades.length,
@@ -345,7 +343,6 @@ export class TradeService {
       winRate: rawSum?.winRate !== undefined ? Number(rawSum.winRate) : winRate,
       totalRealizedPnL: grossPnL,
       totalCharges: sumCharges,
-      netRealizedPnL: netPnL,
       totalQuantity: rawSum?.totalQuantity !== undefined ? Number(rawSum.totalQuantity) : totalQuantity,
     };
   }

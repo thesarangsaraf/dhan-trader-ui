@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,6 +9,7 @@ import { CurrencyInrPipe } from '../../shared/pipes/currency-inr.pipe';
 import { IstDatePipe } from '../../shared/pipes/ist-date.pipe';
 import { SectionErrorComponent } from '../../shared/components/section-error/section-error.component';
 import { HistoricalTradeItem } from '../../core/models/trade.models';
+import { TradeIndexChartComponent } from './components/trade-index-chart/trade-index-chart.component';
 
 @Component({
   selector: 'app-trade-history',
@@ -22,6 +23,7 @@ import { HistoricalTradeItem } from '../../core/models/trade.models';
     CurrencyInrPipe,
     IstDatePipe,
     SectionErrorComponent,
+    TradeIndexChartComponent,
   ],
   template: `
     <div class="trade-history-root">
@@ -220,6 +222,30 @@ import { HistoricalTradeItem } from '../../core/models/trade.models';
               </button>
             </div>
 
+            <!-- Instrument All-Trades Chart Buttons -->
+            <div class="instrument-chart-actions" *ngIf="nifty50Trades().length > 0 || bankNiftyTrades().length > 0">
+              <button
+                *ngIf="nifty50Trades().length > 0"
+                type="button"
+                class="instrument-chart-btn"
+                (click)="openInstrumentChart('NIFTY50')"
+                matTooltip="View NIFTY 50 chart with entry & exit markings for all NIFTY 50 trades"
+              >
+                <span class="material-symbols-rounded">candlestick_chart</span>
+                <span>NIFTY 50 Chart ({{ nifty50Trades().length }})</span>
+              </button>
+              <button
+                *ngIf="bankNiftyTrades().length > 0"
+                type="button"
+                class="instrument-chart-btn banknifty-btn"
+                (click)="openInstrumentChart('BANKNIFTY')"
+                matTooltip="View BANK NIFTY chart with entry & exit markings for all BANK NIFTY trades"
+              >
+                <span class="material-symbols-rounded">candlestick_chart</span>
+                <span>BANK NIFTY Chart ({{ bankNiftyTrades().length }})</span>
+              </button>
+            </div>
+
             <!-- Count Indicator -->
             <div class="trades-count-badge">
               <span>Showing {{ tradeService.filteredTrades().length }} of {{ tradeService.trades().length }} trades</span>
@@ -240,6 +266,7 @@ import { HistoricalTradeItem } from '../../core/models/trade.models';
                   <th class="num-col">Charges</th>
                   <th class="num-col">Realized P&L</th>
                   <th class="center-col">Status</th>
+                  <th class="center-col">Chart</th>
                 </tr>
               </thead>
               <tbody>
@@ -327,6 +354,21 @@ import { HistoricalTradeItem } from '../../core/models/trade.models';
                       {{ t.status === 'CLOSED' || !t.status ? ((t.pnl || 0) >= 0 ? 'PROFIT' : 'LOSS') : t.status }}
                     </span>
                   </td>
+
+                  <!-- Index Chart Action (NIFTY 50 & BANK NIFTY) -->
+                  <td class="center-col chart-action-cell">
+                    <button
+                      *ngIf="hasIndexChartSupport(t)"
+                      type="button"
+                      class="show-chart-btn"
+                      (click)="openTradeChart(t)"
+                      [matTooltip]="'Show ' + (isBankNiftyTrade(t) ? 'BANK NIFTY' : 'NIFTY 50') + ' 5m index chart with entry & exit levels'"
+                    >
+                      <span class="material-symbols-rounded">candlestick_chart</span>
+                      <span>Show Chart</span>
+                    </button>
+                    <span *ngIf="!hasIndexChartSupport(t)" class="muted">--</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -366,6 +408,16 @@ import { HistoricalTradeItem } from '../../core/models/trade.models';
           </footer>
         </section>
       </main>
+
+      <!-- NIFTY 50 / BANK NIFTY INDEX TRADE CHART MODAL -->
+      <app-trade-index-chart
+        *ngIf="isChartOpen()"
+        [tradeInput]="selectedChartTrade()"
+        [instrumentTradesInput]="selectedChartInstrumentTrades()"
+        [chartModeInput]="selectedChartMode()"
+        [instrumentKeyInput]="selectedChartInstrument()"
+        (close)="closeTradeChart()"
+      ></app-trade-index-chart>
     </div>
   `,
   styles: [
@@ -758,6 +810,49 @@ import { HistoricalTradeItem } from '../../core/models/trade.models';
         color: rgba(255, 255, 255, 0.5);
       }
 
+      .instrument-chart-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .instrument-chart-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: rgba(0, 210, 196, 0.14);
+        border: 1px solid rgba(0, 210, 196, 0.4);
+        color: #00d2c4;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .instrument-chart-btn .material-symbols-rounded {
+        font-size: 16px;
+      }
+
+      .instrument-chart-btn:hover {
+        background: rgba(0, 210, 196, 0.25);
+        border-color: #00d2c4;
+        transform: translateY(-1px);
+      }
+
+      .instrument-chart-btn.banknifty-btn {
+        background: rgba(99, 102, 241, 0.14);
+        border-color: rgba(99, 102, 241, 0.4);
+        color: #a5b4fc;
+      }
+
+      .instrument-chart-btn.banknifty-btn:hover {
+        background: rgba(99, 102, 241, 0.25);
+        border-color: #818cf8;
+      }
+
       /* TABLE */
       .table-responsive {
         width: 100%;
@@ -949,6 +1044,35 @@ import { HistoricalTradeItem } from '../../core/models/trade.models';
         border: 1px solid rgba(245, 158, 11, 0.3);
       }
 
+      .chart-action-cell {
+        white-space: nowrap;
+      }
+
+      .show-chart-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 10px;
+        border-radius: 6px;
+        background: rgba(0, 210, 196, 0.12);
+        color: #00d2c4;
+        border: 1px solid rgba(0, 210, 196, 0.35);
+        font-size: 11.5px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .show-chart-btn .material-symbols-rounded {
+        font-size: 15px;
+      }
+
+      .show-chart-btn:hover {
+        background: rgba(0, 210, 196, 0.24);
+        border-color: #00d2c4;
+        transform: translateY(-1px);
+      }
+
       /* LOADING AND EMPTY STATES */
       .loading-state,
       .empty-state {
@@ -1129,8 +1253,72 @@ export class TradeHistoryComponent {
   readonly tradeService = inject(TradeService);
 
   readonly isCustomMode = signal<boolean>(false);
+  readonly isChartOpen = signal<boolean>(false);
+  readonly selectedChartTrade = signal<HistoricalTradeItem | null>(null);
+  readonly selectedChartInstrumentTrades = signal<HistoricalTradeItem[]>([]);
+  readonly selectedChartMode = signal<'single' | 'all'>('single');
+  readonly selectedChartInstrument = signal<'NIFTY50' | 'BANKNIFTY' | null>(null);
+  readonly nifty50Trades = computed(() =>
+    this.tradeService.filteredTrades().filter((t) => this.isNifty50Trade(t)),
+  );
+  readonly bankNiftyTrades = computed(() =>
+    this.tradeService.filteredTrades().filter((t) => this.isBankNiftyTrade(t)),
+  );
   customFrom = '';
   customTo = '';
+
+  isNifty50Trade(t: HistoricalTradeItem): boolean {
+    const text = `${t.customSymbol || ''} ${t.tradingSymbol || ''} ${t.symbol || ''}`.trim().toUpperCase();
+    if (!text) return false;
+    if (
+      text.includes('BANK') ||
+      text.includes('MIDCAP') ||
+      text.includes('MIDCP') ||
+      text.includes('FINNIFTY') ||
+      text.includes('NEXT') ||
+      text.includes('NXT')
+    ) {
+      return false;
+    }
+    return text === 'NIFTY' || text === 'NIFTY 50' || /^NIFTY(\s|\d|$)/.test(text);
+  }
+
+  isBankNiftyTrade(t: HistoricalTradeItem): boolean {
+    const text = `${t.customSymbol || ''} ${t.tradingSymbol || ''} ${t.symbol || ''}`.trim().toUpperCase();
+    if (!text) return false;
+    return /^(BANKNIFTY|BANK\s+NIFTY|NIFTY\s+BANK)(\s|\d|$)/.test(text) || text.includes('BANKNIFTY') || text.includes('BANK NIFTY') || text.includes('NIFTY BANK');
+  }
+
+  hasIndexChartSupport(t: HistoricalTradeItem): boolean {
+    return this.isNifty50Trade(t) || this.isBankNiftyTrade(t);
+  }
+
+  openTradeChart(t: HistoricalTradeItem): void {
+    const instrument: 'NIFTY50' | 'BANKNIFTY' = this.isBankNiftyTrade(t) ? 'BANKNIFTY' : 'NIFTY50';
+    const matchingTrades = instrument === 'BANKNIFTY' ? this.bankNiftyTrades() : this.nifty50Trades();
+    this.selectedChartInstrument.set(instrument);
+    this.selectedChartTrade.set(t);
+    this.selectedChartInstrumentTrades.set(matchingTrades.length > 0 ? matchingTrades : [t]);
+    this.selectedChartMode.set('single');
+    this.isChartOpen.set(true);
+  }
+
+  openInstrumentChart(instrument: 'NIFTY50' | 'BANKNIFTY'): void {
+    const matchingTrades = instrument === 'BANKNIFTY' ? this.bankNiftyTrades() : this.nifty50Trades();
+    if (matchingTrades.length === 0) return;
+    this.selectedChartInstrument.set(instrument);
+    this.selectedChartTrade.set(null);
+    this.selectedChartInstrumentTrades.set(matchingTrades);
+    this.selectedChartMode.set('all');
+    this.isChartOpen.set(true);
+  }
+
+  closeTradeChart(): void {
+    this.isChartOpen.set(false);
+    this.selectedChartTrade.set(null);
+    this.selectedChartInstrumentTrades.set([]);
+    this.selectedChartInstrument.set(null);
+  }
 
   onFyChange(val: string): void {
     if (val === 'CUSTOM') {

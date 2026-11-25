@@ -2,10 +2,18 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
+import { of } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TradeHistoryComponent } from './trade-history.component';
 import { TradeService } from '../../core/api/trade.service';
+import { HistoricalDataService } from '../../core/api/historical-data.service';
+import {
+  findMatchingFiveMinCandle,
+  parseIstTimeToEpoch,
+  resolveTradeEntryExit,
+} from './components/trade-index-chart/trade-index-chart.component';
 
 describe('TradeHistoryComponent', () => {
   let component: TradeHistoryComponent;
@@ -22,7 +30,6 @@ describe('TradeHistoryComponent', () => {
       pnl: 750.0,
       pnlPercentage: 11.54,
       totalCharges: 25.5,
-      netPnL: 724.5,
       tradeValue: 13750.0,
       chargesBreakdown: {
         brokerage: 20.0,
@@ -48,7 +55,6 @@ describe('TradeHistoryComponent', () => {
       pnl: -200.0,
       pnlPercentage: -0.16,
       totalCharges: 30.0,
-      netPnL: -230.0,
       tradeValue: 249800.0,
       status: 'CLOSED',
       isProfit: false,
@@ -104,6 +110,67 @@ describe('TradeHistoryComponent', () => {
     refresh: vi.fn(),
   };
 
+  const mockHistoricalDataService = {
+    getCandles: vi.fn().mockReturnValue(
+      of({
+        success: true,
+        symbol: 'NIFTY 50',
+        timeframe: '5m',
+        monthsRead: ['2026-05'],
+        count: 2,
+        candles: [
+          {
+            epoch: parseIstTimeToEpoch('2026-05-10T10:00:00')!,
+            timestampIST: '2026-05-10T10:00:00',
+            open: 24500,
+            high: 24525,
+            low: 24495,
+            close: 24520.5,
+            volume: 0,
+          },
+          {
+            epoch: parseIstTimeToEpoch('2026-05-10T10:15:00')!,
+            timestampIST: '2026-05-10T10:15:00',
+            open: 24570,
+            high: 24595,
+            low: 24568,
+            close: 24585.75,
+            volume: 0,
+          },
+        ],
+      }),
+    ),
+    getBankNiftyCandles: vi.fn().mockReturnValue(
+      of({
+        success: true,
+        symbol: 'BANK NIFTY',
+        timeframe: '5m',
+        monthsRead: ['2026-05'],
+        count: 2,
+        candles: [
+          {
+            epoch: parseIstTimeToEpoch('2026-05-10T10:00:00')!,
+            timestampIST: '2026-05-10T10:00:00',
+            open: 52100,
+            high: 52150,
+            low: 52080,
+            close: 52140.25,
+            volume: 1000,
+          },
+          {
+            epoch: parseIstTimeToEpoch('2026-05-10T10:15:00')!,
+            timestampIST: '2026-05-10T10:15:00',
+            open: 52140,
+            high: 52200,
+            low: 52130,
+            close: 52195.5,
+            volume: 1200,
+          },
+        ],
+      }),
+    ),
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
     mockError.set(null);
@@ -115,7 +182,9 @@ describe('TradeHistoryComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideNoopAnimations(),
+        provideRouter([]),
         { provide: TradeService, useValue: mockTradeService },
+        { provide: HistoricalDataService, useValue: mockHistoricalDataService },
       ],
     }).compileComponents();
 
@@ -213,5 +282,111 @@ describe('TradeHistoryComponent', () => {
     const el: HTMLElement = fixture.nativeElement;
     const errorEl = el.querySelector('app-section-error');
     expect(errorEl).toBeTruthy();
+  });
+
+  it('should show "Show Chart" button strictly for NIFTY 50 trades and open index chart modal on click', () => {
+    const el: HTMLElement = fixture.nativeElement;
+    const rows = el.querySelectorAll('.trade-row');
+    expect(rows.length).toBe(2);
+
+    // Row 0 is NIFTY 28 NOV 24500 CALL -> Show Chart present
+    const niftyChartBtn = rows[0].querySelector('.show-chart-btn') as HTMLButtonElement;
+    expect(niftyChartBtn).toBeTruthy();
+    expect(niftyChartBtn.textContent).toContain('Show Chart');
+
+    // Row 1 is RELIANCE -> Show Chart absent
+    const relianceChartBtn = rows[1].querySelector('.show-chart-btn');
+    expect(relianceChartBtn).toBeNull();
+
+    // Also verify non-NIFTY indices are excluded from isNifty50Trade, while BANKNIFTY has chart support
+    expect(component.isNifty50Trade({ ...mockTrades()[0], symbol: 'BANKNIFTY 52000 CE' })).toBe(false);
+    expect(component.isBankNiftyTrade({ ...mockTrades()[0], symbol: 'BANKNIFTY 52000 CE' })).toBe(true);
+    expect(component.hasIndexChartSupport({ ...mockTrades()[0], symbol: 'BANKNIFTY 52000 CE' })).toBe(true);
+    expect(component.hasIndexChartSupport({ ...mockTrades()[0], symbol: 'MIDCPNIFTY 12500 PE' })).toBe(false);
+    expect(component.isNifty50Trade({ ...mockTrades()[0], symbol: 'MIDCPNIFTY 12500 PE' })).toBe(false);
+    expect(component.isNifty50Trade({ ...mockTrades()[0], symbol: 'SENSEX 80000 CE' })).toBe(false);
+    expect(component.isNifty50Trade({ ...mockTrades()[0], symbol: 'NIFTY 24500 PE' })).toBe(true);
+
+    // Click Show Chart
+    niftyChartBtn.click();
+    fixture.detectChanges();
+
+    expect(mockHistoricalDataService.getCandles).toHaveBeenCalledWith({
+      fromMonth: '2026-05',
+      toMonth: '2026-05',
+    });
+    const chartModal = el.querySelector('app-trade-index-chart');
+    expect(chartModal).toBeTruthy();
+    expect(chartModal?.textContent).toContain('NIFTY 50');
+    expect(chartModal?.textContent).toContain('Full Month (2026-05)');
+    expect(chartModal?.textContent).toContain('2 bars');
+    expect(chartModal?.textContent).toContain('24,520.50');
+    expect(chartModal?.textContent).toContain('24,585.75');
+    expect(chartModal?.textContent).toContain('+65.25 pts');
+  });
+
+  it('should resolve IST entry/exit epochs and matching 5m candles accurately', () => {
+    const entryEpoch = parseIstTimeToEpoch('2026-05-10T10:02:30');
+    expect(entryEpoch).toBe(parseIstTimeToEpoch('2026-05-10T10:02:30+05:30'));
+
+    const resolved = resolveTradeEntryExit(mockTrades()[0]);
+    expect(resolved?.entrySide).toBe('BUY');
+    expect(resolved?.exitSide).toBe('SELL');
+    expect(resolved?.startDateIst).toBe('2026-05-10');
+
+    const candle = findMatchingFiveMinCandle(
+      [
+        {
+          epoch: parseIstTimeToEpoch('2026-05-10T10:00:00')!,
+          timestampIST: '2026-05-10T10:00:00',
+          open: 24500,
+          high: 24525,
+          low: 24495,
+          close: 24520.5,
+          volume: 0,
+        },
+      ],
+      entryEpoch!,
+    );
+    expect(candle?.close).toBe(24520.5);
+  });
+
+  it('should open BANK NIFTY index chart modal for BANKNIFTY trades', () => {
+    const bankNiftyTrade = {
+      ...mockTrades()[0],
+      symbol: 'BANKNIFTY 52000 CE',
+      customSymbol: 'BANKNIFTY 28 MAY 52000 CALL',
+    };
+    component.openTradeChart(bankNiftyTrade);
+    fixture.detectChanges();
+
+    expect(mockHistoricalDataService.getBankNiftyCandles).toHaveBeenCalledWith({
+      fromMonth: '2026-05',
+      toMonth: '2026-05',
+    });
+    const el: HTMLElement = fixture.nativeElement;
+    const chartModal = el.querySelector('app-trade-index-chart');
+    expect(chartModal).toBeTruthy();
+    expect(chartModal?.textContent).toContain('BANK NIFTY');
+    expect(chartModal?.textContent).toContain('52,140.25');
+    expect(chartModal?.textContent).toContain('52,195.50');
+    expect(chartModal?.textContent).toContain('+55.25 pts');
+  });
+
+  it('should render an instrument All-Trades Chart button for NIFTY 50 and open all-trades view', () => {
+    const el: HTMLElement = fixture.nativeElement;
+    const allNiftyBtn = el.querySelector('.instrument-chart-btn') as HTMLButtonElement;
+    expect(allNiftyBtn).toBeTruthy();
+    expect(allNiftyBtn.textContent).toContain('NIFTY 50 Chart (1)');
+
+    allNiftyBtn.click();
+    fixture.detectChanges();
+
+    expect(component.isChartOpen()).toBe(true);
+    expect(component.selectedChartMode()).toBe('all');
+    const chartModal = el.querySelector('app-trade-index-chart');
+    expect(chartModal).toBeTruthy();
+    expect(chartModal?.textContent).toContain('5m · All Trades');
+    expect(chartModal?.textContent).toContain('Total P&L');
   });
 });
